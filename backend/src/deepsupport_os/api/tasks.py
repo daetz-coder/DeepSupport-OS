@@ -6,17 +6,16 @@ from typing import Any, Iterator
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from sqlalchemy import desc, select
 from sse_starlette.sse import EventSourceResponse
 
 from deepsupport_os.api.trace import build_trace, extract_interrupt_info, serialize_messages
-from deepsupport_os.db.models import AuditLog, get_session_factory
+from deepsupport_os.db import task_store
+from deepsupport_os.db.repositories import list_audit
 from deepsupport_os.harness.agent import build_support_agent
 from deepsupport_os.harness.hitl_apply import apply_approved_writes, collect_pending_writes
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
-_tasks: dict[str, dict[str, Any]] = {}
 _agent = None
 
 
@@ -28,20 +27,7 @@ def get_agent():
 
 
 def _recent_audit(limit: int = 30) -> list[dict[str, Any]]:
-    Session = get_session_factory()
-    with Session() as s:
-        rows = s.scalars(select(AuditLog).order_by(desc(AuditLog.id)).limit(limit)).all()
-        return [
-            {
-                "id": r.id,
-                "task_id": r.task_id,
-                "tool": r.tool,
-                "arguments": r.arguments,
-                "result": r.result[:500] if r.result else "",
-                "timestamp": r.timestamp.isoformat() if r.timestamp else None,
-            }
-            for r in reversed(rows)
-        ]
+    return list_audit(limit=limit)
 
 
 def _build_record(
@@ -65,6 +51,10 @@ def _build_record(
     }
 
 
+def _persist(record: dict[str, Any]) -> None:
+    task_store.save_task(record)
+
+
 class TaskCreateRequest(BaseModel):
     message: str = Field(..., min_length=1)
     thread_id: str | None = None
@@ -78,6 +68,11 @@ class TaskCreateResponse(BaseModel):
     interrupt: Any = None
     trace: dict[str, Any] = {}
     applied_writes: list[dict[str, Any]] = []
+
+
+@router.get("")
+def list_tasks(limit: int = 50):
+    return {"items": task_store.list_tasks(limit=limit)}
 
 
 @router.post("", response_model=TaskCreateResponse)
@@ -106,23 +101,23 @@ def create_task(body: TaskCreateRequest):
         interrupt=interrupt,
         status=status,
     )
-    _tasks[task_id] = record
-    _tasks[f"thread:{thread_id}"] = record
+    _persist(record)
     return TaskCreateResponse(**record)
 
 
 @router.get("/{task_id}")
 def get_task(task_id: str):
-    if task_id not in _tasks:
+    record = task_store.get_task(task_id)
+    if not record:
         raise HTTPException(status_code=404, detail="task not found")
-    return _tasks[task_id]
+    return record
 
 
 @router.get("/{task_id}/trace")
 def get_task_trace(task_id: str):
-    if task_id not in _tasks:
+    record = task_store.get_task(task_id)
+    if not record:
         raise HTTPException(status_code=404, detail="task not found")
-    record = _tasks[task_id]
     return record.get("trace") or build_trace([], interrupt=record.get("interrupt"))
 
 
@@ -139,7 +134,6 @@ def resume_task(body: ResumeRequest):
     agent = get_agent()
     config = {"configurable": {"thread_id": body.thread_id}}
 
-    # Capture pending writes before resume clears interrupt
     pre_state = agent.get_state(config)
     pre_messages = (getattr(pre_state, "values", None) or {}).get("messages") or []
     interrupt_before = extract_interrupt_info(agent, config) or {}
@@ -172,13 +166,17 @@ def resume_task(body: ResumeRequest):
         status=status,
         applied=applied,
     )
-    _tasks[task_id] = record
-    _tasks[f"thread:{body.thread_id}"] = record
+    _persist(record)
     return {
         **record,
         "approved": body.approved,
         "note": body.note,
     }
+
+
+@router.get("/meta/audit")
+def get_audit(limit: int = 50, task_id: str | None = None):
+    return {"items": list_audit(limit=limit, task_id=task_id)}
 
 
 @router.post("/stream")
@@ -204,14 +202,12 @@ async def stream_task(body: TaskCreateRequest):
                 config=config,
                 stream_mode="updates",
             ):
-                # chunk is dict[node_name -> update]
                 if not isinstance(chunk, dict):
                     continue
                 for node, update in chunk.items():
                     payload: dict[str, Any] = {"node": node}
                     if isinstance(update, dict) and "messages" in update:
                         msgs = update.get("messages") or []
-                        # LangGraph may wrap as (action, message) tuples
                         normalized = []
                         for m in msgs:
                             if isinstance(m, tuple) and len(m) == 2:
@@ -233,12 +229,7 @@ async def stream_task(body: TaskCreateRequest):
                                         "event": "tool_end",
                                         "data": json.dumps(step, ensure_ascii=False, default=str),
                                     }
-                                elif kind == "assistant":
-                                    yield {
-                                        "event": "message",
-                                        "data": json.dumps(step, ensure_ascii=False, default=str),
-                                    }
-                                elif kind == "user":
+                                elif kind in {"assistant", "user"}:
                                     yield {
                                         "event": "message",
                                         "data": json.dumps(step, ensure_ascii=False, default=str),
@@ -256,7 +247,6 @@ async def stream_task(body: TaskCreateRequest):
             }
             return
 
-        # Prefer full state messages if available
         try:
             state = agent.get_state(config)
             state_msgs = (getattr(state, "values", None) or {}).get("messages") or []
@@ -280,8 +270,7 @@ async def stream_task(body: TaskCreateRequest):
             interrupt=interrupt,
             status=status,
         )
-        _tasks[task_id] = record
-        _tasks[f"thread:{thread_id}"] = record
+        _persist(record)
         yield {
             "event": "done",
             "data": json.dumps(record, ensure_ascii=False, default=str),

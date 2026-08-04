@@ -10,7 +10,9 @@ services:
       - ./data:/app/data
       - ./workspace:/app/workspace
       - ./skills:/app/skills
-    # RAGLab / Qdrant 建议本机或单独 compose 运行，本文件后续完善
+    environment:
+      - DATABASE_URL=sqlite:///data/deepsupport.db
+      - WORKSPACE_DIR=workspace
 
   frontend:
     build:

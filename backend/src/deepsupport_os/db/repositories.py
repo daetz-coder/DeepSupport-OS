@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import desc, func, or_, select
 
 from deepsupport_os.db.models import (
     Account,
@@ -206,12 +206,28 @@ class TicketRepo:
             t = s.get(Ticket, ticket_id)
             return self._to_dict(t) if t else None
 
-    def update_ticket(self, ticket_id: str, **fields: Any) -> dict | None:
+    def update_ticket(
+        self, ticket_id: str, *, allow_terminal: bool = False, **fields: Any
+    ) -> dict | None:
+        """Update ticket fields.
+
+        Terminal statuses `closed` / `escalated` require allow_terminal=True
+        (HITL apply path). Plain tool calls cannot set them directly.
+        """
         Session = get_session_factory()
         with Session() as s:
             t = s.get(Ticket, ticket_id)
             if not t:
                 return None
+            status = fields.get("status")
+            if status in {"closed", "escalated"} and not allow_terminal:
+                return {
+                    "ok": False,
+                    "error": "terminal_status_requires_hitl",
+                    "hint": "Use close_ticket / escalate_ticket and await approval",
+                    "ticket_id": ticket_id,
+                    "requested_status": status,
+                }
             for k, v in fields.items():
                 if hasattr(t, k) and v is not None:
                     setattr(t, k, v)
@@ -284,9 +300,6 @@ class PolicyRepo:
 
 
 def write_audit(task_id: str, tool: str, arguments: Any, result: Any) -> None:
-    from deepsupport_os.db.models import init_db
-
-    init_db()
     Session = get_session_factory()
     with Session() as s:
         s.add(
@@ -298,3 +311,28 @@ def write_audit(task_id: str, tool: str, arguments: Any, result: Any) -> None:
             )
         )
         s.commit()
+
+
+def list_audit(limit: int = 50, task_id: str | None = None) -> list[dict[str, Any]]:
+    Session = get_session_factory()
+    with Session() as s:
+        stmt = select(AuditLog).order_by(desc(AuditLog.id)).limit(limit)
+        if task_id:
+            stmt = (
+                select(AuditLog)
+                .where(AuditLog.task_id == task_id)
+                .order_by(desc(AuditLog.id))
+                .limit(limit)
+            )
+        rows = s.scalars(stmt).all()
+        return [
+            {
+                "id": r.id,
+                "task_id": r.task_id,
+                "tool": r.tool,
+                "arguments": r.arguments,
+                "result": (r.result or "")[:1000],
+                "timestamp": r.timestamp.isoformat() if r.timestamp else None,
+            }
+            for r in reversed(rows)
+        ]

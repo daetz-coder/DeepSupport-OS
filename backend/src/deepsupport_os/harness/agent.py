@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import atexit
+import sqlite3
 from pathlib import Path
 
 from langchain_openai import ChatOpenAI
@@ -34,8 +36,8 @@ INTERRUPT_ON = {
     "escalate_ticket": True,
 }
 
-_checkpointer_cm = None
-_checkpointer = None
+_checkpointer: SqliteSaver | MemorySaver | None = None
+_sqlite_conn: sqlite3.Connection | None = None
 
 
 def build_model() -> ChatOpenAI:
@@ -49,17 +51,29 @@ def build_model() -> ChatOpenAI:
     )
 
 
+def _close_checkpointer() -> None:
+    global _checkpointer, _sqlite_conn
+    if _sqlite_conn is not None:
+        try:
+            _sqlite_conn.close()
+        except Exception:  # noqa: BLE001
+            pass
+    _sqlite_conn = None
+    _checkpointer = None
+
+
 def get_checkpointer():
-    """Prefer SQLite checkpointer for cross-request resume; fall back to memory."""
-    global _checkpointer_cm, _checkpointer
+    """SQLite checkpointer with explicit connection lifecycle."""
+    global _checkpointer, _sqlite_conn
     if _checkpointer is not None:
         return _checkpointer
     settings = get_settings()
     path = settings.resolve("data/checkpoints.sqlite")
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        _checkpointer_cm = SqliteSaver.from_conn_string(str(path))
-        _checkpointer = _checkpointer_cm.__enter__()
+        _sqlite_conn = sqlite3.connect(str(path), check_same_thread=False)
+        _checkpointer = SqliteSaver(_sqlite_conn)
+        atexit.register(_close_checkpointer)
         return _checkpointer
     except Exception:  # noqa: BLE001
         _checkpointer = MemorySaver()

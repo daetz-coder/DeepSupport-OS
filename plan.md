@@ -54,22 +54,14 @@
 ## Phase 2 — Mock MCP
 
 - [x] ~~Employee FastMCP 模板 + 全套 LangChain Mock 工具~~
-- [ ] 其余域独立 FastMCP 进程（按需后补）
+- [ ] 其余域独立 FastMCP 进程（Account / Ticket / Asset…，按需后补，MVP 不阻塞）
 
 ---
 
 ## Phase 3 — RAGLab 封装
 
 - [x] ~~RAGLabClient + Knowledge 工具 + 4 篇示例 Markdown~~
-- [ ] 正式语料经 RAGLab ingest（爬取后置）
-
----
-
-## Phase 5 — Skills + Subagents
-
-- [x] ~~outlook / account-access / ticket-management~~
-- [x] ~~teams / onedrive / office / escalation / resolution-report 骨架~~
-- [x] ~~Knowledge Research / Environment Diagnosis / Ticket Operations~~
+- [ ] 正式语料经 RAGLab ingest（爬取后置，MVP 用 `data/knowledge/` 本地回退）
 
 ---
 
@@ -83,29 +75,64 @@
 
 ---
 
+## Phase 5 — Skills + Subagents
+
+- [x] ~~outlook / account-access / ticket-management~~
+- [x] ~~teams / onedrive / office / escalation / resolution-report 骨架~~
+- [x] ~~Knowledge Research / Environment Diagnosis / Ticket Operations~~
+
+---
+
 ## Phase 6 — API + 前端
 
 - [x] ~~Tasks API + Vue 提问/轨迹/HITL 壳~~
 - [x] ~~SSE 流式进度~~
 - [x] ~~工具调用结构化展示~~
+- [x] ~~LLM 未配置告警 / 会话列表 / 审计日志视图~~
 
 ---
 
 ## Phase 7 — Demo
 
-- [x] ~~Demo：Outlook 登录失败（端到端，已检出 locked + 文档 + HITL）~~
-- [x] ~~Demo：账号重置 HITL（approve resume 成功）~~
-- [x] ~~Demo：自动创建工单（T1003）~~
-- [x] ~~Demo：Checkpoint 持久化恢复（SQLite checkpointer）~~
-- [x] ~~其余 Demo 用例数据：`data/benchmark/mvp_cases.jsonl`（8 条起步）~~
+- [x] ~~Demo：Outlook 登录失败 / HITL / 建单 / Checkpoint~~
+- [x] ~~Demo 用例：`data/benchmark/mvp_cases.jsonl`~~
 
 ---
 
-## Phase 8 — 评测（后置）
+## Phase 8 — 评测
 
-- [x] ~~Benchmark 案例格式 + 少量样例（mvp_cases.jsonl）~~
-- [ ] 扩充至 ~30 条 + 核心指标采集脚本
-- [ ] Baseline 说明文档
+- [x] ~~Benchmark 案例格式~~
+- [x] ~~扩充至 ~30 条（golden expect）~~
+- [x] ~~`scripts/run_eval.py`（offline 通过；online 可选）~~
+- [x] ~~Baseline 说明：`docs/baselines.md`~~
+
+---
+
+## Phase 9 — 工程化收尾
+
+- [x] ~~pytest：repositories / hitl_apply / trace / task_store / API smoke（9 passed）~~
+- [x] ~~`backend/Dockerfile` + `frontend/Dockerfile`（nginx）+ compose 可构建~~
+- [x] ~~docs：architecture / api / demo / baselines~~
+- [x] ~~任务记录持久化（`task_records` SQLite）~~
+- [x] ~~前端增强：LLM 告警、线程列表、审计视图~~
+
+---
+
+## 代码审查待调整项
+
+- [x] ~~`write_audit` 去掉每次 `init_db()`~~
+- [x] ~~`update_ticket` 禁止直接 closed/escalated（需 HITL apply）~~
+- [x] ~~`_tasks` 改为 SQLite + 锁（`task_store`）~~
+- [x] ~~checkpointer 显式 sqlite3 连接 + atexit 关闭~~
+- [x] ~~清理 `backend/data/deepsupport.db` 残留~~
+
+---
+
+## 下一步建议（后续迭代）
+
+1. 正式微软语料爬取 + RAGLab ingest
+2. Online eval 批量跑通与指标看板
+3. 按需拆独立 FastMCP 进程 / Compose 生产化
 
 ---
 
@@ -113,7 +140,7 @@
 
 | 日期 | Phase | 说明 |
 |---|---|---|
-| 2026-08-04 | 0–6 | 骨架到 API/UI 已 push |
-| 2026-08-04 | 确认项 | 用户确认全部默认决策 |
-| 2026-08-04 | 5/7 | Subagents + Skills 补齐；Outlook/HITL/建单 Demo 跑通 |
-| 2026-08-04 | P0 | Trace API + SSE + 结构化前端 + HITL 落库 |
+| 2026-08-04 | 0–7 | 主链路与 Demo 可跑 |
+| 2026-08-04 | P0 | Trace / SSE / HITL 落库 |
+| 2026-08-04 | 走查 | 增补 Phase 8/9 与审查项 |
+| 2026-08-04 | 8/9 | 30 条评测、pytest、Docker/docs、任务持久化、前端增强 |

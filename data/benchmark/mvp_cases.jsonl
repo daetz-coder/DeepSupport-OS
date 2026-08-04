@@ -6,3 +6,25 @@
 {"id": "demo-office-activation", "question": "Excel 提示产品未激活。邮箱 min.zhao@contoso.com", "expect": {"tools": ["get_license"], "hitl_optional": ["request_license_change"]}, "tags": ["office", "license"]}
 {"id": "demo-compound", "question": "Teams 无法登录，OneDrive 也不能同步。邮箱 na.li@contoso.com", "expect": {"subagents": ["knowledge-research", "environment-diagnosis"], "planning": true}, "tags": ["compound", "subagent"]}
 {"id": "demo-checkpoint-resume", "question": "（中断恢复用例）续跑已审批的密码重置线程", "expect": {"checkpoint": true}, "tags": ["checkpoint"]}
+{"id": "outlook-mfa-challenge", "question": "Outlook 登录总是 MFA 失败，邮箱 wei.zhang@contoso.com", "expect": {"tools": ["get_account_status", "search_docs"], "product": "Outlook"}, "tags": ["outlook", "mfa"]}
+{"id": "outlook-credential-prompt", "question": "Outlook 反复弹出凭据窗口，邮箱 wei.zhang@contoso.com", "expect": {"tools": ["get_account_status", "list_user_devices"], "product": "Outlook"}, "tags": ["outlook"]}
+{"id": "teams-camera", "question": "Teams 会议摄像头黑屏，邮箱 na.li@contoso.com", "expect": {"tools": ["list_user_devices", "search_docs"], "product": "Teams"}, "tags": ["teams"]}
+{"id": "teams-share-screen", "question": "Teams 无法共享屏幕，邮箱 na.li@contoso.com", "expect": {"tools": ["search_docs", "list_user_devices"], "product": "Teams"}, "tags": ["teams"]}
+{"id": "onedrive-conflict", "question": "OneDrive 出现大量冲突副本，邮箱 qiang.wang@contoso.com", "expect": {"tools": ["search_docs"], "product": "OneDrive"}, "tags": ["onedrive"]}
+{"id": "onedrive-quota", "question": "OneDrive 提示空间不足无法同步，邮箱 qiang.wang@contoso.com", "expect": {"tools": ["get_employee", "search_docs"], "product": "OneDrive"}, "tags": ["onedrive"]}
+{"id": "word-crash", "question": "Word 打开文档就闪退，邮箱 min.zhao@contoso.com", "expect": {"tools": ["list_user_devices", "search_docs"], "product": "Word"}, "tags": ["office"]}
+{"id": "powerpoint-compat", "question": "PowerPoint 提示兼容性错误，邮箱 min.zhao@contoso.com", "expect": {"tools": ["search_docs", "get_license"], "product": "PowerPoint"}, "tags": ["office"]}
+{"id": "license-change-request", "question": "请把 min.zhao@contoso.com 的许可证改成 Microsoft 365 E5", "expect": {"hitl": ["request_license_change"], "tools": ["get_license"]}, "tags": ["license", "hitl"]}
+{"id": "close-ticket-hitl", "question": "工单 T1001 已经解决，请关闭它，解决方案是重置密码后恢复。", "expect": {"hitl": ["close_ticket"]}, "tags": ["ticket", "hitl"]}
+{"id": "escalate-ticket-hitl", "question": "工单 T1001 需要升级到 L2，原因是账号反复锁定。", "expect": {"hitl": ["escalate_ticket"]}, "tags": ["ticket", "hitl"]}
+{"id": "policy-check-reset", "question": "重置密码前请先检查企业策略是否要求审批。", "expect": {"tools": ["check_action_permission"], "policy": "password_reset"}, "tags": ["policy"]}
+{"id": "employee-lookup", "question": "查询员工 wei.zhang@contoso.com 的部门和经理。", "expect": {"tools": ["get_employee", "get_manager"]}, "tags": ["employee"]}
+{"id": "asset-lookup", "question": "列出 na.li@contoso.com 名下的设备及 Office 版本。", "expect": {"tools": ["list_user_devices"]}, "tags": ["asset"]}
+{"id": "case-search-outlook", "question": "有没有和 Outlook 登录失败相似的历史案例？", "expect": {"tools": ["search_cases", "search_similar_cases"]}, "tags": ["case"]}
+{"id": "notify-user", "question": "请通知 wei.zhang@contoso.com：密码重置申请已提交待审批。", "expect": {"tools": ["notify_user"]}, "tags": ["notification"]}
+{"id": "account-status-only", "question": "只看一下 wei.zhang@contoso.com 账号现在是不是锁定。", "expect": {"tools": ["get_account_status"], "account_status": "locked"}, "tags": ["account"]}
+{"id": "ticket-create-teams", "question": "为 na.li@contoso.com 的 Teams 无声问题创建一张 P2 工单。", "expect": {"tools": ["create_ticket"]}, "tags": ["ticket", "teams"]}
+{"id": "resolution-report", "question": "请根据已完成的 Outlook 登录排查生成最终处理报告。邮箱 wei.zhang@contoso.com", "expect": {"skills": ["resolution-report"]}, "tags": ["report"]}
+{"id": "compound-office-teams", "question": "Excel 未激活，而且 Teams 也进不去。邮箱 min.zhao@contoso.com", "expect": {"planning": true, "tools": ["get_license", "get_account_status"]}, "tags": ["compound", "office", "teams"]}
+{"id": "unsupported-claim-guard", "question": "不要猜测，只基于工具结果说明 wei.zhang@contoso.com 的许可证状态。", "expect": {"tools": ["get_license"]}, "tags": ["grounding"]}
+{"id": "long-task-full-flow", "question": "完整处理 wei.zhang@contoso.com 的 Outlook 登录失败：查环境、查文档、必要时申请重置并准备工单。", "expect": {"tools": ["get_account_status", "list_user_devices", "search_docs"], "hitl_optional": ["request_password_reset"], "planning": true}, "tags": ["long-task", "outlook", "harness"]}

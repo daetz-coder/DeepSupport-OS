@@ -103,19 +103,25 @@ def apply_approved_writes(
         elif name == "close_ticket":
             ticket_id = args.get("ticket_id") or ""
             resolution = args.get("resolution") or "Closed after approval"
-            updated = _ticket.update_ticket(ticket_id, status="closed", resolution=resolution)
-            result = {"ok": bool(updated), "ticket": updated, "action": "close_ticket"}
+            updated = _ticket.update_ticket(
+                ticket_id,
+                allow_terminal=True,
+                status="closed",
+                resolution=resolution,
+            )
+            result = {"ok": bool(updated) and updated.get("status") == "closed", "ticket": updated, "action": "close_ticket"}
         elif name == "escalate_ticket":
             ticket_id = args.get("ticket_id") or ""
             reason = args.get("reason") or "Escalated after approval"
             updated = _ticket.update_ticket(
                 ticket_id,
+                allow_terminal=True,
                 status="escalated",
                 priority="P1",
                 assignee="L2 Support",
                 resolution=f"Escalation reason: {reason}",
             )
-            result = {"ok": bool(updated), "ticket": updated, "action": "escalate_ticket"}
+            result = {"ok": bool(updated) and updated.get("status") == "escalated", "ticket": updated, "action": "escalate_ticket"}
         else:
             result = {"ok": False, "error": f"unsupported_write:{name}"}
         write_audit(task_id, f"hitl_apply:{name}", args, result)

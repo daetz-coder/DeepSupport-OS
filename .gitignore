@@ -39,6 +39,8 @@ workspace/**
 !data/.gitkeep
 !data/knowledge/**
 !data/benchmark/**
+data/benchmark/last_eval.json
+
 
 # IDE / OS
 .idea/

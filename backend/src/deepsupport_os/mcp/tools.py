@@ -156,7 +156,17 @@ def get_ticket(ticket_id: str) -> dict:
 
 @tool
 def update_ticket(ticket_id: str, status: str = "", resolution: str = "", assignee: str = "") -> dict:
-    """更新工单状态、处理人或解决方案。"""
+    """更新工单状态、处理人或解决方案。
+
+    不可直接设为 closed/escalated；关闭请用 close_ticket，升级请用 escalate_ticket（需审批）。
+    """
+    if status in {"closed", "escalated"}:
+        result = {
+            "ok": False,
+            "error": "terminal_status_requires_hitl",
+            "hint": "Use close_ticket or escalate_ticket (HITL required)",
+        }
+        return _audit("update_ticket", {"ticket_id": ticket_id, "status": status}, result)
     fields = {}
     if status:
         fields["status"] = status
