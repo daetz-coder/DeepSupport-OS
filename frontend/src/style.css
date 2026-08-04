@@ -1,0 +1,18 @@
+:root {
+  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  line-height: 1.5;
+  color: #1f2937;
+  background:
+    radial-gradient(ellipse at top left, #e8f1ff 0%, transparent 50%),
+    radial-gradient(ellipse at bottom right, #f0f7f4 0%, transparent 45%),
+    #f7f8fa;
+  min-height: 100vh;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}

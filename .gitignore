@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+frontend/dist/
+*.local
+
+# Env & secrets
+.env
+.env.local
+*.pem
+
+# Runtime data
+data/*.db
+data/qdrant/
+data/uploads/
+workspace/**
+!workspace/.gitkeep
+!data/.gitkeep
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Models (use RAGLab local models via path)
+models/
+*.bin
+*.safetensors

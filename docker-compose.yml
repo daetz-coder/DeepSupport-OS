@@ -1,0 +1,21 @@
+services:
+  api:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./workspace:/app/workspace
+      - ./skills:/app/skills
+    # RAGLab / Qdrant 建议本机或单独 compose 运行，本文件后续完善
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
