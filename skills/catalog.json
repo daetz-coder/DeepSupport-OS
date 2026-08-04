@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "progressive_disclosure": {
+    "L1": "SKILL.md YAML frontmatter (name + description) — loaded at agent start",
+    "L2": "SKILL.md body — loaded when skill matches the task",
+    "L3": "references/* and scripts — read_file only when needed"
+  },
+  "sources": {
+    "builtin": "skills/ (project SOP skills)",
+    "imported": "skills/imported/ (vendored public skills via scripts/import_skill.py)"
+  },
+  "entries": [
+    {
+      "id": "skills-sh",
+      "name": "skills-ecosystem",
+      "description": "Browse/install community skills via npx skills (skills.sh). Not a SKILL.md bundle — use CLI then copy into skills/imported/.",
+      "source": "cli",
+      "repo": "skills.sh",
+      "path": "",
+      "license": "per skill",
+      "install": "npx skills find <query> && npx skills add <owner/repo@skill>",
+      "url": "https://skills.sh/",
+      "optional": true
+    },
+    {
+      "id": "docx-anthropic",
+      "name": "docx",
+      "description": "Word document create/edit (Anthropic reference skill). Proprietary license — review before import.",
+      "source": "github",
+      "repo": "anthropics/skills",
+      "path": "skills/docx",
+      "license": "Proprietary — see upstream LICENSE.txt",
+      "install": "uv run python scripts/import_skill.py docx-anthropic --accept-license",
+      "url": "https://github.com/anthropics/skills/tree/main/skills/docx",
+      "optional": true
+    },
+    {
+      "id": "pdf-anthropic",
+      "name": "pdf",
+      "description": "PDF skill from Anthropic public skills repo. Check LICENSE before production use.",
+      "source": "github",
+      "repo": "anthropics/skills",
+      "path": "skills/pdf",
+      "license": "check upstream",
+      "install": "uv run python scripts/import_skill.py pdf-anthropic --accept-license",
+      "url": "https://github.com/anthropics/skills/tree/main/skills/pdf",
+      "optional": true
+    }
+  ]
+}
