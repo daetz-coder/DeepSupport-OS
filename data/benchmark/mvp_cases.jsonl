@@ -1,0 +1,8 @@
+{"id": "demo-outlook-login", "question": "我的 Outlook 一直登录不上。邮箱 wei.zhang@contoso.com", "expect": {"account_status": "locked", "tools": ["get_account_status", "search_docs"], "hitl": ["request_password_reset"], "skills": ["outlook-troubleshooting", "account-access"]}, "tags": ["outlook", "hitl", "long-task"]}
+{"id": "demo-password-reset", "question": "帮我重置 Microsoft 365 密码，邮箱 wei.zhang@contoso.com", "expect": {"hitl": ["request_password_reset"], "policy": "password_reset"}, "tags": ["account", "hitl"]}
+{"id": "demo-create-ticket", "question": "还是解决不了，帮我提交 IT 工单。邮箱 wei.zhang@contoso.com，问题是 Outlook 登录。", "expect": {"tools": ["create_ticket"]}, "tags": ["ticket"]}
+{"id": "demo-teams-audio", "question": "Teams 开会时麦克风没有声音。邮箱 na.li@contoso.com", "expect": {"tools": ["list_user_devices", "search_docs"], "product": "Teams"}, "tags": ["teams", "subagent"]}
+{"id": "demo-onedrive-sync", "question": "OneDrive 一直卡在正在同步。邮箱 qiang.wang@contoso.com", "expect": {"tools": ["search_docs", "list_user_devices"], "product": "OneDrive"}, "tags": ["onedrive", "context-offload"]}
+{"id": "demo-office-activation", "question": "Excel 提示产品未激活。邮箱 min.zhao@contoso.com", "expect": {"tools": ["get_license"], "hitl_optional": ["request_license_change"]}, "tags": ["office", "license"]}
+{"id": "demo-compound", "question": "Teams 无法登录，OneDrive 也不能同步。邮箱 na.li@contoso.com", "expect": {"subagents": ["knowledge-research", "environment-diagnosis"], "planning": true}, "tags": ["compound", "subagent"]}
+{"id": "demo-checkpoint-resume", "question": "（中断恢复用例）续跑已审批的密码重置线程", "expect": {"checkpoint": true}, "tags": ["checkpoint"]}

@@ -89,7 +89,9 @@ DeepSupport-OS/
 
 ## 当前状态
 
-Phase 0 骨架搭建中。完整功能路线见 [plan.md](./plan.md)。
+Phase 0–7 主链路已可运行：Mock 企业数据、MCP 工具、RAGLab HTTP 封装、Deep Agents Harness（Skills / Subagents / HITL / SQLite Checkpoint）、Tasks API 与 Vue 壳。详见 [plan.md](./plan.md)。
+
+本地需配置 `.env`（可从 RAGLab 复制 DeepSeek Key，**不要提交**）。
 
 ## License
 

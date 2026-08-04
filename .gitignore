@@ -30,6 +30,7 @@ frontend/dist/
 # Runtime data
 data/*.db
 **/deepsupport.db
+**/checkpoints.sqlite
 data/qdrant/
 data/uploads/
 backend/data/
@@ -37,6 +38,7 @@ workspace/**
 !workspace/.gitkeep
 !data/.gitkeep
 !data/knowledge/**
+!data/benchmark/**
 
 # IDE / OS
 .idea/

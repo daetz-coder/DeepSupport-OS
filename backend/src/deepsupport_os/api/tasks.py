@@ -98,9 +98,8 @@ def resume_task(body: ResumeRequest):
     """Resume after human approval (HITL)."""
     agent = get_agent()
     config = {"configurable": {"thread_id": body.thread_id}}
-    decision = {"type": "approve" if body.approved else "reject"}
+    decision = {"decisions": [{"type": "approve" if body.approved else "reject"}]}
     try:
-        # LangGraph HITL resume via Command if available
         from langgraph.types import Command
 
         result = agent.invoke(Command(resume=decision), config=config)
