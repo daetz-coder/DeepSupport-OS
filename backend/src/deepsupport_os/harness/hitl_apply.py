@@ -18,6 +18,22 @@ WRITE_TOOLS = {
     "escalate_ticket",
 }
 
+WRITE_LABELS = {
+    "request_password_reset": "密码重置",
+    "request_license_change": "许可证变更",
+    "close_ticket": "关闭工单",
+    "escalate_ticket": "升级工单",
+}
+
+_HIGHLIGHT_KEYS = (
+    ("email", "邮箱"),
+    ("ticket_id", "工单 ID"),
+    ("new_license_type", "新许可证"),
+    ("license_type", "许可证"),
+    ("resolution", "处理说明"),
+    ("reason", "升级原因"),
+)
+
 
 def _parse_args(raw: Any) -> dict[str, Any]:
     if isinstance(raw, dict):
@@ -28,6 +44,32 @@ def _parse_args(raw: Any) -> dict[str, Any]:
         except json.JSONDecodeError:
             return {}
     return {}
+
+
+def preview_pending_write(name: str, args: dict[str, Any] | None = None) -> dict[str, Any]:
+    """UI-friendly summary of one pending HITL write."""
+    args = _parse_args(args or {})
+    highlights = [
+        {"key": label, "value": str(args[field])}
+        for field, label in _HIGHLIGHT_KEYS
+        if args.get(field) not in (None, "")
+    ]
+    return {
+        "name": name,
+        "label": WRITE_LABELS.get(name, name),
+        "highlights": highlights,
+        "args": args,
+    }
+
+
+def preview_pending_writes(writes: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for w in writes or []:
+        name = w.get("name")
+        if not name:
+            continue
+        out.append(preview_pending_write(str(name), _parse_args(w.get("args"))))
+    return out
 
 
 def collect_pending_writes(messages: list[Any] | None = None, pending: list[dict] | None = None) -> list[dict[str, Any]]:

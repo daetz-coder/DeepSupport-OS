@@ -66,7 +66,7 @@
 - ~~RAGLabClient + Knowledge 工具 + 4 篇示例 Markdown~~
 - ~~微软公开支持页试采：`scripts/crawl_ms_support.py`（robots + sitemap + 限速）~~
 - ~~落地 `data/knowledge/microsoft/*.md`（本地检索已可命中）~~
-- 正式语料批量扩采 + 经 RAGLab ingest 入库（需 RAGLab 在线）
+- ~~正式语料批量扩采 + 经 RAGLab ingest 入库（需 RAGLab 在线）~~
 
 ---
 
@@ -135,9 +135,9 @@
 
 ## 下一步建议（后续迭代）
 
-1. 微软语料批量扩采 + RAGLab ingest（试采脚本已具备）
-2. Online eval 批量跑通与指标看板
-3. 按需拆独立 FastMCP 进程 / Compose 生产化
+1. Online eval + Baseline A/B 对比（体现 Harness 价值）
+2. Workspace 按 thread_id 绑定 + Subagent Trace 标记
+3. Compose 实测 / CI / CONTRIBUTING
 
 ---
 
@@ -149,7 +149,7 @@
 
 - ~~微软语料扩采：seeds 扩采至 ~50+ 篇（sitemap 超时则回退 seeds）~~
 - ~~RAGLab ingest 打通：`scripts/ingest_to_raglab.py`；Knowledge 优先 RAGLab、本地 MD fallback~~
-- 语料质量门禁：最短正文长度、必须含 `source_url`、产品标签校验；入库前 dry-run 报告
+- ~~语料质量门禁：`scripts/check_knowledge_quality.py`（最短正文 / source_url / product；dry-run 报告）~~
 - ~~更新选型表：「知识语料」改为“公开支持页 + RAGLab 向量库”~~
 
 ### B. 评测与对比实验（体现 Harness 价值）
@@ -165,13 +165,13 @@
 - Workspace 后端显式绑定任务目录（`workspace/{thread_id}/`），强化 context offloading 可观测
 - Subagent 委派在 Trace 中单独标记（knowledge-research / environment-diagnosis / ticket-operations）
 - Skills 从骨架补全为可执行 SOP（Teams / OneDrive / Office 关键步骤与工具名对齐）
-- HITL 前端展示 pending 写操作参数预览（邮箱、ticket_id、许可证类型）
+- ~~HITL 前端展示 pending 写操作参数预览（邮箱、ticket_id、许可证类型）~~
 
 ### D. 产品与开源体验
 
 - `docker compose up` 实测与 README 一键启动说明（含 RAGLab 可选依赖）
 - CONTRIBUTING / SECURITY 短文；截图或 GIF 放入 `docs/demo-screenshots/`
-- 前端：计划待办（todo list）可视化；错误态与重试按钮
+- ~~前端：计划待办（todo list）可视化；错误态与重试按钮~~
 - CI：GitHub Actions 跑 `pytest` + `run_eval.py --offline`
 
 ### E. 明确可继续后置
@@ -194,5 +194,6 @@
 | 2026-08-04 | 语料    | 微软支持页试采（sitemap/robots），落地 microsoft Markdown    |
 | 2026-08-04 | 规划    | 增补 Phase 10 后续步骤（RAG 扩采 / Online eval / CI / 体验） |
 | 2026-08-04 | 10A/C | 微软语料扩采+RAGLab ingest 52 篇；Daytona 沙箱接入 Deep Agents |
+| 2026-08-04 | 10C/D | HITL 参数预览、错误重试、计划清单；语料质量门禁脚本 |
 
 

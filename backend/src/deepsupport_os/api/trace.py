@@ -143,6 +143,8 @@ def build_trace(
 
 
 def extract_interrupt_info(agent: Any, config: dict) -> dict[str, Any] | None:
+    from deepsupport_os.harness.hitl_apply import collect_pending_writes, preview_pending_writes
+
     try:
         state = agent.get_state(config)
     except Exception:  # noqa: BLE001
@@ -160,8 +162,12 @@ def extract_interrupt_info(agent: Any, config: dict) -> dict[str, Any] | None:
     # Prefer structured pending writes from latest messages
     msgs = values.get("messages") or []
     trace = build_trace(msgs, interrupt={"next": nxt})
+    pending = collect_pending_writes(msgs, pending=trace.get("pending_writes"))
+    # Only surface the most recent write tools for HITL UI (avoid historical noise)
+    pending = pending[-3:]
     return {
         "next": nxt,
-        "pending_writes": trace.get("pending_writes") or [],
+        "pending_writes": pending,
+        "pending_preview": preview_pending_writes(pending),
         "tasks": interrupts,
     }

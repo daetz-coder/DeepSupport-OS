@@ -11,6 +11,21 @@ type TraceStep = {
   tool_call_id?: string
 }
 
+type HitlHighlight = { key: string; value: string }
+type HitlPreview = {
+  name: string
+  label: string
+  highlights: HitlHighlight[]
+  args: Record<string, unknown>
+}
+
+type InterruptInfo = {
+  next?: string[]
+  pending_writes?: TraceStep[]
+  pending_preview?: HitlPreview[]
+  tasks?: string[]
+}
+
 type Trace = {
   steps?: TraceStep[]
   pending_writes?: TraceStep[]
@@ -34,6 +49,12 @@ type AuditItem = {
   timestamp?: string
 }
 
+type PlanItem = {
+  name: string
+  status: 'done' | 'pending' | 'running'
+  args?: unknown
+}
+
 const API = 'http://127.0.0.1:8000'
 const question = ref('我的 Outlook 一直登录不上，邮箱是 wei.zhang@contoso.com')
 const loading = ref(false)
@@ -43,21 +64,60 @@ const llmConfigured = ref<boolean | null>(null)
 const threadId = ref<string | null>(null)
 const taskId = ref<string | null>(null)
 const status = ref('')
-const interrupt = ref<unknown>(null)
+const interrupt = ref<InterruptInfo | null>(null)
 const steps = ref<TraceStep[]>([])
 const appliedWrites = ref<unknown[]>([])
 const liveEvents = ref<string[]>([])
 const taskList = ref<TaskItem[]>([])
 const auditList = ref<AuditItem[]>([])
 const activeTab = ref('trace')
+const lastError = ref<string | null>(null)
+const lastQuestion = ref('')
 
 const hasInterrupt = computed(() => Boolean(interrupt.value))
+const pendingPreview = computed<HitlPreview[]>(() => {
+  const fromInterrupt = interrupt.value?.pending_preview
+  if (fromInterrupt?.length) return fromInterrupt
+  const writes = interrupt.value?.pending_writes || []
+  return writes
+    .filter((w) => w.name)
+    .map((w) => ({
+      name: w.name as string,
+      label: w.name as string,
+      highlights: Object.entries((w.args as Record<string, unknown>) || {})
+        .filter(([, v]) => v !== null && v !== undefined && v !== '')
+        .map(([k, v]) => ({ key: k, value: String(v) })),
+      args: (w.args as Record<string, unknown>) || {},
+    }))
+})
+
+const planItems = computed<PlanItem[]>(() => {
+  const calls = steps.value.filter((s) => s.kind === 'tool_call' && s.name)
+  const results = new Set(
+    steps.value
+      .filter((s) => s.kind === 'tool_result' && s.name)
+      .map((s) => s.name as string),
+  )
+  const seen = new Set<string>()
+  const items: PlanItem[] = []
+  for (const c of calls) {
+    const name = c.name as string
+    if (seen.has(name)) continue
+    seen.add(name)
+    items.push({
+      name,
+      status: results.has(name) ? 'done' : loading.value ? 'running' : 'pending',
+      args: c.args,
+    })
+  }
+  return items
+})
 
 function applyRecord(data: Record<string, unknown>) {
   threadId.value = (data.thread_id as string) || threadId.value
   taskId.value = (data.task_id as string) || taskId.value
   status.value = (data.status as string) || status.value
-  interrupt.value = data.interrupt ?? null
+  interrupt.value = (data.interrupt as InterruptInfo) || null
   appliedWrites.value = (data.applied_writes as unknown[]) || []
   const trace = data.trace as Trace | undefined
   if (trace?.steps?.length) {
@@ -107,6 +167,7 @@ function newThread() {
   steps.value = []
   appliedWrites.value = []
   liveEvents.value = []
+  lastError.value = null
   question.value = ''
   ElMessage.info('已新建会话线程')
 }
@@ -117,10 +178,12 @@ async function openTask(item: TaskItem) {
     if (!res.ok) throw new Error('task not found')
     const data = await res.json()
     applyRecord(data)
+    lastError.value = null
     activeTab.value = 'trace'
     ElMessage.success('已加载历史任务')
   } catch (e) {
-    ElMessage.error(`加载失败: ${e instanceof Error ? e.message : e}`)
+    lastError.value = e instanceof Error ? e.message : String(e)
+    ElMessage.error(`加载失败: ${lastError.value}`)
   }
 }
 
@@ -129,6 +192,12 @@ function stepTagType(kind: string) {
   if (kind === 'tool_result') return 'success'
   if (kind === 'user') return 'info'
   if (kind === 'assistant') return ''
+  return 'info'
+}
+
+function planTagType(status: PlanItem['status']) {
+  if (status === 'done') return 'success'
+  if (status === 'running') return 'warning'
   return 'info'
 }
 
@@ -199,7 +268,7 @@ async function submitStream() {
         if (event === 'tool_start' || event === 'tool_end' || event === 'message') {
           steps.value = [...steps.value, payload as TraceStep]
         } else if (event === 'interrupt') {
-          interrupt.value = payload
+          interrupt.value = payload as InterruptInfo
           status.value = 'interrupted'
         } else if (event === 'done') {
           applyRecord(payload)
@@ -226,6 +295,8 @@ async function submit() {
     ElMessage.warning('未配置 LLM（DEEPSEEK_API_KEY），任务可能失败')
   }
   loading.value = true
+  lastError.value = null
+  lastQuestion.value = question.value
   appliedWrites.value = []
   try {
     if (useStream.value) {
@@ -236,15 +307,30 @@ async function submit() {
     ElMessage.success('任务已执行')
     await Promise.all([refreshTasks(), refreshAudit()])
   } catch (e) {
-    ElMessage.error(`执行失败: ${e instanceof Error ? e.message : e}`)
+    lastError.value = e instanceof Error ? e.message : String(e)
+    status.value = 'failed'
+    ElMessage.error(`执行失败: ${lastError.value}`)
   } finally {
     loading.value = false
   }
 }
 
+async function retryLast() {
+  if (lastQuestion.value) {
+    question.value = lastQuestion.value
+  }
+  // New thread for clean retry after failure (avoid polluted checkpoint)
+  if (status.value === 'failed') {
+    threadId.value = null
+    taskId.value = null
+  }
+  await submit()
+}
+
 async function resume(approved: boolean) {
   if (!threadId.value) return
   loading.value = true
+  lastError.value = null
   try {
     const res = await fetch(`${API}/api/tasks/resume`, {
       method: 'POST',
@@ -261,11 +347,12 @@ async function resume(approved: boolean) {
     }
     const data = await res.json()
     applyRecord(data)
-    interrupt.value = data.interrupt || null
+    interrupt.value = (data.interrupt as InterruptInfo) || null
     ElMessage.success(approved ? '已批准并落库' : '已拒绝')
     await Promise.all([refreshTasks(), refreshAudit()])
   } catch (e) {
-    ElMessage.error(`恢复失败: ${e instanceof Error ? e.message : e}`)
+    lastError.value = e instanceof Error ? e.message : String(e)
+    ElMessage.error(`恢复失败: ${lastError.value}`)
   } finally {
     loading.value = false
   }
@@ -343,6 +430,14 @@ onMounted(async () => {
           <el-button type="primary" :loading="loading" @click="submit">
             提交支持任务
           </el-button>
+          <el-button
+            v-if="lastError"
+            type="warning"
+            :loading="loading"
+            @click="retryLast"
+          >
+            重试
+          </el-button>
           <el-button @click="checkHealth">检查后端</el-button>
           <el-button
             v-if="hasInterrupt"
@@ -363,13 +458,44 @@ onMounted(async () => {
         </div>
 
         <el-alert
+          v-if="lastError"
+          title="任务执行失败"
+          type="error"
+          :description="lastError"
+          show-icon
+          :closable="true"
+          @close="lastError = null"
+        />
+
+        <el-alert
           v-if="hasInterrupt"
           title="需要人工审批"
           type="warning"
-          description="高风险写操作待确认。批准后将写入 Mock 数据库。"
+          description="高风险写操作待确认。请核对下方参数后批准或拒绝；批准后将写入 Mock 数据库。"
           show-icon
           :closable="false"
         />
+
+        <section v-if="hasInterrupt && pendingPreview.length" class="hitl-preview">
+          <h2>待审批写操作</h2>
+          <div v-for="(p, i) in pendingPreview" :key="i" class="hitl-card">
+            <div class="step-head">
+              <el-tag type="danger" size="small">HITL</el-tag>
+              <strong>{{ p.label }}</strong>
+              <span class="muted">{{ p.name }}</span>
+            </div>
+            <ul v-if="p.highlights.length" class="hitl-highlights">
+              <li v-for="(h, j) in p.highlights" :key="j">
+                <span class="hitl-key">{{ h.key }}</span>
+                <code>{{ h.value }}</code>
+              </li>
+            </ul>
+            <details>
+              <summary>完整参数</summary>
+              <pre>{{ formatArgs(p.args) }}</pre>
+            </details>
+          </div>
+        </section>
 
         <el-alert
           v-if="taskId"
@@ -380,6 +506,14 @@ onMounted(async () => {
         />
 
         <el-tabs v-model="activeTab">
+          <el-tab-pane label="执行计划" name="plan">
+            <div v-if="!planItems.length" class="muted">提交任务后将根据工具调用生成计划清单</div>
+            <div v-for="(p, i) in planItems" :key="i" class="plan-row">
+              <el-tag :type="planTagType(p.status)" size="small">{{ p.status }}</el-tag>
+              <strong>{{ p.name }}</strong>
+            </div>
+          </el-tab-pane>
+
           <el-tab-pane label="执行轨迹" name="trace">
             <section v-if="appliedWrites.length" class="applied">
               <h2>已落库写操作</h2>
@@ -507,9 +641,45 @@ onMounted(async () => {
   align-items: center;
 }
 .trace h2,
-.applied h2 {
+.applied h2,
+.hitl-preview h2 {
   font-size: 1.05rem;
   margin: 8px 0;
+}
+.hitl-preview {
+  border: 1px solid #fbbf24;
+  background: #fffbeb;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.hitl-card + .hitl-card {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #fcd34d;
+}
+.hitl-highlights {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0;
+}
+.hitl-highlights li {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  margin: 4px 0;
+  font-size: 0.9rem;
+}
+.hitl-key {
+  min-width: 72px;
+  color: #92400e;
+  font-weight: 600;
+}
+.plan-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f3f4f6;
 }
 .step,
 .card,
