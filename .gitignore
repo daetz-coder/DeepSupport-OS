@@ -31,15 +31,19 @@ frontend/dist/
 data/*.db
 **/deepsupport.db
 **/checkpoints.sqlite
+**/checkpoints.sqlite-shm
+**/checkpoints.sqlite-wal
 data/qdrant/
 data/uploads/
 backend/data/
+conversation_history/
 workspace/**
 !workspace/.gitkeep
 !data/.gitkeep
 !data/knowledge/**
 !data/benchmark/**
 data/benchmark/last_eval.json
+data/benchmark/last_baselines.json
 data/raw/microsoft/html/
 
 
