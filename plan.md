@@ -20,7 +20,7 @@
 | MCP | Mock 工具层 + FastMCP Employee 模板 |
 | 默认 LLM | DeepSeek（本地 `.env`，不入库） |
 | 向量库 | RAGLab 侧 Qdrant |
-| 知识语料（MVP） | 自建示例 Markdown；正式微软爬取后置 |
+| 知识语料（MVP） | 自建示例 + 微软公开页试采（~21 篇）；扩采/RAGLab ingest 待做 |
 | HITL 写操作 | password_reset / license_change / close_ticket / escalate_ticket |
 | Benchmark | MVP ~30 条；100–300 后置 |
 | 推送节奏 | 每个 Phase `commit + push` |
@@ -138,6 +138,46 @@
 
 ---
 
+## Phase 10 — 建议后续步骤（待开工）
+
+> MVP 主链路已闭环。下面按价值排序，作为下一轮迭代清单。
+
+### A. 知识与 RAG（优先）
+
+- [ ] 微软语料扩采：`--per-product 10~20`，目标 ~100–200 篇排查类文档；过滤弱相关页（Copilot 教程、营销文）
+- [ ] RAGLab ingest 打通：批量 `POST /api/ingest`；Knowledge MCP 默认走 RAGLab，本地 MD 仅作 fallback
+- [ ] 语料质量门禁：最短正文长度、必须含 `source_url`、产品标签校验；入库前 dry-run 报告
+- [ ] 更新选型表：「知识语料」从“试采”改为“公开支持页 + RAGLab 向量库”
+
+### B. 评测与对比实验（体现 Harness 价值）
+
+- [ ] Online eval：`run_eval.py --online --limit 30` 实跑并落盘 `last_eval.json`（成功率 / HITL / 工具命中 / 耗时）
+- [ ] 实现 Baseline A（仅 RAG）与 Baseline B（无 Skills/Subagents 的 tool agent）最小可跑脚本
+- [ ] 对比表写入 `docs/baselines.md`（Task Success、Long-task、HITL Safety、Token/时延）
+- [ ] Benchmark 向 100 条扩展（后置到 300）
+
+### C. Harness / Agent 能力加深
+
+- [ ] Workspace 后端显式绑定任务目录（`workspace/{thread_id}/`），强化 context offloading 可观测
+- [ ] Subagent 委派在 Trace 中单独标记（knowledge-research / environment-diagnosis / ticket-operations）
+- [ ] Skills 从骨架补全为可执行 SOP（Teams / OneDrive / Office 关键步骤与工具名对齐）
+- [ ] HITL 前端展示 pending 写操作参数预览（邮箱、ticket_id、许可证类型）
+
+### D. 产品与开源体验
+
+- [ ] `docker compose up` 实测与 README 一键启动说明（含 RAGLab 可选依赖）
+- [ ] CONTRIBUTING / SECURITY 短文；截图或 GIF 放入 `docs/demo-screenshots/`
+- [ ] 前端：计划待办（todo list）可视化；错误态与重试按钮
+- [ ] CI：GitHub Actions 跑 `pytest` + `run_eval.py --offline`
+
+### E. 明确可继续后置
+
+- [ ] 各业务域独立 FastMCP 进程（当前 LangChain 工具层已够用）
+- [ ] 真实 AD / M365 / ServiceNow 连接
+- [ ] 微软语料超大规模爬取与版权合规法务审阅
+
+---
+
 ## 进度日志
 
 | 日期 | Phase | 说明 |
@@ -147,3 +187,4 @@
 | 2026-08-04 | 走查 | 增补 Phase 8/9 与审查项 |
 | 2026-08-04 | 8/9 | 30 条评测、pytest、Docker/docs、任务持久化、前端增强 |
 | 2026-08-04 | 语料 | 微软支持页试采（sitemap/robots），落地 microsoft Markdown |
+| 2026-08-04 | 规划 | 增补 Phase 10 后续步骤（RAG 扩采 / Online eval / CI / 体验） |
