@@ -40,6 +40,7 @@ workspace/**
 !data/knowledge/**
 !data/benchmark/**
 data/benchmark/last_eval.json
+data/raw/microsoft/html/
 
 
 # IDE / OS

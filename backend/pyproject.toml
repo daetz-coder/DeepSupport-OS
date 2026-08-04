@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "beautifulsoup4>=4.15.0",
     "deepagents>=0.7.3",
     "faker>=40.36.0",
     "fastapi>=0.141.1",
@@ -16,6 +17,7 @@ dependencies = [
     "langchain-openai>=1.4.1",
     "langgraph>=1.2.10",
     "langgraph-checkpoint-sqlite>=3.1.1",
+    "lxml>=6.1.1",
     "mcp>=2.0.0",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.2",

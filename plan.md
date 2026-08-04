@@ -61,7 +61,9 @@
 ## Phase 3 — RAGLab 封装
 
 - [x] ~~RAGLabClient + Knowledge 工具 + 4 篇示例 Markdown~~
-- [ ] 正式语料经 RAGLab ingest（爬取后置，MVP 用 `data/knowledge/` 本地回退）
+- [x] ~~微软公开支持页试采：`scripts/crawl_ms_support.py`（robots + sitemap + 限速）~~
+- [x] ~~落地 `data/knowledge/microsoft/*.md`（本地检索已可命中）~~
+- [ ] 正式语料批量扩采 + 经 RAGLab ingest 入库（需 RAGLab 在线）
 
 ---
 
@@ -130,7 +132,7 @@
 
 ## 下一步建议（后续迭代）
 
-1. 正式微软语料爬取 + RAGLab ingest
+1. 微软语料批量扩采 + RAGLab ingest（试采脚本已具备）
 2. Online eval 批量跑通与指标看板
 3. 按需拆独立 FastMCP 进程 / Compose 生产化
 
@@ -144,3 +146,4 @@
 | 2026-08-04 | P0 | Trace / SSE / HITL 落库 |
 | 2026-08-04 | 走查 | 增补 Phase 8/9 与审查项 |
 | 2026-08-04 | 8/9 | 30 条评测、pytest、Docker/docs、任务持久化、前端增强 |
+| 2026-08-04 | 语料 | 微软支持页试采（sitemap/robots），落地 microsoft Markdown |
