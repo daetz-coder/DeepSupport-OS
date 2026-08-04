@@ -4,8 +4,8 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# backend/ → repo root
-ROOT_DIR = Path(__file__).resolve().parents[3]
+# backend/src/deepsupport_os/core/config.py → repo root
+ROOT_DIR = Path(__file__).resolve().parents[4]
 
 
 class Settings(BaseSettings):

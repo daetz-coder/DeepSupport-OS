@@ -29,11 +29,14 @@ frontend/dist/
 
 # Runtime data
 data/*.db
+**/deepsupport.db
 data/qdrant/
 data/uploads/
+backend/data/
 workspace/**
 !workspace/.gitkeep
 !data/.gitkeep
+!data/knowledge/**
 
 # IDE / OS
 .idea/
