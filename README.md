@@ -46,7 +46,8 @@ Deep Agents Harness
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入 DEEPSEEK_API_KEY、DAYTONA_API_KEY，并确认 RAGLAB_* / 模型路径
+cp config/mcp_servers.example.json config/mcp_servers.json   # 若尚无
+# 编辑 .env：DEEPSEEK_API_KEY、可选 DAYTONA_API_KEY、RAGLAB_* 
 ```
 
 ### 2. 后端
@@ -68,30 +69,62 @@ npm run dev
 
 浏览器打开 http://localhost:5173 。API 文档：http://localhost:8000/docs 。
 
-### 4. RAGLab（知识检索）
+### 4. RAGLab（知识检索，可选）
 
-DeepSupport OS **不内嵌** RAG 实现。请另行启动 RAGLab（默认约定端口 `8001`），由 Knowledge MCP 通过 HTTP 调用。
+DeepSupport OS **不内嵌** RAG。另启 RAGLab（默认 `8001`）；未启动时 Knowledge 工具回退本地 Markdown。
+
+### 5. Docker Compose（可选）
+
+```bash
+# 需已配置 .env；RAGLab 仍建议宿主机单独运行
+docker compose up --build
+# API http://localhost:8000  · 前端 http://localhost:5173（映射以 compose 为准）
+```
+
+### Skills（渐进披露 + 持续接入）
+
+- Builtin：`skills/*/SKILL.md`，长 SOP 放 `references/`（L3 按需 `read_file`）
+- 公开 skill：`skills/catalog.json` + `scripts/import_skill.py` → `skills/imported/`
+- 索引 API：`GET /api/meta/skills`
+- 说明：[skills/README.md](./skills/README.md)
+
+### MCP（本地 + 远程）
+
+- 默认：进程内 Mock LangChain 工具（`MCP_LOCAL_TOOLS=true`）
+- 远程：编辑 `config/mcp_servers.json`，设 `MCP_REMOTE_ENABLED=true`
+
+```bash
+# 终端 A — 远程风格 HTTP Employee MCP
+cd backend && uv run python -m deepsupport_os.mcp.servers.employee --http
+
+# 终端 B — 连通性冒烟
+cd backend && uv run python ../scripts/test_remote_mcp.py
+# 或 GET /api/meta/mcp  ·  POST /api/meta/mcp/reload
+```
+
+第三方/公开 MCP：在 `mcp_servers.json` 增加 `url` + `transport`（`streamable_http` / `sse`）即可，无需改代码。
 
 ## 仓库结构
 
 ```text
 DeepSupport-OS/
-├── backend/          # FastAPI + Deep Agents + Mock MCP
+├── backend/          # FastAPI + Deep Agents + MCP client
 ├── frontend/         # Vue3 + Element Plus
-├── skills/           # Agent Skills (SKILL.md)
-├── data/             # SQLite 与示例数据
+├── skills/           # Builtin + imported Agent Skills
+├── config/           # mcp_servers.json（远程 MCP）
+├── data/             # SQLite 与语料
 ├── workspace/        # 任务文件工作区
-├── docs/             # 设计与评测文档
-├── scripts/          # 种子数据 / 运维脚本
-├── plan.md           # 实施计划（完成项划线）
+├── docs/             # 设计与评测；demo-screenshots/
+├── scripts/          # import_skill / eval / remote MCP 冒烟
+├── plan.md           # 精简待办
+├── CONTRIBUTING.md
+├── SECURITY.md
 └── README.md
 ```
 
 ## 当前状态
 
-Phase 0–7 主链路已可运行：Mock 企业数据、MCP 工具、RAGLab HTTP 封装、Deep Agents Harness（Skills / Subagents / HITL / SQLite Checkpoint）、Tasks API 与 Vue 壳。详见 [plan.md](./plan.md)。
-
-本地需配置 `.env`（可从 RAGLab 复制 DeepSeek Key；Daytona Key 用于 Skills/工作区沙箱隔离，**不要提交**）。
+Phase 0–11 主链路已可运行（Harness、HITL、Memory/Todo/Artifacts、Daytona sidecar）。Skills SOP + 公开导入 + 远程 MCP 客户端已接入。详见 [plan.md](./plan.md)、[CONTRIBUTING.md](./CONTRIBUTING.md)。
 
 ## License
 

@@ -10,9 +10,12 @@ services:
       - ./data:/app/data
       - ./workspace:/app/workspace
       - ./skills:/app/skills
+      - ./config:/app/config
+      - ./memory:/app/memory
     environment:
       - DATABASE_URL=sqlite:///data/deepsupport.db
       - WORKSPACE_DIR=workspace
+      - MCP_SERVERS_CONFIG=config/mcp_servers.json
 
   frontend:
     build:

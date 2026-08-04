@@ -92,19 +92,39 @@ def score_online(case: dict[str, Any], *, use_daytona: bool = False) -> dict[str
 
     tool_hit = required_tools.issubset(tool_names) if required_tools else True
     hitl_hit = hitl_tools.issubset(tool_names | pending) if hitl_tools else True
-    ok = tool_hit and hitl_hit
+
+    # Weak assertion: long-task / context-offload cases should leave workspace files
+    tags = set(case.get("tags") or [])
+    expect_offload = bool(expect.get("workspace_files")) or (
+        "context-offload" in tags or "long-task" in tags
+    )
+    workspace_files = sorted(p.name for p in ws.rglob("*") if p.is_file()) if ws.exists() else []
+    offload_hit = True
+    if expect_offload:
+        required_files = set(expect.get("workspace_files") or [])
+        if required_files:
+            offload_hit = required_files.issubset(set(workspace_files))
+        else:
+            # soft: any markdown artifact or context_offload step
+            offloads = trace.get("context_offloads") or []
+            offload_hit = bool(workspace_files) or bool(offloads)
+
+    ok = tool_hit and hitl_hit and offload_hit
     return {
         "id": case.get("id"),
         "ok": ok,
         "mode": "online",
         "elapsed_ms": round(elapsed_ms, 1),
         "workspace_path": str(ws),
+        "workspace_files": workspace_files,
         "use_daytona": use_daytona,
         "tools_seen": sorted(x for x in tool_names if x),
         "pending_writes": sorted(x for x in pending if x),
         "subagents": [x for x in subagents if x],
         "tool_hit": tool_hit,
         "hitl_hit": hitl_hit,
+        "offload_hit": offload_hit,
+        "expect_offload": expect_offload,
     }
 
 
