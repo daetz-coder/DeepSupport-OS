@@ -41,12 +41,15 @@ class Settings(BaseSettings):
     # Agent workspace (filesystem context / offloading; local fallback)
     workspace_dir: str = "workspace"
 
-    # Daytona sandbox for Deep Agents backend (skills / shell isolation)
+    # Daytona: keep as lightweight sidecar (local Skills/workspace are primary)
     daytona_enabled: bool = True
     daytona_api_key: str = ""
     daytona_sandbox_name: str = "deepsupport-sandbox"
     daytona_api_url: str = "https://app.daytona.io/api"
     daytona_target: str = ""
+    # sidecar = local primary + /sandbox/ route (recommended on 1vCPU/1GiB)
+    # off = local only; full = entire FS on Daytona (slow, not recommended)
+    daytona_mode: str = "sidecar"
 
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 

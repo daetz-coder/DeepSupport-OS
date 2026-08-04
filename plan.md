@@ -196,5 +196,6 @@
 | 2026-08-04 | 10A/C | 微软语料扩采+RAGLab ingest 52 篇；Daytona 沙箱接入 Deep Agents |
 | 2026-08-04 | 10C/D | HITL 参数预览、错误重试、计划清单；语料质量门禁脚本 |
 | 2026-08-04 | 10B/C | Baseline A/B、eval 指标、workspace/{thread_id}、Subagent Trace |
+| 2026-08-04 | Daytona | 改为 sidecar：Skills/工作区本地；云端仅 /sandbox/ + 简单 shell |
 
 

@@ -45,7 +45,7 @@ def score_offline(case: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def score_online(case: dict[str, Any]) -> dict[str, Any]:
+def score_online(case: dict[str, Any], *, use_daytona: bool = False) -> dict[str, Any]:
     from deepsupport_os.api.trace import build_trace
     from deepsupport_os.core.config import get_settings
     from deepsupport_os.db import init_db
@@ -62,8 +62,8 @@ def score_online(case: dict[str, Any]) -> dict[str, Any]:
     seed_database(force=False)
     thread_id = str(uuid.uuid4())
     ws = ensure_thread_workspace(thread_id)
-    # Local FS (repo root) for eval stability; Daytona remains for interactive API demos.
-    agent = build_support_agent(thread_id=thread_id, use_daytona=False)
+    # Local-first hybrid (skills on disk). --daytona only attaches /sandbox/ sidecar.
+    agent = build_support_agent(thread_id=thread_id, use_daytona=use_daytona)
     config = {"configurable": {"thread_id": thread_id}}
     t0 = time.perf_counter()
     try:
@@ -78,6 +78,7 @@ def score_online(case: dict[str, Any]) -> dict[str, Any]:
             "mode": "online",
             "error": str(exc),
             "elapsed_ms": round((time.perf_counter() - t0) * 1000, 1),
+            "use_daytona": use_daytona,
         }
     elapsed_ms = (time.perf_counter() - t0) * 1000
     msgs = result.get("messages", [])
@@ -98,6 +99,7 @@ def score_online(case: dict[str, Any]) -> dict[str, Any]:
         "mode": "online",
         "elapsed_ms": round(elapsed_ms, 1),
         "workspace_path": str(ws),
+        "use_daytona": use_daytona,
         "tools_seen": sorted(x for x in tool_names if x),
         "pending_writes": sorted(x for x in pending if x),
         "subagents": [x for x in subagents if x],
@@ -112,6 +114,11 @@ def main() -> None:
     parser.add_argument("--offline", action="store_true", default=True)
     parser.add_argument("--online", action="store_true")
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument(
+        "--daytona",
+        action="store_true",
+        help="Attach Daytona as /sandbox/ sidecar (Skills stay local; default offline path is local-only)",
+    )
     args = parser.parse_args()
 
     cases = load_cases(args.cases)
@@ -123,7 +130,7 @@ def main() -> None:
     for case in cases:
         if mode_online:
             try:
-                results.append(score_online(case))
+                results.append(score_online(case, use_daytona=args.daytona))
             except Exception as exc:  # noqa: BLE001
                 results.append(
                     {
@@ -131,6 +138,7 @@ def main() -> None:
                         "ok": False,
                         "mode": "online",
                         "error": str(exc),
+                        "use_daytona": args.daytona,
                     }
                 )
         else:
@@ -146,6 +154,7 @@ def main() -> None:
         "failed": len(results) - passed,
         "pass_rate": round(passed / len(results), 3) if results else 0.0,
         "mode": "online" if mode_online else "offline",
+        "use_daytona": bool(args.daytona) if mode_online else False,
         "avg_elapsed_ms": round(sum(elapsed) / len(elapsed), 1) if elapsed else None,
         "tool_hit_rate": round(tool_ok / len(results), 3) if mode_online and results else None,
         "hitl_hit_rate": round(hitl_ok / len(results), 3) if mode_online and results else None,
@@ -154,7 +163,17 @@ def main() -> None:
     out = ROOT / "data" / "benchmark" / "last_eval.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    keys = ("total", "passed", "failed", "pass_rate", "mode", "avg_elapsed_ms", "tool_hit_rate", "hitl_hit_rate")
+    keys = (
+        "total",
+        "passed",
+        "failed",
+        "pass_rate",
+        "mode",
+        "use_daytona",
+        "avg_elapsed_ms",
+        "tool_hit_rate",
+        "hitl_hit_rate",
+    )
     print(json.dumps({k: summary[k] for k in keys}, ensure_ascii=False, indent=2))
     print(f"wrote {out}")
 

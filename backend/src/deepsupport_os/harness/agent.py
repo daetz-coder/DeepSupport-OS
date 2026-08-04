@@ -13,7 +13,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from deepagents import create_deep_agent
 
 from deepsupport_os.core.config import get_settings
-from deepsupport_os.harness.daytona_backend import get_or_create_daytona_backend
+from deepsupport_os.harness.daytona_backend import build_hybrid_backend, run_sandbox_shell
 from deepsupport_os.harness.subagents import build_mvp_subagents
 from deepsupport_os.harness.workspace import ensure_thread_workspace
 from deepsupport_os.mcp.tools import all_agent_tools
@@ -23,10 +23,12 @@ SYSTEM_PROMPT = """你是 DeepSupport OS，企业 Microsoft 365 IT 技术支持�
 工作原则：
 1. 先收集用户邮箱/设备等上下文，再查询 Employee、Account、Asset。
 2. 复杂检索可委派 knowledge-research；环境排查可委派 environment-diagnosis；开单可委派 ticket-operations。
-3. 使用 search_docs / search_cases 获取排查依据，长内容写入工作区文件（Daytona 沙箱或本地 workspace）。
-4. 高风险写操作（密码重置、许可证变更、关闭/升级工单）必须先 check_action_permission，并等待人工审批。
-5. 无法自动解决时创建完整工单，并生成结构化处理报告。
-6. 所有结论需有工具结果或文档依据，禁止臆造。
+3. 使用 search_docs / search_cases 获取排查依据；长内容写入**本地**工作区文件（workspace/…），不要上传到云端沙箱。
+4. Skills、文档检索、工单/账号工具、长报告均在本地执行（更快）。
+5. 云端 Daytona 沙箱（/sandbox/ 或 run_sandbox_shell）仅用于简单短命令/隔离试运行；禁止把 Skills 或大批量文件放到沙箱（规格约 1vCPU/1GiB）。
+6. 高风险写操作（密码重置、许可证变更、关闭/升级工单）必须先 check_action_permission，并等待人工审批。
+7. 无法自动解决时创建完整工单，并生成结构化处理报告。
+8. 所有结论需有工具结果或文档依据，禁止臆造。
 
 演示账号提示：张伟 wei.zhang@contoso.com 账号状态为 locked，适合 Outlook 登录失败场景。
 """
@@ -100,29 +102,29 @@ def build_support_agent(
         ws = settings.resolve(settings.workspace_dir)
     ws.mkdir(parents=True, exist_ok=True)
 
+    # Skills always from local disk (fast); hybrid backend keeps them on LocalShell.
     skills_dirs = skills or [str(settings.resolve("skills"))]
     existing_skills = [p for p in skills_dirs if Path(p).exists()]
 
     if backend is not None:
         agent_backend = backend
     else:
-        agent_backend = get_or_create_daytona_backend() if use_daytona else None
-        if agent_backend is None:
-            from deepagents.backends import FilesystemBackend
+        agent_backend = build_hybrid_backend(attach_daytona=use_daytona)
 
-            # Root = repo so Skills paths stay inside the backend sandbox.
-            agent_backend = FilesystemBackend(root_dir=settings.root_dir)
+    tools = list(all_agent_tools())
+    if use_daytona and settings.daytona_enabled:
+        tools.append(run_sandbox_shell)
 
     prompt = SYSTEM_PROMPT
     if thread_id:
         prompt += (
-            f"\n\n当前任务工作区目录（本地可观测）：`{ws.as_posix()}`。"
-            "长检索结果与处理报告请写入该工作区文件。"
+            f"\n\n当前本地工作区：`{ws.as_posix()}`（长内容写入此处）。"
+            "云端沙箱路径前缀仅 `/sandbox/`，只放短小试跑内容。"
         )
 
     return create_deep_agent(
         model=build_model(),
-        tools=all_agent_tools(),
+        tools=tools,
         system_prompt=prompt,
         skills=existing_skills or None,
         subagents=build_mvp_subagents(),

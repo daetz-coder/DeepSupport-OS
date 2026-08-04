@@ -27,7 +27,23 @@ uv run python ../scripts/run_baselines.py --offline
 
 \* Baseline B may *call* write tools but lacks Deep Agents HITL middleware + apply pipeline used by Full.
 
-## Live comparison (online)
+## Daytona sidecar (lightweight)
+
+DeepSupport keeps **Skills / workspace / shell** on the local machine for speed.
+Daytona (~1 vCPU / 1 GiB) is only a **sidecar**:
+
+| Path / tool | Where | Use for |
+|---|---|---|
+| `skills/`, `workspace/` | Local `LocalShellBackend` | Skills, RAG offload, long reports |
+| `/sandbox/...` | Daytona route | Tiny isolated files only |
+| `run_sandbox_shell` | Daytona | Trivial `echo` / short commands |
+
+```bash
+# .env
+DAYTONA_MODE=sidecar   # recommended
+# DAYTONA_MODE=off     # local only
+# DAYTONA_MODE=full    # slow; not recommended on small sandboxes
+```
 
 ```bash
 cd backend

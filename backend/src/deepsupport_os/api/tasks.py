@@ -18,22 +18,14 @@ from deepsupport_os.harness.workspace import ensure_thread_workspace
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 _agent = None
-_agent_uses_daytona: bool | None = None
 
 
 def get_agent(thread_id: str | None = None):
-    """Reuse singleton when Daytona backend is shared; else bind local FS to thread workspace."""
-    global _agent, _agent_uses_daytona
-    from deepsupport_os.harness.daytona_backend import get_or_create_daytona_backend
-
-    if _agent_uses_daytona is None:
-        _agent_uses_daytona = get_or_create_daytona_backend() is not None
-
-    if _agent_uses_daytona:
-        if _agent is None:
-            _agent = build_support_agent(thread_id=thread_id)
-        return _agent
-    return build_support_agent(thread_id=thread_id)
+    """Shared hybrid agent: local Skills/workspace + optional Daytona /sandbox/ sidecar."""
+    global _agent
+    if _agent is None:
+        _agent = build_support_agent(thread_id=thread_id, use_daytona=True)
+    return _agent
 
 
 def _recent_audit(limit: int = 30) -> list[dict[str, Any]]:
