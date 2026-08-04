@@ -25,6 +25,10 @@ def _ensure_env() -> None:
         os.environ["DAYTONA_TARGET"] = settings.daytona_target
 
 
+def _sandbox_state(sandbox: Any) -> str:
+    return str(getattr(sandbox, "state", "") or getattr(sandbox, "status", "") or "").lower()
+
+
 def get_or_create_daytona_backend() -> Any | None:
     """Return a DaytonaSandbox backend, or None when disabled / unavailable."""
     global _sandbox, _backend, _daytona_client
@@ -46,28 +50,35 @@ def get_or_create_daytona_backend() -> Any | None:
         return None
 
     name = settings.daytona_sandbox_name or "deepsupport-sandbox"
-    client = Daytona()
-    _daytona_client = client
-
-    sandbox = None
     try:
-        sandbox = client.get(name)
-        state = str(getattr(sandbox, "state", "") or "").lower()
-        if state in {"stopped", "archived", "error"}:
-            logger.info("starting daytona sandbox %s (state=%s)", name, state)
-            client.start(sandbox)
-        logger.info("reusing daytona sandbox %s", name)
-    except Exception as exc:  # noqa: BLE001
-        logger.info("daytona get(%s) failed (%s); creating", name, exc)
-        sandbox = client.create(
-            CreateSandboxFromSnapshotParams(name=name, language="python"),
-            timeout=120,
-        )
-        logger.info("created daytona sandbox %s id=%s", name, getattr(sandbox, "id", "?"))
+        client = Daytona()
+        _daytona_client = client
 
-    _sandbox = sandbox
-    _backend = DaytonaSandbox(sandbox=sandbox)
-    return _backend
+        sandbox = None
+        try:
+            sandbox = client.get(name)
+            state = _sandbox_state(sandbox)
+            if state not in {"started", "running", "ready"}:
+                logger.info("starting daytona sandbox %s (state=%s)", name, state)
+                client.start(sandbox, timeout=120)
+            logger.info("reusing daytona sandbox %s", name)
+        except Exception as exc:  # noqa: BLE001
+            logger.info("daytona get(%s) failed (%s); creating", name, exc)
+            sandbox = client.create(
+                CreateSandboxFromSnapshotParams(name=name, language="python"),
+                timeout=120,
+            )
+            logger.info("created daytona sandbox %s id=%s", name, getattr(sandbox, "id", "?"))
+
+        _sandbox = sandbox
+        _backend = DaytonaSandbox(sandbox=sandbox)
+        return _backend
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("daytona backend unavailable, falling back to local FS: %s", exc)
+        _sandbox = None
+        _backend = None
+        _daytona_client = None
+        return None
 
 
 def cleanup_daytona(*, stop: bool = False, delete: bool = False) -> None:

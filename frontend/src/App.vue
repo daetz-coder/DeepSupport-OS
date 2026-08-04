@@ -9,6 +9,7 @@ type TraceStep = {
   args?: unknown
   id?: string
   tool_call_id?: string
+  subagent?: string
 }
 
 type HitlHighlight = { key: string; value: string }
@@ -64,6 +65,7 @@ const llmConfigured = ref<boolean | null>(null)
 const threadId = ref<string | null>(null)
 const taskId = ref<string | null>(null)
 const status = ref('')
+const workspacePath = ref<string | null>(null)
 const interrupt = ref<InterruptInfo | null>(null)
 const steps = ref<TraceStep[]>([])
 const appliedWrites = ref<unknown[]>([])
@@ -117,6 +119,7 @@ function applyRecord(data: Record<string, unknown>) {
   threadId.value = (data.thread_id as string) || threadId.value
   taskId.value = (data.task_id as string) || taskId.value
   status.value = (data.status as string) || status.value
+  workspacePath.value = (data.workspace_path as string) || workspacePath.value
   interrupt.value = (data.interrupt as InterruptInfo) || null
   appliedWrites.value = (data.applied_writes as unknown[]) || []
   const trace = data.trace as Trace | undefined
@@ -163,6 +166,7 @@ function newThread() {
   threadId.value = null
   taskId.value = null
   status.value = ''
+  workspacePath.value = null
   interrupt.value = null
   steps.value = []
   appliedWrites.value = []
@@ -188,6 +192,7 @@ async function openTask(item: TaskItem) {
 }
 
 function stepTagType(kind: string) {
+  if (kind === 'subagent_dispatch') return 'danger'
   if (kind === 'tool_call') return 'warning'
   if (kind === 'tool_result') return 'success'
   if (kind === 'user') return 'info'
@@ -265,7 +270,7 @@ async function submitStream() {
       liveEvents.value.push(`${event}`)
       try {
         const payload = JSON.parse(data)
-        if (event === 'tool_start' || event === 'tool_end' || event === 'message') {
+        if (event === 'tool_start' || event === 'tool_end' || event === 'message' || event === 'subagent') {
           steps.value = [...steps.value, payload as TraceStep]
         } else if (event === 'interrupt') {
           interrupt.value = payload as InterruptInfo
@@ -276,6 +281,7 @@ async function submitStream() {
           taskId.value = payload.task_id
           threadId.value = payload.thread_id
           status.value = payload.status || status.value
+          if (payload.workspace_path) workspacePath.value = payload.workspace_path
         } else if (event === 'error') {
           throw new Error(payload.error || 'stream error')
         }
@@ -499,7 +505,7 @@ onMounted(async () => {
 
         <el-alert
           v-if="taskId"
-          :title="`Task ${taskId} / Thread ${threadId}`"
+          :title="`Task ${taskId} / Thread ${threadId}${workspacePath ? ' / ' + workspacePath : ''}`"
           type="info"
           show-icon
           :closable="false"
@@ -525,7 +531,8 @@ onMounted(async () => {
               <div v-for="(s, i) in steps" :key="i" class="step">
                 <div class="step-head">
                   <el-tag :type="stepTagType(s.kind)" size="small">{{ s.kind }}</el-tag>
-                  <strong v-if="s.name" class="tool-name">{{ s.name }}</strong>
+                  <strong v-if="s.subagent" class="tool-name">{{ s.subagent }}</strong>
+                  <strong v-else-if="s.name" class="tool-name">{{ s.name }}</strong>
                 </div>
                 <pre v-if="s.args">{{ formatArgs(s.args) }}</pre>
                 <pre v-if="s.content">{{ s.content }}</pre>

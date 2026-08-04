@@ -51,6 +51,7 @@ def score_online(case: dict[str, Any]) -> dict[str, Any]:
     from deepsupport_os.db import init_db
     from deepsupport_os.db.seed import seed_database
     from deepsupport_os.harness.agent import build_support_agent
+    from deepsupport_os.harness.workspace import ensure_thread_workspace
     import uuid
 
     settings = get_settings()
@@ -59,14 +60,25 @@ def score_online(case: dict[str, Any]) -> dict[str, Any]:
 
     init_db()
     seed_database(force=False)
-    agent = build_support_agent()
     thread_id = str(uuid.uuid4())
+    ws = ensure_thread_workspace(thread_id)
+    # Local FS (repo root) for eval stability; Daytona remains for interactive API demos.
+    agent = build_support_agent(thread_id=thread_id, use_daytona=False)
     config = {"configurable": {"thread_id": thread_id}}
     t0 = time.perf_counter()
-    result = agent.invoke(
-        {"messages": [{"role": "user", "content": case["question"]}]},
-        config=config,
-    )
+    try:
+        result = agent.invoke(
+            {"messages": [{"role": "user", "content": case["question"]}]},
+            config=config,
+        )
+    except Exception as exc:  # noqa: BLE001
+        return {
+            "id": case.get("id"),
+            "ok": False,
+            "mode": "online",
+            "error": str(exc),
+            "elapsed_ms": round((time.perf_counter() - t0) * 1000, 1),
+        }
     elapsed_ms = (time.perf_counter() - t0) * 1000
     msgs = result.get("messages", [])
     trace = build_trace(msgs)
@@ -75,6 +87,7 @@ def score_online(case: dict[str, Any]) -> dict[str, Any]:
     required_tools = set(expect.get("tools") or [])
     hitl_tools = set(expect.get("hitl") or [])
     pending = {p.get("name") for p in (trace.get("pending_writes") or [])}
+    subagents = [s.get("subagent") for s in (trace.get("subagent_dispatches") or [])]
 
     tool_hit = required_tools.issubset(tool_names) if required_tools else True
     hitl_hit = hitl_tools.issubset(tool_names | pending) if hitl_tools else True
@@ -84,8 +97,10 @@ def score_online(case: dict[str, Any]) -> dict[str, Any]:
         "ok": ok,
         "mode": "online",
         "elapsed_ms": round(elapsed_ms, 1),
+        "workspace_path": str(ws),
         "tools_seen": sorted(x for x in tool_names if x),
         "pending_writes": sorted(x for x in pending if x),
+        "subagents": [x for x in subagents if x],
         "tool_hit": tool_hit,
         "hitl_hit": hitl_hit,
     }
@@ -107,23 +122,40 @@ def main() -> None:
     results = []
     for case in cases:
         if mode_online:
-            results.append(score_online(case))
+            try:
+                results.append(score_online(case))
+            except Exception as exc:  # noqa: BLE001
+                results.append(
+                    {
+                        "id": case.get("id"),
+                        "ok": False,
+                        "mode": "online",
+                        "error": str(exc),
+                    }
+                )
         else:
             results.append(score_offline(case))
 
     passed = sum(1 for r in results if r.get("ok"))
+    elapsed = [r["elapsed_ms"] for r in results if isinstance(r.get("elapsed_ms"), (int, float))]
+    hitl_ok = sum(1 for r in results if r.get("hitl_hit") is True)
+    tool_ok = sum(1 for r in results if r.get("tool_hit") is True)
     summary = {
         "total": len(results),
         "passed": passed,
         "failed": len(results) - passed,
         "pass_rate": round(passed / len(results), 3) if results else 0.0,
         "mode": "online" if mode_online else "offline",
+        "avg_elapsed_ms": round(sum(elapsed) / len(elapsed), 1) if elapsed else None,
+        "tool_hit_rate": round(tool_ok / len(results), 3) if mode_online and results else None,
+        "hitl_hit_rate": round(hitl_ok / len(results), 3) if mode_online and results else None,
         "results": results,
     }
     out = ROOT / "data" / "benchmark" / "last_eval.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps({k: summary[k] for k in ("total", "passed", "failed", "pass_rate", "mode")}, ensure_ascii=False, indent=2))
+    keys = ("total", "passed", "failed", "pass_rate", "mode", "avg_elapsed_ms", "tool_hit_rate", "hitl_hit_rate")
+    print(json.dumps({k: summary[k] for k in keys}, ensure_ascii=False, indent=2))
     print(f"wrote {out}")
 
 

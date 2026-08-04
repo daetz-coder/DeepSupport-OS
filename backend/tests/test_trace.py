@@ -29,6 +29,32 @@ def test_serialize_and_trace_pending_writes():
     assert trace["pending_writes"][0]["name"] == "request_password_reset"
 
 
+def test_subagent_dispatch_marked():
+    class FakeTaskAI:
+        type = "ai"
+        content = ""
+        tool_calls = [
+            {
+                "id": "t1",
+                "name": "task",
+                "args": {"subagent_type": "knowledge-research", "prompt": "查文档"},
+            }
+        ]
+
+    trace = build_trace([FakeTaskAI()])
+    assert any(s["kind"] == "subagent_dispatch" for s in trace["steps"])
+    assert trace["subagent_dispatches"][0]["subagent"] == "knowledge-research"
+
+
+def test_thread_workspace():
+    from deepsupport_os.harness.workspace import ensure_thread_workspace, sanitize_thread_id
+
+    assert sanitize_thread_id("ab/../cd") == "ab_.._cd"
+    path = ensure_thread_workspace("test-thread-xyz")
+    assert path.exists()
+    assert path.name == "test-thread-xyz"
+
+
 def test_preview_pending_writes():
     from deepsupport_os.harness.hitl_apply import preview_pending_write, preview_pending_writes
 

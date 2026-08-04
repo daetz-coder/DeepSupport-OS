@@ -13,17 +13,27 @@ from deepsupport_os.db import task_store
 from deepsupport_os.db.repositories import list_audit
 from deepsupport_os.harness.agent import build_support_agent
 from deepsupport_os.harness.hitl_apply import apply_approved_writes, collect_pending_writes
+from deepsupport_os.harness.workspace import ensure_thread_workspace
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
 _agent = None
+_agent_uses_daytona: bool | None = None
 
 
-def get_agent():
-    global _agent
-    if _agent is None:
-        _agent = build_support_agent()
-    return _agent
+def get_agent(thread_id: str | None = None):
+    """Reuse singleton when Daytona backend is shared; else bind local FS to thread workspace."""
+    global _agent, _agent_uses_daytona
+    from deepsupport_os.harness.daytona_backend import get_or_create_daytona_backend
+
+    if _agent_uses_daytona is None:
+        _agent_uses_daytona = get_or_create_daytona_backend() is not None
+
+    if _agent_uses_daytona:
+        if _agent is None:
+            _agent = build_support_agent(thread_id=thread_id)
+        return _agent
+    return build_support_agent(thread_id=thread_id)
 
 
 def _recent_audit(limit: int = 30) -> list[dict[str, Any]]:
@@ -38,12 +48,15 @@ def _build_record(
     interrupt: Any,
     status: str,
     applied: list[dict] | None = None,
+    workspace_path: str | None = None,
 ) -> dict[str, Any]:
     trace = build_trace(messages, interrupt=interrupt, audit=_recent_audit(20))
+    ws = workspace_path or str(ensure_thread_workspace(thread_id))
     return {
         "task_id": task_id,
         "thread_id": thread_id,
         "status": status,
+        "workspace_path": ws,
         "messages": serialize_messages(messages),
         "interrupt": interrupt,
         "trace": trace,
@@ -64,6 +77,7 @@ class TaskCreateResponse(BaseModel):
     task_id: str
     thread_id: str
     status: str
+    workspace_path: str | None = None
     messages: list[dict[str, Any]] = []
     interrupt: Any = None
     trace: dict[str, Any] = {}
@@ -78,9 +92,10 @@ def list_tasks(limit: int = 50):
 @router.post("", response_model=TaskCreateResponse)
 def create_task(body: TaskCreateRequest):
     """Run one support turn via Deep Agents Harness."""
-    agent = get_agent()
     thread_id = body.thread_id or str(uuid.uuid4())
     task_id = str(uuid.uuid4())
+    ws = ensure_thread_workspace(thread_id)
+    agent = get_agent(thread_id)
     config = {"configurable": {"thread_id": thread_id}}
 
     try:
@@ -100,6 +115,7 @@ def create_task(body: TaskCreateRequest):
         messages=messages,
         interrupt=interrupt,
         status=status,
+        workspace_path=str(ws),
     )
     _persist(record)
     return TaskCreateResponse(**record)
@@ -131,8 +147,9 @@ class ResumeRequest(BaseModel):
 @router.post("/resume")
 def resume_task(body: ResumeRequest):
     """Resume after human approval (HITL) and apply approved writes."""
-    agent = get_agent()
+    agent = get_agent(body.thread_id)
     config = {"configurable": {"thread_id": body.thread_id}}
+    ws = ensure_thread_workspace(body.thread_id)
 
     pre_state = agent.get_state(config)
     pre_messages = (getattr(pre_state, "values", None) or {}).get("messages") or []
@@ -165,6 +182,7 @@ def resume_task(body: ResumeRequest):
         interrupt=interrupt,
         status=status,
         applied=applied,
+        workspace_path=str(ws),
     )
     _persist(record)
     return {
@@ -182,16 +200,22 @@ def get_audit(limit: int = 50, task_id: str | None = None):
 @router.post("/stream")
 async def stream_task(body: TaskCreateRequest):
     """SSE stream of agent progress: status / tool / message / interrupt / done."""
-    agent = get_agent()
     thread_id = body.thread_id or str(uuid.uuid4())
     task_id = str(uuid.uuid4())
+    ws = ensure_thread_workspace(thread_id)
+    agent = get_agent(thread_id)
     config = {"configurable": {"thread_id": thread_id}}
 
     def event_gen() -> Iterator[dict[str, str]]:
         yield {
             "event": "status",
             "data": json.dumps(
-                {"task_id": task_id, "thread_id": thread_id, "status": "running"},
+                {
+                    "task_id": task_id,
+                    "thread_id": thread_id,
+                    "status": "running",
+                    "workspace_path": str(ws),
+                },
                 ensure_ascii=False,
             ),
         }
@@ -222,6 +246,11 @@ async def stream_task(body: TaskCreateRequest):
                                 if kind == "tool_call":
                                     yield {
                                         "event": "tool_start",
+                                        "data": json.dumps(step, ensure_ascii=False, default=str),
+                                    }
+                                elif kind == "subagent_dispatch":
+                                    yield {
+                                        "event": "subagent",
                                         "data": json.dumps(step, ensure_ascii=False, default=str),
                                     }
                                 elif kind == "tool_result":
@@ -269,6 +298,7 @@ async def stream_task(body: TaskCreateRequest):
             messages=final_messages,
             interrupt=interrupt,
             status=status,
+            workspace_path=str(ws),
         )
         _persist(record)
         yield {

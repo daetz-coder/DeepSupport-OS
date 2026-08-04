@@ -132,10 +132,37 @@ def build_trace(
         }
     ]
 
+    # Mark Deep Agents `task` tool calls as subagent dispatches
+    SUBAGENT_NAMES = {
+        "knowledge-research",
+        "environment-diagnosis",
+        "ticket-operations",
+        "general-purpose",
+    }
+    for step in steps:
+        if step.get("kind") != "tool_call" or step.get("name") != "task":
+            continue
+        args = step.get("args") or {}
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except json.JSONDecodeError:
+                args = {}
+        sub_name = ""
+        if isinstance(args, dict):
+            sub_name = str(args.get("subagent_type") or args.get("name") or args.get("agent") or "")
+        step["kind"] = "subagent_dispatch"
+        step["subagent"] = sub_name or "unknown"
+        if sub_name in SUBAGENT_NAMES:
+            step["subagent_known"] = True
+
+    subagent_steps = [s for s in steps if s.get("kind") == "subagent_dispatch"]
+
     return {
         "steps": steps,
         "tool_calls": tool_calls,
         "pending_writes": pending_writes,
+        "subagent_dispatches": subagent_steps,
         "interrupt": interrupt,
         "audit": audit or [],
         "messages": serialized,

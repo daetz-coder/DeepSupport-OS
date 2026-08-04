@@ -135,9 +135,9 @@
 
 ## 下一步建议（后续迭代）
 
-1. Online eval + Baseline A/B 对比（体现 Harness 价值）
-2. Workspace 按 thread_id 绑定 + Subagent Trace 标记
-3. Compose 实测 / CI / CONTRIBUTING
+1. Skills SOP 补全（Teams / OneDrive / Office）
+2. Compose 实测 + CONTRIBUTING / SECURITY / Demo 截图（**不含 CI**）
+3. Benchmark 扩到 ~100（后置）
 
 ---
 
@@ -154,16 +154,16 @@
 
 ### B. 评测与对比实验（体现 Harness 价值）
 
-- Online eval：`run_eval.py --online --limit 30` 实跑并落盘 `last_eval.json`（成功率 / HITL / 工具命中 / 耗时）
-- 实现 Baseline A（仅 RAG）与 Baseline B（无 Skills/Subagents 的 tool agent）最小可跑脚本
-- 对比表写入 `docs/baselines.md`（Task Success、Long-task、HITL Safety、Token/时延）
+- ~~Online eval：`run_eval.py --online` 可跑并落盘 `last_eval.json`（含成功率 / HITL / 工具命中 / 耗时）~~
+- ~~实现 Baseline A（仅 RAG）与 Baseline B（无 Skills/Subagents）最小可跑脚本~~
+- ~~对比表写入 `docs/baselines.md`（Task Success、Long-task、HITL Safety、Token/时延）~~
 - Benchmark 向 100 条扩展（后置到 300）
 
 ### C. Harness / Agent 能力加深
 
 - ~~Daytona 沙箱：`DAYTONA_*` + `DaytonaSandbox` 作为 Deep Agents backend（Skills/工作区隔离）~~
-- Workspace 后端显式绑定任务目录（`workspace/{thread_id}/`），强化 context offloading 可观测
-- Subagent 委派在 Trace 中单独标记（knowledge-research / environment-diagnosis / ticket-operations）
+- ~~Workspace 后端显式绑定任务目录（`workspace/{thread_id}/`），强化 context offloading 可观测~~
+- ~~Subagent 委派在 Trace 中单独标记（knowledge-research / environment-diagnosis / ticket-operations）~~
 - Skills 从骨架补全为可执行 SOP（Teams / OneDrive / Office 关键步骤与工具名对齐）
 - ~~HITL 前端展示 pending 写操作参数预览（邮箱、ticket_id、许可证类型）~~
 
@@ -172,7 +172,7 @@
 - `docker compose up` 实测与 README 一键启动说明（含 RAGLab 可选依赖）
 - CONTRIBUTING / SECURITY 短文；截图或 GIF 放入 `docs/demo-screenshots/`
 - ~~前端：计划待办（todo list）可视化；错误态与重试按钮~~
-- CI：GitHub Actions 跑 `pytest` + `run_eval.py --offline`
+- CI：GitHub Actions 跑 `pytest` + `run_eval.py --offline`（本轮明确后置，不做）
 
 ### E. 明确可继续后置
 
@@ -195,5 +195,6 @@
 | 2026-08-04 | 规划    | 增补 Phase 10 后续步骤（RAG 扩采 / Online eval / CI / 体验） |
 | 2026-08-04 | 10A/C | 微软语料扩采+RAGLab ingest 52 篇；Daytona 沙箱接入 Deep Agents |
 | 2026-08-04 | 10C/D | HITL 参数预览、错误重试、计划清单；语料质量门禁脚本 |
+| 2026-08-04 | 10B/C | Baseline A/B、eval 指标、workspace/{thread_id}、Subagent Trace |
 
 

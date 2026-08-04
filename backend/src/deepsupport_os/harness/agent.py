@@ -15,6 +15,7 @@ from deepagents import create_deep_agent
 from deepsupport_os.core.config import get_settings
 from deepsupport_os.harness.daytona_backend import get_or_create_daytona_backend
 from deepsupport_os.harness.subagents import build_mvp_subagents
+from deepsupport_os.harness.workspace import ensure_thread_workspace
 from deepsupport_os.mcp.tools import all_agent_tools
 
 SYSTEM_PROMPT = """你是 DeepSupport OS，企业 Microsoft 365 IT 技术支持智能体。
@@ -84,23 +85,45 @@ def get_checkpointer():
 def build_support_agent(
     *,
     workspace: Path | None = None,
+    thread_id: str | None = None,
     checkpointer=None,
     skills: list[str] | None = None,
     backend=None,
+    use_daytona: bool = True,
 ):
     settings = get_settings()
-    ws = workspace or settings.resolve(settings.workspace_dir)
+    if workspace is not None:
+        ws = workspace
+    elif thread_id:
+        ws = ensure_thread_workspace(thread_id)
+    else:
+        ws = settings.resolve(settings.workspace_dir)
     ws.mkdir(parents=True, exist_ok=True)
 
     skills_dirs = skills or [str(settings.resolve("skills"))]
     existing_skills = [p for p in skills_dirs if Path(p).exists()]
 
-    agent_backend = backend if backend is not None else get_or_create_daytona_backend()
+    if backend is not None:
+        agent_backend = backend
+    else:
+        agent_backend = get_or_create_daytona_backend() if use_daytona else None
+        if agent_backend is None:
+            from deepagents.backends import FilesystemBackend
+
+            # Root = repo so Skills paths stay inside the backend sandbox.
+            agent_backend = FilesystemBackend(root_dir=settings.root_dir)
+
+    prompt = SYSTEM_PROMPT
+    if thread_id:
+        prompt += (
+            f"\n\n当前任务工作区目录（本地可观测）：`{ws.as_posix()}`。"
+            "长检索结果与处理报告请写入该工作区文件。"
+        )
 
     return create_deep_agent(
         model=build_model(),
         tools=all_agent_tools(),
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=prompt,
         skills=existing_skills or None,
         subagents=build_mvp_subagents(),
         interrupt_on=INTERRUPT_ON,
