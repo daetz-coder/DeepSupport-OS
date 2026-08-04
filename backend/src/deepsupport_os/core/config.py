@@ -51,6 +51,14 @@ class Settings(BaseSettings):
     # off = local only; full = entire FS on Daytona (slow, not recommended)
     daytona_mode: str = "sidecar"
 
+    # Skills: multi-source progressive disclosure
+    skills_imported_enabled: bool = True
+
+    # MCP: in-process mock tools + optional remote MultiServerMCPClient
+    mcp_local_tools: bool = True
+    mcp_remote_enabled: bool = False
+    mcp_servers_config: str = "config/mcp_servers.json"
+
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
     def resolve(self, path: str | Path) -> Path:

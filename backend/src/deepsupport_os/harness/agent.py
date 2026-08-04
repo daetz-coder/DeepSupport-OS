@@ -16,6 +16,7 @@ from deepagents import create_deep_agent
 from deepsupport_os.core.config import get_settings
 from deepsupport_os.harness.artifacts import CANONICAL_ARTIFACTS
 from deepsupport_os.harness.daytona_backend import build_hybrid_backend, run_sandbox_shell
+from deepsupport_os.harness.skills_registry import skill_source_paths
 from deepsupport_os.harness.subagents import build_mvp_subagents
 from deepsupport_os.harness.workspace import ensure_thread_workspace
 from deepsupport_os.mcp.tools import all_agent_tools
@@ -38,7 +39,8 @@ SYSTEM_PROMPT = """你是 DeepSupport OS，企业 Microsoft 365 IT 技术支持�
 7. 云端 Daytona（/sandbox/ 或 run_sandbox_shell）仅用于简单短命令；禁止放 Skills 或大批量文件。
 8. 高风险写操作必须先 check_action_permission，并等待人工审批。
 9. 可更新 /memory/AGENTS.md 中的「会话记忆」短条目（脱敏，禁止密码）。
-10. 所有结论需有工具结果或文档依据，禁止臆造。
+10. Skills 采用渐进披露：先依据 name/description 选择技能；需要细节时再 read_file 读取 SKILL.md 正文与 references/。
+11. 所有结论需有工具结果或文档依据，禁止臆造。
 
 演示账号提示：张伟 wei.zhang@contoso.com 账号状态为 locked，适合 Outlook 登录失败场景。
 """
@@ -126,7 +128,7 @@ def build_support_agent(
         ws = settings.resolve(settings.workspace_dir)
     ws.mkdir(parents=True, exist_ok=True)
 
-    skills_dirs = skills or [str(settings.resolve("skills"))]
+    skills_dirs = skills or skill_source_paths()
     existing_skills = [p for p in skills_dirs if Path(p).exists()]
 
     if backend is not None:
@@ -145,6 +147,7 @@ def build_support_agent(
             f"\n\n当前本地工作区：`{ws.as_posix()}`。"
             f"长内容与标准产物（{names}）写入该目录；"
             "云端仅 `/sandbox/` 短小试跑。"
+            "Skills 细节在 `skills/*/references/`，按需 read_file。"
         )
 
     return create_deep_agent(
