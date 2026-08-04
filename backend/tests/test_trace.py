@@ -76,3 +76,60 @@ def test_preview_pending_writes():
     assert any(h["key"] == "工单 ID" for h in many[0]["highlights"])
     assert many[1]["label"] == "许可证变更"
 
+
+def test_context_offload_marked():
+    class FakeWriteAI:
+        type = "ai"
+        content = ""
+        tool_calls = [
+            {
+                "id": "w1",
+                "name": "write_file",
+                "args": {"file_path": "workspace/t1/diagnosis.md", "content": "# diag"},
+            }
+        ]
+
+    trace = build_trace([FakeWriteAI()])
+    assert any(s["kind"] == "context_offload" for s in trace["steps"])
+    assert trace["context_offloads"][0]["offload_path"].endswith("diagnosis.md")
+
+
+def test_artifacts_list_and_read(tmp_path, monkeypatch):
+    from deepsupport_os.core.config import get_settings
+    from deepsupport_os.harness import artifacts as art
+    from deepsupport_os.harness.workspace import ensure_thread_workspace
+
+    get_settings.cache_clear()
+    monkeypatch.setenv("WORKSPACE_DIR", str(tmp_path))
+    get_settings.cache_clear()
+
+    tid = "art-thread-1"
+    ws = ensure_thread_workspace(tid)
+    (ws / "final_resolution.md").write_text("# done\n", encoding="utf-8")
+    items = art.list_artifacts(tid)
+    assert any(i["name"] == "final_resolution.md" and i["canonical"] for i in items)
+    data = art.read_artifact(tid, "final_resolution.md")
+    assert data["ok"] is True
+    assert "done" in data["content"]
+    get_settings.cache_clear()
+
+
+def test_extract_todos_normalize():
+    from deepsupport_os.harness.state_extract import extract_todos
+
+    class FakeAgent:
+        def get_state(self, _config):
+            class Snap:
+                values = {
+                    "todos": [
+                        {"content": "查账号", "status": "completed"},
+                        {"content": "HITL 重置", "status": "in_progress"},
+                    ]
+                }
+
+            return Snap()
+
+    todos = extract_todos(FakeAgent(), {"configurable": {"thread_id": "x"}})
+    assert todos[0]["status"] == "completed"
+    assert todos[1]["content"] == "HITL 重置"
+

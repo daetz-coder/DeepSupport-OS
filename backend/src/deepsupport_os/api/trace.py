@@ -139,6 +139,14 @@ def build_trace(
         "ticket-operations",
         "general-purpose",
     }
+    ARTIFACT_HINTS = (
+        "diagnosis.md",
+        "retrieved_docs.md",
+        "final_resolution.md",
+        "ticket_draft.md",
+        "workspace/",
+        "large_tool_results",
+    )
     for step in steps:
         if step.get("kind") != "tool_call" or step.get("name") != "task":
             continue
@@ -156,13 +164,32 @@ def build_trace(
         if sub_name in SUBAGENT_NAMES:
             step["subagent_known"] = True
 
+    # Context offload: write_file/edit_file targeting workspace artifacts
+    for step in steps:
+        if step.get("kind") != "tool_call" or step.get("name") not in {"write_file", "edit_file"}:
+            continue
+        args = step.get("args") or {}
+        if isinstance(args, str):
+            try:
+                args = json.loads(args)
+            except json.JSONDecodeError:
+                args = {}
+        if not isinstance(args, dict):
+            continue
+        path = str(args.get("file_path") or args.get("path") or args.get("filename") or "")
+        if any(h in path.replace("\\", "/") for h in ARTIFACT_HINTS) or path.endswith(".md"):
+            step["kind"] = "context_offload"
+            step["offload_path"] = path
+
     subagent_steps = [s for s in steps if s.get("kind") == "subagent_dispatch"]
+    offload_steps = [s for s in steps if s.get("kind") == "context_offload"]
 
     return {
         "steps": steps,
         "tool_calls": tool_calls,
         "pending_writes": pending_writes,
         "subagent_dispatches": subagent_steps,
+        "context_offloads": offload_steps,
         "interrupt": interrupt,
         "audit": audit or [],
         "messages": serialized,

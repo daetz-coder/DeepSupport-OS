@@ -11,8 +11,10 @@ from sse_starlette.sse import EventSourceResponse
 from deepsupport_os.api.trace import build_trace, extract_interrupt_info, serialize_messages
 from deepsupport_os.db import task_store
 from deepsupport_os.db.repositories import list_audit
-from deepsupport_os.harness.agent import build_support_agent
+from deepsupport_os.harness.agent import MEMORY_FILE, build_support_agent
+from deepsupport_os.harness.artifacts import list_artifacts, read_artifact
 from deepsupport_os.harness.hitl_apply import apply_approved_writes, collect_pending_writes
+from deepsupport_os.harness.state_extract import extract_todos
 from deepsupport_os.harness.workspace import ensure_thread_workspace
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -41,9 +43,17 @@ def _build_record(
     status: str,
     applied: list[dict] | None = None,
     workspace_path: str | None = None,
+    todos: list[dict[str, Any]] | None = None,
+    agent: Any = None,
+    config: dict | None = None,
+    result: dict | None = None,
 ) -> dict[str, Any]:
     trace = build_trace(messages, interrupt=interrupt, audit=_recent_audit(20))
     ws = workspace_path or str(ensure_thread_workspace(thread_id))
+    if todos is None and agent is not None and config is not None:
+        todos = extract_todos(agent, config, result=result)
+    todos = todos or []
+    artifacts = list_artifacts(thread_id)
     return {
         "task_id": task_id,
         "thread_id": thread_id,
@@ -53,6 +63,9 @@ def _build_record(
         "interrupt": interrupt,
         "trace": trace,
         "applied_writes": applied or [],
+        "todos": todos,
+        "artifacts": artifacts,
+        "memory_paths": [MEMORY_FILE],
     }
 
 
@@ -74,6 +87,9 @@ class TaskCreateResponse(BaseModel):
     interrupt: Any = None
     trace: dict[str, Any] = {}
     applied_writes: list[dict[str, Any]] = []
+    todos: list[dict[str, Any]] = []
+    artifacts: list[dict[str, Any]] = []
+    memory_paths: list[str] = []
 
 
 @router.get("")
@@ -108,6 +124,9 @@ def create_task(body: TaskCreateRequest):
         interrupt=interrupt,
         status=status,
         workspace_path=str(ws),
+        agent=agent,
+        config=config,
+        result=result if isinstance(result, dict) else None,
     )
     _persist(record)
     return TaskCreateResponse(**record)
@@ -127,6 +146,26 @@ def get_task_trace(task_id: str):
     if not record:
         raise HTTPException(status_code=404, detail="task not found")
     return record.get("trace") or build_trace([], interrupt=record.get("interrupt"))
+
+
+@router.get("/{task_id}/artifacts")
+def get_task_artifacts(task_id: str):
+    record = task_store.get_task(task_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="task not found")
+    thread_id = record["thread_id"]
+    return {"task_id": task_id, "thread_id": thread_id, "items": list_artifacts(thread_id)}
+
+
+@router.get("/{task_id}/artifacts/{path:path}")
+def get_task_artifact_content(task_id: str, path: str):
+    record = task_store.get_task(task_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="task not found")
+    data = read_artifact(record["thread_id"], path)
+    if not data.get("ok"):
+        raise HTTPException(status_code=404, detail=data.get("error") or "not found")
+    return data
 
 
 class ResumeRequest(BaseModel):
@@ -175,6 +214,9 @@ def resume_task(body: ResumeRequest):
         status=status,
         applied=applied,
         workspace_path=str(ws),
+        agent=agent,
+        config=config,
+        result=result if isinstance(result, dict) else None,
     )
     _persist(record)
     return {
@@ -212,6 +254,7 @@ async def stream_task(body: TaskCreateRequest):
             ),
         }
         final_messages: list[Any] = []
+        last_todos: list[dict[str, Any]] = []
         try:
             for chunk in agent.stream(
                 {"messages": [{"role": "user", "content": body.message}]},
@@ -222,6 +265,20 @@ async def stream_task(body: TaskCreateRequest):
                     continue
                 for node, update in chunk.items():
                     payload: dict[str, Any] = {"node": node}
+                    if isinstance(update, dict) and "todos" in update:
+                        todos_update = extract_todos(
+                            agent, config, result=update if isinstance(update, dict) else None
+                        )
+                        if todos_update != last_todos:
+                            last_todos = todos_update
+                            yield {
+                                "event": "todos",
+                                "data": json.dumps(
+                                    {"todos": todos_update},
+                                    ensure_ascii=False,
+                                    default=str,
+                                ),
+                            }
                     if isinstance(update, dict) and "messages" in update:
                         msgs = update.get("messages") or []
                         normalized = []
@@ -243,6 +300,11 @@ async def stream_task(body: TaskCreateRequest):
                                 elif kind == "subagent_dispatch":
                                     yield {
                                         "event": "subagent",
+                                        "data": json.dumps(step, ensure_ascii=False, default=str),
+                                    }
+                                elif kind == "context_offload":
+                                    yield {
+                                        "event": "context_offload",
                                         "data": json.dumps(step, ensure_ascii=False, default=str),
                                     }
                                 elif kind == "tool_result":
@@ -291,7 +353,14 @@ async def stream_task(body: TaskCreateRequest):
             interrupt=interrupt,
             status=status,
             workspace_path=str(ws),
+            agent=agent,
+            config=config,
         )
+        if record.get("todos") and record["todos"] != last_todos:
+            yield {
+                "event": "todos",
+                "data": json.dumps({"todos": record["todos"]}, ensure_ascii=False, default=str),
+            }
         _persist(record)
         yield {
             "event": "done",

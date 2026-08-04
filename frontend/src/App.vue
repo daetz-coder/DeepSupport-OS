@@ -50,10 +50,18 @@ type AuditItem = {
   timestamp?: string
 }
 
-type PlanItem = {
+type TodoItem = {
+  content: string
+  status: 'pending' | 'in_progress' | 'completed'
+}
+
+type ArtifactItem = {
   name: string
-  status: 'done' | 'pending' | 'running'
-  args?: unknown
+  path: string
+  bytes: number
+  canonical?: boolean
+  preview?: string
+  updated_at?: string
 }
 
 const API = 'http://127.0.0.1:8000'
@@ -72,6 +80,10 @@ const appliedWrites = ref<unknown[]>([])
 const liveEvents = ref<string[]>([])
 const taskList = ref<TaskItem[]>([])
 const auditList = ref<AuditItem[]>([])
+const todos = ref<TodoItem[]>([])
+const artifacts = ref<ArtifactItem[]>([])
+const artifactContent = ref<string | null>(null)
+const artifactFocus = ref<string | null>(null)
 const activeTab = ref('trace')
 const lastError = ref<string | null>(null)
 const lastQuestion = ref('')
@@ -93,28 +105,6 @@ const pendingPreview = computed<HitlPreview[]>(() => {
     }))
 })
 
-const planItems = computed<PlanItem[]>(() => {
-  const calls = steps.value.filter((s) => s.kind === 'tool_call' && s.name)
-  const results = new Set(
-    steps.value
-      .filter((s) => s.kind === 'tool_result' && s.name)
-      .map((s) => s.name as string),
-  )
-  const seen = new Set<string>()
-  const items: PlanItem[] = []
-  for (const c of calls) {
-    const name = c.name as string
-    if (seen.has(name)) continue
-    seen.add(name)
-    items.push({
-      name,
-      status: results.has(name) ? 'done' : loading.value ? 'running' : 'pending',
-      args: c.args,
-    })
-  }
-  return items
-})
-
 function applyRecord(data: Record<string, unknown>) {
   threadId.value = (data.thread_id as string) || threadId.value
   taskId.value = (data.task_id as string) || taskId.value
@@ -122,6 +112,12 @@ function applyRecord(data: Record<string, unknown>) {
   workspacePath.value = (data.workspace_path as string) || workspacePath.value
   interrupt.value = (data.interrupt as InterruptInfo) || null
   appliedWrites.value = (data.applied_writes as unknown[]) || []
+  if (Array.isArray(data.todos)) {
+    todos.value = data.todos as TodoItem[]
+  }
+  if (Array.isArray(data.artifacts)) {
+    artifacts.value = data.artifacts as ArtifactItem[]
+  }
   const trace = data.trace as Trace | undefined
   if (trace?.steps?.length) {
     steps.value = trace.steps
@@ -171,6 +167,10 @@ function newThread() {
   steps.value = []
   appliedWrites.value = []
   liveEvents.value = []
+  todos.value = []
+  artifacts.value = []
+  artifactContent.value = null
+  artifactFocus.value = null
   lastError.value = null
   question.value = ''
   ElMessage.info('已新建会话线程')
@@ -184,6 +184,7 @@ async function openTask(item: TaskItem) {
     applyRecord(data)
     lastError.value = null
     activeTab.value = 'trace'
+    await refreshArtifacts()
     ElMessage.success('已加载历史任务')
   } catch (e) {
     lastError.value = e instanceof Error ? e.message : String(e)
@@ -193,6 +194,7 @@ async function openTask(item: TaskItem) {
 
 function stepTagType(kind: string) {
   if (kind === 'subagent_dispatch') return 'danger'
+  if (kind === 'context_offload') return 'warning'
   if (kind === 'tool_call') return 'warning'
   if (kind === 'tool_result') return 'success'
   if (kind === 'user') return 'info'
@@ -200,10 +202,38 @@ function stepTagType(kind: string) {
   return 'info'
 }
 
-function planTagType(status: PlanItem['status']) {
-  if (status === 'done') return 'success'
-  if (status === 'running') return 'warning'
+function todoTagType(status: TodoItem['status']) {
+  if (status === 'completed') return 'success'
+  if (status === 'in_progress') return 'warning'
   return 'info'
+}
+
+async function refreshArtifacts() {
+  if (!taskId.value) return
+  try {
+    const res = await fetch(`${API}/api/tasks/${taskId.value}/artifacts`)
+    if (!res.ok) return
+    const data = await res.json()
+    artifacts.value = data.items || []
+  } catch {
+    /* ignore */
+  }
+}
+
+async function openArtifact(item: ArtifactItem) {
+  if (!taskId.value) return
+  try {
+    const res = await fetch(
+      `${API}/api/tasks/${taskId.value}/artifacts/${encodeURIComponent(item.path)}`,
+    )
+    if (!res.ok) throw new Error('artifact not found')
+    const data = await res.json()
+    artifactFocus.value = item.path
+    artifactContent.value = data.content || ''
+    activeTab.value = 'artifacts'
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : String(e))
+  }
 }
 
 function formatArgs(args: unknown) {
@@ -270,8 +300,16 @@ async function submitStream() {
       liveEvents.value.push(`${event}`)
       try {
         const payload = JSON.parse(data)
-        if (event === 'tool_start' || event === 'tool_end' || event === 'message' || event === 'subagent') {
+        if (
+          event === 'tool_start' ||
+          event === 'tool_end' ||
+          event === 'message' ||
+          event === 'subagent' ||
+          event === 'context_offload'
+        ) {
           steps.value = [...steps.value, payload as TraceStep]
+        } else if (event === 'todos' && Array.isArray(payload.todos)) {
+          todos.value = payload.todos as TodoItem[]
         } else if (event === 'interrupt') {
           interrupt.value = payload as InterruptInfo
           status.value = 'interrupted'
@@ -311,7 +349,7 @@ async function submit() {
       await submitSync()
     }
     ElMessage.success('任务已执行')
-    await Promise.all([refreshTasks(), refreshAudit()])
+    await Promise.all([refreshTasks(), refreshAudit(), refreshArtifacts()])
   } catch (e) {
     lastError.value = e instanceof Error ? e.message : String(e)
     status.value = 'failed'
@@ -355,7 +393,7 @@ async function resume(approved: boolean) {
     applyRecord(data)
     interrupt.value = (data.interrupt as InterruptInfo) || null
     ElMessage.success(approved ? '已批准并落库' : '已拒绝')
-    await Promise.all([refreshTasks(), refreshAudit()])
+    await Promise.all([refreshTasks(), refreshAudit(), refreshArtifacts()])
   } catch (e) {
     lastError.value = e instanceof Error ? e.message : String(e)
     ElMessage.error(`恢复失败: ${lastError.value}`)
@@ -513,11 +551,28 @@ onMounted(async () => {
 
         <el-tabs v-model="activeTab">
           <el-tab-pane label="执行计划" name="plan">
-            <div v-if="!planItems.length" class="muted">提交任务后将根据工具调用生成计划清单</div>
-            <div v-for="(p, i) in planItems" :key="i" class="plan-row">
-              <el-tag :type="planTagType(p.status)" size="small">{{ p.status }}</el-tag>
-              <strong>{{ p.name }}</strong>
+            <div v-if="!todos.length" class="muted">提交任务后将显示 Deep Agents 原生 todos（write_todos）</div>
+            <div v-for="(p, i) in todos" :key="i" class="plan-row">
+              <el-tag :type="todoTagType(p.status)" size="small">{{ p.status }}</el-tag>
+              <strong>{{ p.content }}</strong>
             </div>
+          </el-tab-pane>
+
+          <el-tab-pane label="产物" name="artifacts">
+            <el-button size="small" :disabled="!taskId" @click="refreshArtifacts">刷新产物</el-button>
+            <div v-if="!artifacts.length" class="muted">工作区尚无文件；长任务应写出 diagnosis.md / final_resolution.md 等</div>
+            <div v-for="a in artifacts" :key="a.path" class="artifact-row" @click="openArtifact(a)">
+              <div class="step-head">
+                <el-tag v-if="a.canonical" type="success" size="small">标准</el-tag>
+                <strong>{{ a.name }}</strong>
+                <span class="muted">{{ a.bytes }} B</span>
+              </div>
+              <pre v-if="a.preview && artifactFocus !== a.path" class="preview">{{ a.preview }}</pre>
+            </div>
+            <section v-if="artifactContent !== null" class="artifact-body">
+              <h3>{{ artifactFocus }}</h3>
+              <pre>{{ artifactContent }}</pre>
+            </section>
           </el-tab-pane>
 
           <el-tab-pane label="执行轨迹" name="trace">
@@ -687,6 +742,26 @@ onMounted(async () => {
   align-items: center;
   padding: 8px 0;
   border-bottom: 1px solid #f3f4f6;
+}
+.artifact-row {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 10px;
+  margin: 8px 0;
+  cursor: pointer;
+}
+.artifact-row:hover {
+  border-color: #93c5fd;
+}
+.artifact-row .preview {
+  max-height: 80px;
+  overflow: hidden;
+  opacity: 0.75;
+}
+.artifact-body {
+  margin-top: 12px;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 12px;
 }
 .step,
 .card,
