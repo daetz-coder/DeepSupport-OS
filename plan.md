@@ -22,7 +22,8 @@
 | 默认 LLM    | DeepSeek（本地 `.env`，不入库）                                          |
 | 向量库       | RAGLab 侧 Qdrant                                                  |
 | 知识语料（MVP） | 微软公开支持页 ~50+ 篇 + RAGLab 向量入库；本地 MD fallback                        |
-| 沙箱        | Daytona（`DAYTONA_SANDBOX_NAME=deepsupport-sandbox`）               |
+| 沙箱        | Daytona sidecar（本地 Skills/工作区为主；`/sandbox/` + 简单 shell）         |
+| Harness 缺口  | Phase 11：Memory / 原生 Todo / Context offload / Artifacts API+UI     |
 | HITL 写操作  | password_reset / license_change / close_ticket / escalate_ticket |
 | Benchmark | MVP ~30 条；100–300 后置                                             |
 | 推送节奏      | 每个 Phase `commit + push`                                         |
@@ -135,9 +136,10 @@
 
 ## 下一步建议（后续迭代）
 
-1. Skills SOP 补全（Teams / OneDrive / Office）
-2. Compose 实测 + CONTRIBUTING / SECURITY / Demo 截图（**不含 CI**）
-3. Benchmark 扩到 ~100（后置）
+1. **Phase 11（优先）**：Memory Backend + 原生 Planning/Todo + Context Management + Artifacts
+2. Skills SOP 补全（Teams / OneDrive / Office）
+3. Compose 实测 + CONTRIBUTING / SECURITY / Demo 截图（**不含 CI**）
+4. Benchmark 扩到 ~100（后置）
 
 ---
 
@@ -182,6 +184,49 @@
 
 ---
 
+## Phase 11 — Deep Agents 缺口补齐（下一轮优先）
+
+> 对应能力表中仍为 🟡 的四项：Memory / Planning·Todo / Context / Artifacts。  
+> **本地优先**：Skills 与长内容仍走 LocalShell + `workspace/{thread_id}/`；Daytona 仅 sidecar。
+
+### 11.1 Memory Backend
+
+- [ ] 接入 `create_deep_agent(memory=…)`（及必要时 `store=`）：用户/线程级长期记忆路径约定
+- [ ] 记忆内容范围：用户画像摘要、历史工单结论、常用设备/邮箱（脱敏）、禁止存密码明文
+- [ ] API：任务记录或 Trace 中暴露「本轮读写了哪些 memory」便于演示
+- [ ] 与现有 `search_cases` / 审计日志边界写清（Memory ≠ Checkpoint ≠ 案例库）
+
+### 11.2 Planning / Todo（原生）
+
+- [ ] 确认 Deep Agents 内置 Planning/Todo middleware 状态字段，从 agent state 读取原生 todos（不再仅靠工具名推断）
+- [ ] Tasks API / SSE：推送 `todos` 更新事件（create / update / complete）
+- [ ] 前端「执行计划」Tab 绑定原生 todos（状态：pending / in_progress / done）
+- [ ] Demo：Outlook 长任务可见「查账号 → 检索文档 → HITL 重置 → 建单」计划推进
+
+### 11.3 Context Management
+
+- [ ] 明确卸载策略：检索长文 / 工具大结果强制写入 `workspace/{thread_id}/…`，消息里只留摘要+路径
+- [ ] System prompt + 可选 middleware/工具约定：何时 `write_file` / `read_file` 做 context offloading
+- [ ] Trace 增加 `context_offload` 步骤类型（文件路径、原长度、摘要长度）
+- [ ] Online eval 增加「长任务是否落盘」弱断言（可选）
+
+### 11.4 Artifacts Management
+
+- [ ] 约定产物清单与命名：`diagnosis.md`、`retrieved_docs.md`、`final_resolution.md`、`ticket_draft.md`
+- [ ] API：`GET /api/tasks/{id}/artifacts` 列出工作区文件；可选返回内容预览
+- [ ] 前端：Artifacts 面板（文件名 / 大小 / 预览），与 Trace 联动
+- [ ] HITL 批准后或任务完成时校验关键产物是否生成（可 soft-fail）
+
+### 11.5 验收标准（Phase 11 Done）
+
+- [ ] Memory：跨两轮同一 `thread_id` 能回忆上一轮邮箱/结论（可测）
+- [ ] Todo：前端展示与 agent state todos 一致，非工具名启发式
+- [ ] Context：至少一条 long-task 用例在 workspace 留下检索/诊断文件
+- [ ] Artifacts：任务完成后可在 UI 打开 `final_resolution.md`（或等价报告）
+- [ ] `commit + push`（仍不做 CI）
+
+---
+
 ## 进度日志
 
 
@@ -197,5 +242,6 @@
 | 2026-08-04 | 10C/D | HITL 参数预览、错误重试、计划清单；语料质量门禁脚本 |
 | 2026-08-04 | 10B/C | Baseline A/B、eval 指标、workspace/{thread_id}、Subagent Trace |
 | 2026-08-04 | Daytona | 改为 sidecar：Skills/工作区本地；云端仅 /sandbox/ + 简单 shell |
+| 2026-08-04 | 规划    | 增补 Phase 11：Memory / 原生 Todo / Context / Artifacts |
 
 
