@@ -64,6 +64,35 @@ type ArtifactItem = {
   updated_at?: string
 }
 
+type SkillItem = {
+  name: string
+  dir_name: string
+  description: string
+  path: string
+  layer: string
+  enabled: boolean
+  has_references?: boolean
+}
+
+type CatalogEntry = {
+  id: string
+  name: string
+  description?: string
+  license?: string
+  install?: string
+  url?: string
+  optional?: boolean
+  source?: string
+}
+
+type McpServerSpec = {
+  enabled: boolean
+  transport?: string
+  url?: string
+  command?: string
+  description?: string
+}
+
 const API = 'http://127.0.0.1:8000'
 const question = ref('我的 Outlook 一直登录不上，邮箱是 wei.zhang@contoso.com')
 const loading = ref(false)
@@ -87,6 +116,21 @@ const artifactFocus = ref<string | null>(null)
 const activeTab = ref('trace')
 const lastError = ref<string | null>(null)
 const lastQuestion = ref('')
+
+const skillsInstalled = ref<SkillItem[]>([])
+const skillsCatalog = ref<CatalogEntry[]>([])
+const skillsImportedEnabled = ref(true)
+const skillsBusy = ref(false)
+
+const mcpLocalTools = ref(true)
+const mcpRemoteEnabled = ref(false)
+const mcpServers = ref<Record<string, McpServerSpec>>({})
+const mcpRuntime = ref<Record<string, unknown>>({})
+const mcpBusy = ref(false)
+const newMcpName = ref('')
+const newMcpUrl = ref('http://127.0.0.1:8100/mcp')
+const newMcpTransport = ref('streamable_http')
+const newMcpDesc = ref('')
 
 const hasInterrupt = computed(() => Boolean(interrupt.value))
 const pendingPreview = computed<HitlPreview[]>(() => {
@@ -233,6 +277,204 @@ async function openArtifact(item: ArtifactItem) {
     activeTab.value = 'artifacts'
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : String(e))
+  }
+}
+
+async function refreshSkills() {
+  try {
+    const res = await fetch(`${API}/api/meta/skills`)
+    if (!res.ok) return
+    const data = await res.json()
+    skillsInstalled.value = data.installed || []
+    skillsCatalog.value = data.catalog?.entries || []
+    skillsImportedEnabled.value = Boolean(data.settings?.skills_imported_enabled ?? true)
+  } catch {
+    /* ignore */
+  }
+}
+
+async function toggleSkill(item: SkillItem, enabled: boolean) {
+  skillsBusy.value = true
+  try {
+    const res = await fetch(`${API}/api/meta/skills/${encodeURIComponent(item.dir_name)}/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || res.statusText)
+    }
+    ElMessage.success(enabled ? `已启用 ${item.name}` : `已禁用 ${item.name}`)
+    await refreshSkills()
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : String(e))
+  } finally {
+    skillsBusy.value = false
+  }
+}
+
+async function setImportedLayer(enabled: boolean) {
+  skillsBusy.value = true
+  try {
+    const res = await fetch(`${API}/api/meta/skills/settings`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skills_imported_enabled: enabled }),
+    })
+    if (!res.ok) throw new Error('update failed')
+    skillsImportedEnabled.value = enabled
+    ElMessage.success(enabled ? '已开启 imported 层' : '已关闭 imported 层')
+    await refreshSkills()
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : String(e))
+  } finally {
+    skillsBusy.value = false
+  }
+}
+
+async function importCatalogSkill(entry: CatalogEntry) {
+  if (entry.source === 'cli') {
+    ElMessage.info(entry.install || '请使用 CLI 安装后复制到 skills/imported/')
+    return
+  }
+  const needLicense = (entry.license || '').toLowerCase().includes('proprietary')
+  skillsBusy.value = true
+  try {
+    const res = await fetch(`${API}/api/meta/skills/import`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        catalog_id: entry.id,
+        accept_license: needLicense,
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || res.statusText)
+    }
+    ElMessage.success(`已导入 ${entry.name}`)
+    await refreshSkills()
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : String(e))
+  } finally {
+    skillsBusy.value = false
+  }
+}
+
+async function refreshMcp() {
+  try {
+    const res = await fetch(`${API}/api/meta/mcp`)
+    if (!res.ok) return
+    const data = await res.json()
+    mcpLocalTools.value = Boolean(data.settings?.mcp_local_tools ?? true)
+    mcpRemoteEnabled.value = Boolean(data.settings?.mcp_remote_enabled ?? false)
+    mcpServers.value = data.config_servers || {}
+    mcpRuntime.value = data.runtime || {}
+  } catch {
+    /* ignore */
+  }
+}
+
+async function patchMcpSettings(patch: { mcp_local_tools?: boolean; mcp_remote_enabled?: boolean }) {
+  mcpBusy.value = true
+  try {
+    const res = await fetch(`${API}/api/meta/mcp/settings`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    })
+    if (!res.ok) throw new Error('update failed')
+    ElMessage.success('MCP 设置已保存（下次任务生效）')
+    await refreshMcp()
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : String(e))
+  } finally {
+    mcpBusy.value = false
+  }
+}
+
+async function toggleMcpServer(name: string, enabled: boolean) {
+  mcpBusy.value = true
+  try {
+    const res = await fetch(`${API}/api/meta/mcp/servers/${encodeURIComponent(name)}/toggle`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || res.statusText)
+    }
+    await refreshMcp()
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : String(e))
+  } finally {
+    mcpBusy.value = false
+  }
+}
+
+async function addMcpServer() {
+  if (!newMcpName.value.trim() || !newMcpUrl.value.trim()) {
+    ElMessage.warning('请填写名称与 URL')
+    return
+  }
+  mcpBusy.value = true
+  try {
+    const res = await fetch(`${API}/api/meta/mcp/servers`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: newMcpName.value.trim(),
+        transport: newMcpTransport.value,
+        url: newMcpUrl.value.trim(),
+        description: newMcpDesc.value.trim(),
+        enabled: true,
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || res.statusText)
+    }
+    ElMessage.success('已添加 MCP Server')
+    newMcpName.value = ''
+    newMcpDesc.value = ''
+    await refreshMcp()
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : String(e))
+  } finally {
+    mcpBusy.value = false
+  }
+}
+
+async function removeMcpServer(name: string) {
+  mcpBusy.value = true
+  try {
+    const res = await fetch(`${API}/api/meta/mcp/servers/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+    })
+    if (!res.ok) throw new Error('delete failed')
+    ElMessage.success(`已删除 ${name}`)
+    await refreshMcp()
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : String(e))
+  } finally {
+    mcpBusy.value = false
+  }
+}
+
+async function reloadMcp() {
+  mcpBusy.value = true
+  try {
+    const res = await fetch(`${API}/api/meta/mcp/reload`, { method: 'POST' })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data.detail || 'reload failed')
+    ElMessage.success(`已重载，工具数 ${data.tool_count ?? 0}`)
+    await refreshMcp()
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : String(e))
+  } finally {
+    mcpBusy.value = false
   }
 }
 
@@ -404,7 +646,7 @@ async function resume(approved: boolean) {
 
 onMounted(async () => {
   await checkHealth()
-  await Promise.all([refreshTasks(), refreshAudit()])
+  await Promise.all([refreshTasks(), refreshAudit(), refreshSkills(), refreshMcp()])
 })
 </script>
 
@@ -600,6 +842,107 @@ onMounted(async () => {
             </section>
           </el-tab-pane>
 
+          <el-tab-pane label="Skills" name="skills">
+            <div class="mgmt-toolbar">
+              <el-button size="small" :loading="skillsBusy" @click="refreshSkills">刷新</el-button>
+              <span class="muted">imported 层</span>
+              <el-switch
+                :model-value="skillsImportedEnabled"
+                :disabled="skillsBusy"
+                @change="(v: string | number | boolean) => setImportedLayer(Boolean(v))"
+              />
+            </div>
+            <h3>已安装</h3>
+            <div v-if="!skillsInstalled.length" class="muted">暂无 Skills</div>
+            <div v-for="s in skillsInstalled" :key="s.path" class="mgmt-row">
+              <div class="step-head">
+                <el-tag :type="s.layer === 'imported' ? 'warning' : 'info'" size="small">{{ s.layer }}</el-tag>
+                <el-tag v-if="s.has_references" size="small">L3</el-tag>
+                <strong>{{ s.name }}</strong>
+                <el-switch
+                  :model-value="s.enabled"
+                  :disabled="skillsBusy"
+                  @change="(v: string | number | boolean) => toggleSkill(s, Boolean(v))"
+                />
+              </div>
+              <p class="muted desc">{{ s.description || s.path }}</p>
+            </div>
+            <h3>公开 Catalog</h3>
+            <div v-for="c in skillsCatalog" :key="c.id" class="mgmt-row">
+              <div class="step-head">
+                <strong>{{ c.name }}</strong>
+                <el-tag v-if="c.optional" size="small">optional</el-tag>
+                <el-button
+                  size="small"
+                  type="primary"
+                  :loading="skillsBusy"
+                  @click="importCatalogSkill(c)"
+                >
+                  {{ c.source === 'cli' ? '查看安装说明' : '导入' }}
+                </el-button>
+              </div>
+              <p class="muted desc">{{ c.description }}</p>
+              <p v-if="c.license" class="muted desc">License: {{ c.license }}</p>
+            </div>
+          </el-tab-pane>
+
+          <el-tab-pane label="MCP" name="mcp">
+            <div class="mgmt-toolbar">
+              <el-button size="small" :loading="mcpBusy" @click="refreshMcp">刷新</el-button>
+              <el-button size="small" type="warning" :loading="mcpBusy" @click="reloadMcp">重载远程工具</el-button>
+            </div>
+            <div class="mgmt-toolbar">
+              <span>本地 Mock 工具</span>
+              <el-switch
+                :model-value="mcpLocalTools"
+                :disabled="mcpBusy"
+                @change="(v: string | number | boolean) => patchMcpSettings({ mcp_local_tools: Boolean(v) })"
+              />
+              <span>远程 MCP</span>
+              <el-switch
+                :model-value="mcpRemoteEnabled"
+                :disabled="mcpBusy"
+                @change="(v: string | number | boolean) => patchMcpSettings({ mcp_remote_enabled: Boolean(v) })"
+              />
+            </div>
+            <p v-if="mcpRuntime.error" class="muted">运行时: {{ mcpRuntime.error }}</p>
+            <p v-else-if="mcpRuntime.tool_count != null" class="muted">
+              已加载远程工具 {{ mcpRuntime.tool_count }} 个
+              <span v-if="Array.isArray(mcpRuntime.tool_names)">
+                · {{ (mcpRuntime.tool_names as string[]).slice(0, 8).join(', ') }}
+              </span>
+            </p>
+            <h3>已配置 Servers</h3>
+            <div v-if="!Object.keys(mcpServers).length" class="muted">暂无 MCP server</div>
+            <div v-for="(spec, name) in mcpServers" :key="name" class="mgmt-row">
+              <div class="step-head">
+                <strong>{{ name }}</strong>
+                <el-tag size="small">{{ spec.transport }}</el-tag>
+                <el-switch
+                  :model-value="spec.enabled"
+                  :disabled="mcpBusy"
+                  @change="(v: string | number | boolean) => toggleMcpServer(String(name), Boolean(v))"
+                />
+                <el-button size="small" type="danger" text :disabled="mcpBusy" @click="removeMcpServer(String(name))">
+                  删除
+                </el-button>
+              </div>
+              <p class="muted desc">{{ spec.description || spec.url || spec.command }}</p>
+            </div>
+            <h3>添加远程 MCP</h3>
+            <div class="mcp-form">
+              <el-input v-model="newMcpName" size="small" placeholder="名称 (如 github-mcp)" />
+              <el-select v-model="newMcpTransport" size="small" style="width: 160px">
+                <el-option label="streamable_http" value="streamable_http" />
+                <el-option label="sse" value="sse" />
+                <el-option label="http" value="http" />
+              </el-select>
+              <el-input v-model="newMcpUrl" size="small" placeholder="URL" />
+              <el-input v-model="newMcpDesc" size="small" placeholder="说明（可选）" />
+              <el-button size="small" type="primary" :loading="mcpBusy" @click="addMcpServer">添加</el-button>
+            </div>
+          </el-tab-pane>
+
           <el-tab-pane label="审计日志" name="audit">
             <el-button size="small" @click="refreshAudit">刷新审计</el-button>
             <div v-if="!auditList.length" class="muted">暂无审计记录</div>
@@ -762,6 +1105,31 @@ onMounted(async () => {
   margin-top: 12px;
   border-top: 1px solid #e5e7eb;
   padding-top: 12px;
+}
+.mgmt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.mgmt-row {
+  border-bottom: 1px solid #f3f4f6;
+  padding: 10px 0;
+}
+.mgmt-row .desc {
+  margin: 6px 0 0;
+  font-size: 0.85rem;
+}
+.mcp-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 8px;
+}
+.mcp-form .el-input {
+  width: min(280px, 100%);
 }
 .step,
 .card,
