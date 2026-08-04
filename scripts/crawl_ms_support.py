@@ -259,15 +259,18 @@ def is_trouble(url: str) -> bool:
 
 
 def discover_seeds(client: httpx.Client, per_product: int) -> list[dict[str, str]]:
-    r = client.get(SITEMAP_COLLECTION, follow_redirects=True, timeout=90.0)
+    r = client.get(SITEMAP_COLLECTION, follow_redirects=True, timeout=45.0)
     r.raise_for_status()
     locs = re.findall(r"<loc>([^<]+)</loc>", r.content.decode("utf-8-sig"))
     zh_sitemaps = [u for u in locs if re.search(r"/zh-cn/sitemap/", u, re.I)]
     buckets: dict[str, list[str]] = {p: [] for p, _ in PRODUCT_RULES}
+    filled = lambda: all(len(buckets[p]) >= per_product for p, _ in PRODUCT_RULES)
 
     for sm in zh_sitemaps:
+        if filled():
+            break
         try:
-            resp = client.get(sm, follow_redirects=True, timeout=120.0)
+            resp = client.get(sm, follow_redirects=True, timeout=30.0)
             urls = re.findall(r"<loc>([^<]+)</loc>", resp.content.decode("utf-8-sig"))
         except Exception as exc:  # noqa: BLE001
             print(f"sitemap fail {sm}: {exc}")

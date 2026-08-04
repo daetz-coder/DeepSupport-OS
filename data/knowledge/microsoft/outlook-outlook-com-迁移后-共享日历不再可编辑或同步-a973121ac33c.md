@@ -4,7 +4,7 @@ product: Outlook
 category: Troubleshooting
 source_url: https://support.microsoft.com/zh-CN/Support/known-issues/outlook-com-shared-calendar-is-no-longer-editable-or-syncing-after-migration
 language: zh-CN
-fetched_at: 2026-08-04T11:28:53.365704+00:00
+fetched_at: 2026-08-04T11:46:59.702061+00:00
 document_id: ms-a973121ac33c
 content_type: Troubleshooting
 ---

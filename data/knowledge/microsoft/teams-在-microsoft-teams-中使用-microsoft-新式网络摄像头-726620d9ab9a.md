@@ -4,7 +4,7 @@ product: Teams
 category: Troubleshooting
 source_url: https://support.microsoft.com/zh-CN/surface/accessories/certified/use-microsoft-modern-webcam-in-microsoft-teams
 language: zh-CN
-fetched_at: 2026-08-04T11:29:01.556915+00:00
+fetched_at: 2026-08-04T11:47:24.214187+00:00
 document_id: ms-726620d9ab9a
 content_type: Troubleshooting
 ---

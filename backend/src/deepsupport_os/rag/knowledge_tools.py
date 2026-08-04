@@ -56,7 +56,8 @@ def _search_local_markdown(query: str, limit: int = 5) -> list[dict]:
 def search_docs(query: str, top_k: int = 5) -> dict:
     """检索 Microsoft 365 / 企业支持文档。优先调用 RAGLab；不可用时回退本地示例知识。"""
     client = RAGLabClient()
-    remote = client.search_docs(query, top_k=top_k)
+    # Default without rerank for latency; client still retries if needed.
+    remote = client.search_docs(query, top_k=top_k, use_rerank=False)
     if remote.get("ok"):
         result = {"ok": True, "backend": "raglab", "results": remote.get("data")}
     else:

@@ -4,7 +4,7 @@ product: Outlook
 category: Guide
 source_url: https://support.microsoft.com/zh-CN/Outlook/double-clicking-a-msg-file-opens-an-unexpected-version-outlook
 language: zh-CN
-fetched_at: 2026-08-04T11:28:48.614179+00:00
+fetched_at: 2026-08-04T11:46:44.484694+00:00
 document_id: ms-63e353a02680
 content_type: Troubleshooting
 ---

@@ -4,7 +4,7 @@ product: Outlook
 category: Sync
 source_url: https://support.microsoft.com/zh-CN/Outlook/outlook-email-stuck
 language: zh-CN
-fetched_at: 2026-08-04T11:28:46.004386+00:00
+fetched_at: 2026-08-04T11:46:41.203720+00:00
 document_id: ms-19b9dbfd645b
 content_type: Troubleshooting
 ---

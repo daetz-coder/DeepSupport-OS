@@ -4,7 +4,7 @@ product: Microsoft365
 category: Guide
 source_url: https://support.microsoft.com/zh-CN/accounts-billing/information-on-average-monthly-active-recipients-of-service-in-the-european-union
 language: zh-CN
-fetched_at: 2026-08-04T11:32:41.674871+00:00
+fetched_at: 2026-08-04T11:50:48.945189+00:00
 document_id: ms-e8889aeeba68
 content_type: Troubleshooting
 ---

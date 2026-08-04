@@ -13,6 +13,7 @@ from langgraph.checkpoint.sqlite import SqliteSaver
 from deepagents import create_deep_agent
 
 from deepsupport_os.core.config import get_settings
+from deepsupport_os.harness.daytona_backend import get_or_create_daytona_backend
 from deepsupport_os.harness.subagents import build_mvp_subagents
 from deepsupport_os.mcp.tools import all_agent_tools
 
@@ -21,7 +22,7 @@ SYSTEM_PROMPT = """你是 DeepSupport OS，企业 Microsoft 365 IT 技术支持�
 工作原则：
 1. 先收集用户邮箱/设备等上下文，再查询 Employee、Account、Asset。
 2. 复杂检索可委派 knowledge-research；环境排查可委派 environment-diagnosis；开单可委派 ticket-operations。
-3. 使用 search_docs / search_cases 获取排查依据，长内容写入工作区文件。
+3. 使用 search_docs / search_cases 获取排查依据，长内容写入工作区文件（Daytona 沙箱或本地 workspace）。
 4. 高风险写操作（密码重置、许可证变更、关闭/升级工单）必须先 check_action_permission，并等待人工审批。
 5. 无法自动解决时创建完整工单，并生成结构化处理报告。
 6. 所有结论需有工具结果或文档依据，禁止臆造。
@@ -85,6 +86,7 @@ def build_support_agent(
     workspace: Path | None = None,
     checkpointer=None,
     skills: list[str] | None = None,
+    backend=None,
 ):
     settings = get_settings()
     ws = workspace or settings.resolve(settings.workspace_dir)
@@ -92,6 +94,8 @@ def build_support_agent(
 
     skills_dirs = skills or [str(settings.resolve("skills"))]
     existing_skills = [p for p in skills_dirs if Path(p).exists()]
+
+    agent_backend = backend if backend is not None else get_or_create_daytona_backend()
 
     return create_deep_agent(
         model=build_model(),
@@ -101,5 +105,6 @@ def build_support_agent(
         subagents=build_mvp_subagents(),
         interrupt_on=INTERRUPT_ON,
         checkpointer=checkpointer or get_checkpointer(),
+        backend=agent_backend,
         name="deepsupport-os",
     )

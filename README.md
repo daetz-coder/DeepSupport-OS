@@ -46,7 +46,7 @@ Deep Agents Harness
 
 ```bash
 cp .env.example .env
-# 编辑 .env，填入 DEEPSEEK_API_KEY，并确认 RAGLAB_* / 模型路径
+# 编辑 .env，填入 DEEPSEEK_API_KEY、DAYTONA_API_KEY，并确认 RAGLAB_* / 模型路径
 ```
 
 ### 2. 后端
@@ -91,7 +91,7 @@ DeepSupport-OS/
 
 Phase 0–7 主链路已可运行：Mock 企业数据、MCP 工具、RAGLab HTTP 封装、Deep Agents Harness（Skills / Subagents / HITL / SQLite Checkpoint）、Tasks API 与 Vue 壳。详见 [plan.md](./plan.md)。
 
-本地需配置 `.env`（可从 RAGLab 复制 DeepSeek Key，**不要提交**）。
+本地需配置 `.env`（可从 RAGLab 复制 DeepSeek Key；Daytona Key 用于 Skills/工作区沙箱隔离，**不要提交**）。
 
 ## License
 

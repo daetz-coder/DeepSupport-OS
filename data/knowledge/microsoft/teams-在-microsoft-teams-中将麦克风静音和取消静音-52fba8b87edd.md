@@ -4,7 +4,7 @@ product: Teams
 category: Troubleshooting
 source_url: https://support.microsoft.com/zh-CN/teams/meetings/mute-and-unmute-your-mic-in-microsoft-teams
 language: zh-CN
-fetched_at: 2026-08-04T11:28:58.596681+00:00
+fetched_at: 2026-08-04T11:47:21.192353+00:00
 document_id: ms-52fba8b87edd
 content_type: Troubleshooting
 ---

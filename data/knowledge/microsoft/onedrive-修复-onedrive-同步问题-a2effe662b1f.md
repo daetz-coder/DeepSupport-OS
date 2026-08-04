@@ -4,7 +4,7 @@ product: OneDrive
 category: Troubleshooting
 source_url: https://support.microsoft.com/zh-CN/onedrive/fix-onedrive-sync-problems
 language: zh-CN
-fetched_at: 2026-08-04T11:29:07.542976+00:00
+fetched_at: 2026-08-04T11:47:54.436190+00:00
 document_id: ms-a2effe662b1f
 content_type: Troubleshooting
 ---

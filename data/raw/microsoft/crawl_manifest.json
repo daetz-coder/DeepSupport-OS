@@ -1,10 +1,366 @@
 {
-  "crawled_at": "2026-08-04T11:33:00.188978+00:00",
+  "crawled_at": "2026-08-04T11:51:05.794241+00:00",
   "user_agent": "DeepSupportOS-ResearchBot/0.1 (+https://github.com/daetz-coder/DeepSupport-OS; educational demo crawler)",
-  "seed_count": 9,
-  "ok": 9,
-  "failed": 0,
+  "seed_count": 58,
+  "ok": 52,
+  "failed": 6,
   "results": [
+    {
+      "url": "https://support.microsoft.com/zh-CN/Outlook/i-can-t-send-or-receive-messages-in-outlook",
+      "product": "Outlook",
+      "category": "SendReceive",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Outlook/i-can-t-send-or-receive-messages-in-outlook",
+      "status": "ok",
+      "title": "我在 Outlook 中无法发送或接收邮件",
+      "path": "data/knowledge/microsoft/outlook-我在-outlook-中无法发送或接收邮件-043fd88290de.md",
+      "chars": 3613
+    },
+    {
+      "url": "https://support.microsoft.com/zh-CN/Outlook/outlook-email-stuck",
+      "product": "Outlook",
+      "category": "Sync",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Outlook/outlook-email-stuck",
+      "status": "ok",
+      "title": "Outlook 电子邮件停滞",
+      "path": "data/knowledge/microsoft/outlook-outlook-电子邮件停滞-19b9dbfd645b.md",
+      "chars": 3138
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/topic/%E5%8F%8C%E5%87%BB%E4%B8%80%E4%B8%AA-msg-%E6%96%87%E4%BB%B6%E6%89%93%E5%BC%80-outlook-%E4%B8%AD%E7%9A%84%E6%84%8F%E5%A4%96%E7%89%88%E6%9C%AC-0764b11b-03aa-2566-4f41-39eace84d531",
+      "product": "Outlook",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Outlook/double-clicking-a-msg-file-opens-an-unexpected-version-outlook",
+      "status": "ok",
+      "title": "双击.msg文件将打开意外版本的 Outlook",
+      "path": "data/knowledge/microsoft/outlook-双击-msg文件将打开意外版本的-outlook-63e353a02680.md",
+      "chars": 1294
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/topic/outlook-2016%E8%87%AA%E5%8A%A8%E5%8F%91%E7%8E%B0%E5%AE%9E%E7%8E%B0-0d7b2709-958a-7249-1c87-434d257b9087",
+      "product": "Outlook",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Outlook/outlook-2016-implementation-of-autodiscover",
+      "status": "ok",
+      "title": "自动发现Outlook 2016实现",
+      "path": "data/knowledge/microsoft/outlook-自动发现outlook-2016实现-1c5685de9feb.md",
+      "chars": 8607
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E5%B0%9D%E8%AF%95%E5%9C%A8%E6%96%B0%E7%9A%84-outlook-for-windows-%E4%B8%AD%E6%89%93%E5%8D%B0%E9%99%84%E5%8A%A0%E5%88%B0%E7%94%B5%E5%AD%90%E9%82%AE%E4%BB%B6%E7%9A%84word%E6%96%87%E6%A1%A3%E6%97%B6%E5%87%BA%E9%94%99-0174cf27-dd8f-4098-bc10-689efe960f8c",
+      "product": "Outlook",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Support/known-issues/error-when-trying-to-print-a-word-document-attached-to-an-email-in-new-outlook-for-windows",
+      "status": "ok",
+      "title": "尝试在新的 Outlook for Windows 中打印附加到电子邮件的Word文档时出错",
+      "path": "data/knowledge/microsoft/outlook-尝试在新的-outlook-for-windows-中打印附加到电子邮件的word文档时出错-45212943a20c.md",
+      "chars": 824
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/outlook-%E4%B8%AD%E8%87%AA%E5%8A%A8%E5%AE%8C%E6%88%90%E5%88%97%E8%A1%A8%E6%BB%9A%E5%8A%A8%E5%88%B0%E5%B1%8F%E5%B9%95%E4%B9%8B%E5%A4%96-0247f165-697f-4238-b424-b03cd2582e2d",
+      "product": "Outlook",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Support/known-issues/autocomplete-list-scrolls-off-the-screen-in-outlook",
+      "status": "ok",
+      "title": "Outlook 中自动完成列表滚动到屏幕之外",
+      "path": "data/knowledge/microsoft/outlook-outlook-中自动完成列表滚动到屏幕之外-fab77982983d.md",
+      "chars": 546
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/outlook-for-mac%E5%92%8C-outlook-mobile-%E9%97%B4%E6%AD%87%E6%80%A7%E5%81%9C%E6%AD%A2%E5%90%8C%E6%AD%A5-0773634b-fecf-4014-a879-f5d27ad6295e",
+      "product": "Outlook",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Support/known-issues/outlook-for-mac-and-outlook-mobile-intermittently-stop-syncing",
+      "status": "ok",
+      "title": "Outlook for Mac和 Outlook Mobile 间歇性停止同步",
+      "path": "data/knowledge/microsoft/outlook-outlook-for-mac和-outlook-mobile-间歇性停止同步-275d5e24168b.md",
+      "chars": 702
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/outlook-com-%E8%BF%81%E7%A7%BB%E5%90%8E-%E5%85%B1%E4%BA%AB%E6%97%A5%E5%8E%86%E4%B8%8D%E5%86%8D%E5%8F%AF%E7%BC%96%E8%BE%91%E6%88%96%E5%90%8C%E6%AD%A5-0de81aa5-84b2-4ba2-9f71-25a34124b90b",
+      "product": "Outlook",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Support/known-issues/outlook-com-shared-calendar-is-no-longer-editable-or-syncing-after-migration",
+      "status": "ok",
+      "title": "Outlook.com 迁移后，共享日历不再可编辑或同步",
+      "path": "data/knowledge/microsoft/outlook-outlook-com-迁移后-共享日历不再可编辑或同步-a973121ac33c.md",
+      "chars": 1011
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/topic/%E5%9C%A8%E5%AE%89%E8%A3%85-2017-%E5%B9%B4-10-%E6%9C%88-microsoft-outlook-%E5%AE%89%E5%85%A8%E6%9B%B4%E6%96%B0%E5%90%8E-microsoft-dynamics-365-for-outlook-%E6%97%A0%E6%B3%95%E5%91%88%E7%8E%B0%E7%BD%91%E9%A1%B5-050fe401-86f9-e9e1-7497-6525df07bed4",
+      "product": "Outlook",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/servicing/dynamics/crm/troubleshooting/microsoft-dynamics-365-for-outlook-is-unable-to-render-webpages-after-installing-the-october-2017-mi",
+      "status": "ok",
+      "title": "安装 2017 年 10 月Microsoft Outlook 安全更新后，Outlook Microsoft Dynamics 365无法呈现网页",
+      "path": "data/knowledge/microsoft/outlook-安装-2017-年-10-月microsoft-outlook-安全更新后-outlook-microsoft-dynamics-365无法呈现网页-bc1571572c04.md",
+      "chars": 2354
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/topic/%E6%97%A0%E6%B3%95%E5%B0%86%E6%B7%BB%E5%8A%A0%E5%88%B0-outlook-%E7%9A%84%E6%88%90%E5%91%98%E9%80%9A%E8%BF%87-http-%E4%BD%BF%E7%94%A8-mapi-%E8%81%94%E7%B3%BB%E4%BA%BA%E7%BB%84-035ba258-9a74-24f2-3d5e-2e37d550767e",
+      "product": "Outlook",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/servicing/Exchange/troubleshooting/can-t-add-members-to-outlook-contact-group-by-using-mapi-over-http",
+      "status": "ok",
+      "title": "无法通过 HTTP 使用 MAPI 将成员添加到 Outlook 联系人组",
+      "path": "data/knowledge/microsoft/outlook-无法通过-http-使用-mapi-将成员添加到-outlook-联系人组-071c73d8d64e.md",
+      "chars": 363
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E5%9C%A8-sharepoint-online-onedrive-%E6%88%96-microsoft-teams-%E4%B8%AD%E5%8F%91%E7%8E%B0%E6%81%B6%E6%84%8F%E6%96%87%E4%BB%B6%E6%97%B6%E9%9C%80%E9%87%87%E5%8F%96%E7%9A%84%E6%93%8D%E4%BD%9C-01e902ad-a903-4e0f-b093-1e1ac0c37ad2",
+      "product": "Teams",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Office/security-privacy/what-to-do-when-a-malicious-file-is-found-in-sharepoint-online-onedrive-or-microsoft-teams",
+      "status": "ok",
+      "title": "在 SharePoint Online、OneDrive 或 Microsoft Teams 中找到恶意文件需采取的操作",
+      "path": "data/knowledge/microsoft/teams-在-sharepoint-online-onedrive-或-microsoft-teams-中找到恶意文件需采取的操作-1eacb8dc4083.md",
+      "chars": 1750
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E5%9C%A8microsoft-teams-%E4%BC%9A%E8%AE%AE%E4%B8%AD%E4%BD%BF%E7%94%A8%E8%83%8C%E6%99%AF%E5%B1%8F%E5%B9%95%E9%98%85%E8%AF%BB%E5%99%A8-02016a3c-c7e2-49d3-b4ba-90eae1e1a574",
+      "product": "Teams",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/accessibility/teams/use-a-screen-reader-with-backgrounds-in-microsoft-teams-meetings",
+      "status": "ok",
+      "title": "在Microsoft Teams 会议中使用具有背景的屏幕阅读器",
+      "path": "data/knowledge/microsoft/teams-在microsoft-teams-会议中使用具有背景的屏幕阅读器-ef3393a45636.md",
+      "chars": 16385
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E9%80%82%E7%94%A8%E4%BA%8E%E4%B8%AA%E4%BA%BA%E5%92%8C%E5%B0%8F%E5%9E%8B%E4%BC%81%E4%B8%9A%E4%BD%BF%E7%94%A8%E7%9A%84-teams-%E7%9A%84%E5%B1%8F%E5%B9%95%E9%98%85%E8%AF%BB%E5%99%A8%E6%94%AF%E6%8C%81-067cf81d-6496-4a0d-b968-47d5d1a9a6e5",
+      "product": "Teams",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/accessibility/teams/screen-reader-support-for-teams-for-personal-and-small-business-use",
+      "status": "ok",
+      "title": "适用于个人和小型企业使用的 Teams 的屏幕阅读器支持",
+      "path": "data/knowledge/microsoft/teams-适用于个人和小型企业使用的-teams-的屏幕阅读器支持-b0ee7dcdd2b0.md",
+      "chars": 841
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/topic/%E5%9C%A8-microsoft-teams-%E4%BC%9A%E8%AE%AE%E4%B8%AD%E4%BD%BF%E7%94%A8%E5%BC%B9%E5%87%BA%E5%BC%8F%E5%AD%97%E5%B9%95-081bb2fb-48fb-4f45-963e-530a24ac9ed5",
+      "product": "Teams",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/accessibility/teams/use-pop-out-captions-in-microsoft-teams-meetings",
+      "status": "ok",
+      "title": "在 Microsoft Teams 会议中使用弹出式字幕",
+      "path": "data/knowledge/microsoft/teams-在-microsoft-teams-会议中使用弹出式字幕-270715814fad.md",
+      "chars": 892
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E5%9C%A8-microsoft-teams-%E4%B8%AD%E5%B0%86%E9%BA%A6%E5%85%8B%E9%A3%8E%E9%9D%99%E9%9F%B3%E5%92%8C%E5%8F%96%E6%B6%88%E9%9D%99%E9%9F%B3-17886394-9a9a-4f04-b4cc-e46589408b28",
+      "product": "Teams",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/teams/meetings/mute-and-unmute-your-mic-in-microsoft-teams",
+      "status": "ok",
+      "title": "在 Microsoft Teams 中将麦克风静音和取消静音",
+      "path": "data/knowledge/microsoft/teams-在-microsoft-teams-中将麦克风静音和取消静音-52fba8b87edd.md",
+      "chars": 1212
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/topic/%E5%9C%A8-microsoft-teams-%E4%B8%AD%E4%BD%BF%E7%94%A8-microsoft-modern-%E6%91%84%E5%83%8F%E5%A4%B4-2eae0ef9-c27a-4ae7-8465-65c462e2afd4",
+      "product": "Teams",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/surface/accessories/certified/use-microsoft-modern-webcam-in-microsoft-teams",
+      "status": "ok",
+      "title": "在 Microsoft Teams 中使用 Microsoft 新式网络摄像头",
+      "path": "data/knowledge/microsoft/teams-在-microsoft-teams-中使用-microsoft-新式网络摄像头-726620d9ab9a.md",
+      "chars": 2182
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/topic/%E4%B8%BA%E4%BB%80%E4%B9%88%E6%88%91%E6%97%A0%E6%B3%95%E5%9C%A8-microsoft-teams-%E4%B8%AD%E4%BD%BF%E7%94%A8%E8%81%8A%E5%A4%A9-%E5%AD%A6%E7%94%9F-38e97299-55be-4987-8125-970e696c7745",
+      "product": "Teams",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/teams/education/why-can-t-i-use-chat-in-microsoft-teams-students",
+      "status": "ok",
+      "title": "为什么我无法在 Microsoft Teams 中使用聊天？ （学生）",
+      "path": "data/knowledge/microsoft/teams-为什么我无法在-microsoft-teams-中使用聊天-学生-09bf91961cbd.md",
+      "chars": 1121
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E5%9C%A8-microsoft-teams-%E5%85%8D%E8%B4%B9%E7%89%88-%E4%B8%AD%E5%90%8C%E6%AD%A5%E8%81%94%E7%B3%BB%E4%BA%BA-313a0ecd-6d3d-4645-9db2-92762be9618a",
+      "product": "Teams",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/teams/free/settings/sync-your-contacts-in-microsoft-teams-free",
+      "status": "ok",
+      "title": "在 Microsoft Teams 免费版 中同步联系人",
+      "path": "data/knowledge/microsoft/teams-在-microsoft-teams-免费版-中同步联系人-ee4acd4a0ea1.md",
+      "chars": 666
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E4%BD%BF%E7%94%A8-office-2016-%E5%BA%94%E7%94%A8%E5%A4%84%E7%90%86-onedrive-%E4%B8%8A%E5%AD%98%E5%82%A8%E7%9A%84%E6%96%87%E6%A1%A3%E6%97%B6-%E9%87%8D%E5%A4%8D%E6%8F%90%E7%A4%BA%E7%99%BB%E5%BD%95%E5%92%8C%E6%89%93%E5%BC%80-vti-rpc-03b11ce6-b736-4473-a19f-88e9d299ac2a",
+      "product": "OneDrive",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Support/known-issues/repeated-prompt-to-login-and-open-vti-rpc-when-using-office-2016-apps-with-documents-stored-in-onedr",
+      "status": "ok",
+      "title": "使用 Office 2016 应用处理 OneDrive 上存储的文档时，重复提示登录和打开“_vti_rpc”",
+      "path": "data/knowledge/microsoft/onedrive-使用-office-2016-应用处理-onedrive-上存储的文档时-重复提示登录和打开-_vti_rpc-8433188e6cb9.md",
+      "chars": 823
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/topic/%E5%85%B3%E4%BA%8E%E5%9C%A8-office-%E4%B8%AD%E4%B8%8A%E4%BC%A0%E5%88%B0-onedrive-%E7%9A%84%E4%BD%93%E9%AA%8C-%E7%AE%A1%E7%90%86%E5%91%98%E9%9C%80%E8%A6%81%E4%BA%86%E8%A7%A3%E4%BB%80%E4%B9%88-08a37a8c-e477-4a02-811d-ef744d5a7721",
+      "product": "OneDrive",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Office/collab-files/what-administrators-need-to-know-about-the-upload-to-onedrive-experience-in-office",
+      "status": "ok",
+      "title": "关于在 Office 中上传到 OneDrive 的体验，管理员需要了解什么",
+      "path": "data/knowledge/microsoft/onedrive-关于在-office-中上传到-onedrive-的体验-管理员需要了解什么-b72213f23f42.md",
+      "chars": 1809
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/onedrive-%E4%B8%AD%E7%9A%84-microsoft-365-copilot-%E5%B8%AE%E5%8A%A9%E5%92%8C%E5%AD%A6%E4%B9%A0-097c9c3d-7f20-48a9-a341-2ab2519941d2",
+      "product": "OneDrive",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/onedrive/get-started-with-copilot-in-onedrive",
+      "status": "ok",
+      "title": "开始使用 OneDrive 中的 Copilot",
+      "path": "data/knowledge/microsoft/onedrive-开始使用-onedrive-中的-copilot-9d1b9062a7d1.md",
+      "chars": 1017
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/topic/%E4%B8%9A%E5%8A%A1%E5%8A%9E%E5%85%AC%E5%AE%A4-2016-%E5%B9%B4-kb3118265-%E7%9A%84-onedrive-%E6%9B%B4%E6%96%B0-2016-9-%E6%9C%88-6-05339457-2d4a-d7c9-d74e-fede6dc68a31",
+      "product": "OneDrive",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/servicing/Office/update/september-6-2016-update-for-onedrive-for-business-for-office-2016-kb3118265",
+      "status": "ok",
+      "title": "2016 年 9 月 6 日，Office 2016 OneDrive for Business 更新 (KB3118265)",
+      "path": "data/knowledge/microsoft/onedrive-2016-年-9-月-6-日-office-2016-onedrive-for-business-更新-kb3118265-27bd518bfd20.md",
+      "chars": 2898
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E4%BF%AE%E5%A4%8D-onedrive-%E5%90%8C%E6%AD%A5%E9%97%AE%E9%A2%98-0899b115-05f7-45ec-95b2-e4cc8c4670b2",
+      "product": "OneDrive",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/onedrive/fix-onedrive-sync-problems",
+      "status": "ok",
+      "title": "修复 OneDrive 同步问题",
+      "path": "data/knowledge/microsoft/onedrive-修复-onedrive-同步问题-a2effe662b1f.md",
+      "chars": 1375
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/onedrive-%E6%97%A0%E6%B3%95%E5%90%AF%E5%8A%A8-0c158fa6-0cd8-4373-98c8-9179e24f10f2",
+      "product": "OneDrive",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/onedrive/onedrive-won-t-start",
+      "status": "ok",
+      "title": "OneDrive 无法启动",
+      "path": "data/knowledge/microsoft/onedrive-onedrive-无法启动-8acf42f06e24.md",
+      "chars": 1313
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E5%BD%93%E6%82%A8%E5%B0%9D%E8%AF%95%E4%BB%8E-onedrive-for-%E5%B7%A5%E4%BD%9C%E6%88%96%E5%AD%A6%E6%A0%A1%E6%89%93%E5%BC%80%E6%96%87%E6%A1%A3%E6%97%B6-%E5%87%BA%E7%8E%B0-%E5%BE%88%E6%8A%B1%E6%AD%89-%E6%97%A0%E6%B3%95%E6%89%A7%E8%A1%8C%E6%AD%A4%E6%93%8D%E4%BD%9C-%E9%94%99%E8%AF%AF-0eed92fd-de5e-4a3a-82ad-f9822285e2a8",
+      "product": "OneDrive",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/onedrive/fixes-or-workarounds-for-recent-issues-in-onedrive",
+      "status": "ok",
+      "title": "OneDrive 中最新问题的修补程序或解决方法",
+      "path": "data/knowledge/microsoft/onedrive-onedrive-中最新问题的修补程序或解决方法-c13f9fcb4e1b.md",
+      "chars": 2612
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E4%B8%8D%E8%83%BD%E5%B0%86%E6%96%87%E4%BB%B6%E4%BB%8E-onedrive-for-%E5%B7%A5%E4%BD%9C%E6%88%96%E5%AD%A6%E6%A0%A1%E7%BD%91%E9%A1%B5%E6%8B%96%E5%8A%A8%E5%88%B0%E6%A1%8C%E9%9D%A2-16d567c4-fdc4-44d6-b784-684a10cdb816",
+      "product": "OneDrive",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/onedrive/fixes-or-workarounds-for-recent-issues-in-onedrive",
+      "status": "ok",
+      "title": "OneDrive 中最新问题的修补程序或解决方法",
+      "path": "data/knowledge/microsoft/onedrive-onedrive-中最新问题的修补程序或解决方法-c13f9fcb4e1b.md",
+      "chars": 2612
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E9%99%90%E5%88%B6%E5%AF%B9-excel-%E4%B8%AD%E7%9A%84%E6%96%87%E4%BB%B6%E7%9A%84%E6%9B%B4%E6%94%B9-021f1709-1ff6-48ec-bc4e-b23729db28f6",
+      "product": "Excel",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Excel/restrict-changes-to-files-in-excel",
+      "status": "ok",
+      "title": "限制对 Excel 中的文件的更改",
+      "path": "data/knowledge/microsoft/excel-限制对-excel-中的文件的更改-a89104143534.md",
+      "chars": 401
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E5%9C%A8-excel-%E4%B8%AD%E4%BD%BF%E7%94%A8-copilot-%E5%8F%AF%E8%A7%86%E5%8C%96%E6%95%B0%E6%8D%AE-05302e3f-de42-4475-b235-be9cb3d4e936",
+      "product": "Excel",
+      "category": "Guide",
+      "http_status": 403,
+      "final_url": "https://support.microsoft.com/zh-CN/Excel/copilot/visualize-your-data-with-copilot-in-excel",
+      "status": "http_error"
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E4%BD%BF%E7%94%A8%E5%B1%8F%E5%B9%95%E9%98%85%E8%AF%BB%E5%99%A8%E5%9C%A8-excel-%E4%B8%AD%E5%88%9B%E5%BB%BA%E6%95%B0%E6%8D%AE%E9%80%8F%E8%A7%86%E8%A1%A8%E6%88%96%E6%95%B0%E6%8D%AE%E9%80%8F%E8%A7%86%E5%9B%BE-07fdd613-e679-4783-8731-7376315fad67",
+      "product": "Excel",
+      "category": "Guide",
+      "http_status": 403,
+      "final_url": "https://support.microsoft.com/zh-CN/Accessibility/excel/use-a-screen-reader-to-create-a-pivottable-or-pivotchart-in-excel",
+      "status": "http_error"
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/excel-%E7%9A%84%E5%B1%8F%E5%B9%95%E9%98%85%E8%AF%BB%E5%99%A8%E6%94%AF%E6%8C%81-0976b140-7033-4e2d-8887-187280701bf8",
+      "product": "Excel",
+      "category": "Guide",
+      "http_status": 403,
+      "final_url": "https://support.microsoft.com/zh-CN/Accessibility/excel/screen-reader-support-for-excel",
+      "status": "http_error"
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/topic/%E6%82%A8%E6%97%A0%E6%B3%95%E5%9C%A8-excel-%E4%B8%AD%E9%80%89%E6%8B%A9%E6%9C%AA%E5%8F%97%E4%BF%9D%E6%8A%A4%E7%9A%84%E5%8D%95%E5%85%83%E6%A0%BC-0edc57a3-805c-40f9-f137-441a1ea405dc",
+      "product": "Excel",
+      "category": "Troubleshooting",
+      "http_status": 403,
+      "final_url": "https://support.microsoft.com/zh-cn/topic/%E6%82%A8%E6%97%A0%E6%B3%95%E5%9C%A8-excel-%E4%B8%AD%E9%80%89%E6%8B%A9%E6%9C%AA%E5%8F%97%E4%BF%9D%E6%8A%A4%E7%9A%84%E5%8D%95%E5%85%83%E6%A0%BC-0edc57a3-805c-40f9-f137-441a1ea405dc",
+      "status": "http_error"
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/topic/-%E6%88%91%E4%BB%AC%E6%97%A0%E6%B3%95%E8%BF%9E%E6%8E%A5%E5%88%B0%E6%AD%A4%E5%BA%94%E7%94%A8%E7%A8%8B%E5%BA%8F%E7%9A%84%E7%9B%AE%E5%BD%95%E6%9C%8D%E5%8A%A1%E5%99%A8-%E7%9A%84%E9%94%99%E8%AF%AF%E6%97%B6%E6%82%A8%E4%BD%BF%E7%94%A8-excel-web-app-%E6%89%93%E5%BC%80%E7%94%B5%E5%AD%90%E8%A1%A8%E6%A0%BC-04397a6f-cce1-b428-58d1-3632f2f7273c",
+      "product": "Excel",
+      "category": "Troubleshooting",
+      "http_status": 403,
+      "final_url": "https://support.microsoft.com/zh-cn/topic/-%E6%88%91%E4%BB%AC%E6%97%A0%E6%B3%95%E8%BF%9E%E6%8E%A5%E5%88%B0%E6%AD%A4%E5%BA%94%E7%94%A8%E7%A8%8B%E5%BA%8F%E7%9A%84%E7%9B%AE%E5%BD%95%E6%9C%8D%E5%8A%A1%E5%99%A8-%E7%9A%84%E9%94%99%E8%AF%AF%E6%97%B6%E6%82%A8%E4%BD%BF%E7%94%A8-excel-web-app-%E6%89%93%E5%BC%80%E7%94%B5%E5%AD%90%E8%A1%A8%E6%A0%BC-04397a6f-cce1-b428-58d1-3632f2f7273c",
+      "status": "http_error"
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/topic/%E4%BB%8E-excel-web-app-%E4%BF%AE%E5%A4%8D%E7%A8%8B%E5%BA%8F%E5%8C%85-wacmui-en-us-msp-xlwacwfe-msp-%E7%9A%84%E6%8F%8F%E8%BF%B0-2010-%E5%B9%B4-10-%E6%9C%88-26-%E6%97%A5-0955ba89-76b9-37a4-60a4-42398c166890",
+      "product": "Excel",
+      "category": "Troubleshooting",
+      "http_status": 403,
+      "final_url": "https://support.microsoft.com/zh-CN/servicing/Office/troubleshooting/sharepoint/description-of-the-excel-web-app-hotfix-package-wacmui-en-us-msp-xlwacwfe-msp-october-26-2010",
+      "status": "http_error"
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/topic/%E4%BF%AE%E5%A4%8D-%E4%B8%8D%E8%83%BD%E4%B8%BB%E6%95%B0%E6%8D%AE%E6%9C%8D%E5%8A%A1%E6%B7%BB%E5%8A%A0%E5%9C%A8-excel-%E7%9A%84%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%B8%8A%E5%AE%89%E8%A3%85%E5%85%B7%E6%9C%89%E5%AE%89%E8%A3%85-microsoft-office-2013-0c9d74b5-cc64-d486-f2db-9edf35976fe8",
+      "product": "Excel",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-cn/topic/%E4%BF%AE%E5%A4%8D-%E4%B8%8D%E8%83%BD%E4%B8%BB%E6%95%B0%E6%8D%AE%E6%9C%8D%E5%8A%A1%E6%B7%BB%E5%8A%A0%E5%9C%A8-excel-%E7%9A%84%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%B8%8A%E5%AE%89%E8%A3%85%E5%85%B7%E6%9C%89%E5%AE%89%E8%A3%85-microsoft-office-2013-0c9d74b5-cc64-d486-f2db-9edf35976fe8",
+      "status": "ok",
+      "title": "修复： 不能主数据服务添加在 excel 的计算机上安装具有安装 Microsoft Office 2013",
+      "path": "data/knowledge/microsoft/excel-修复-不能主数据服务添加在-excel-的计算机上安装具有安装-microsoft-office-2013-052c00791fbb.md",
+      "chars": 1500
+    },
     {
       "url": "https://support.microsoft.com/zh-cn/topic/%E5%BD%93%E6%82%A8%E4%BF%A1%E4%BB%BB-word-2007-%E6%88%96-word-2010-%E4%B8%AD%E7%9A%84%E4%BD%8D%E7%BD%AE%E6%97%B6-%E6%98%A0%E5%B0%84%E9%A9%B1%E5%8A%A8%E5%99%A8%E7%BD%91%E7%BB%9C%E4%BD%8D%E7%BD%AE%E5%B0%86%E6%9B%B4%E6%94%B9%E4%B8%BA-unc-%E8%B7%AF%E5%BE%84-069a242f-7d3e-45aa-019e-664c09d8d126",
       "product": "Word",
@@ -15,6 +371,17 @@
       "title": "终止对 Office 2007 的支持",
       "path": "data/knowledge/microsoft/word-终止对-office-2007-的支持-b2f8c88cfffc.md",
       "chars": 925
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/topic/%E6%AF%8F%E6%AC%A1%E9%80%80%E5%87%BA%E6%97%B6-%E7%B3%BB%E7%BB%9F%E9%83%BD%E4%BC%9A%E6%8F%90%E7%A4%BA%E4%BD%A0%E4%BF%9D%E5%AD%98%E5%AF%B9-normal-dotm-%E6%A8%A1%E6%9D%BF%E6%89%80%E5%81%9A%E7%9A%84%E6%9B%B4%E6%94%B9word-09d0c9bd-31fa-a53b-79fd-1cab746a64d8",
+      "product": "Word",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Word/you-are-prompted-to-save-the-changes-to-the-normal-dotm-template-every-time-you-quit-word",
+      "status": "ok",
+      "title": "每次退出时，系统都会提示你保存对 Normal.dotm 模板所做的更改Word",
+      "path": "data/knowledge/microsoft/word-每次退出时-系统都会提示你保存对-normal-dotm-模板所做的更改word-410afdd69be7.md",
+      "chars": 2574
     },
     {
       "url": "https://support.microsoft.com/zh-cn/office/%E4%BD%BF%E7%94%A8%E5%AF%86%E7%A0%81%E4%BF%9D%E6%8A%A4word%E6%96%87%E6%A1%A3-05084cc3-300d-4c1a-8416-38d3e37d6826",
@@ -28,6 +395,17 @@
       "chars": 783
     },
     {
+      "url": "https://support.microsoft.com/zh-cn/office/%E4%BD%BF%E7%94%A8-word-%E4%B8%AD%E7%9A%84-copilot-%E8%B5%B7%E8%8D%89%E5%92%8C%E6%B7%BB%E5%8A%A0%E5%86%85%E5%AE%B9-069c91f0-9e42-4c9a-bbce-fddf5d581541",
+      "product": "Word",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Word/copilot/draft-and-add-content-with-copilot-in-word",
+      "status": "ok",
+      "title": "使用 Word 中的 Copilot 起草和添加内容",
+      "path": "data/knowledge/microsoft/word-使用-word-中的-copilot-起草和添加内容-cfda0453cf9a.md",
+      "chars": 2710
+    },
+    {
       "url": "https://support.microsoft.com/zh-cn/office/%E5%AE%89%E8%A3%85-kb5002542-%E5%90%8E%E5%B0%9D%E8%AF%95%E6%BF%80%E6%B4%BB%E5%B5%8C%E5%85%A5%E5%8C%85%E5%AF%B9%E8%B1%A1%E6%97%B6-word%E5%8F%AF%E8%83%BD%E4%BC%9A%E5%81%9C%E6%AD%A2%E5%93%8D%E5%BA%94-0f9c8d3a-1ef7-40ba-b00c-359520d58085",
       "product": "Word",
       "category": "Troubleshooting",
@@ -39,6 +417,39 @@
       "chars": 450
     },
     {
+      "url": "https://support.microsoft.com/zh-cn/topic/%E5%A6%82%E4%BD%95%E8%A7%A3%E5%86%B3%E6%89%93%E5%BC%80-word-2007-2010-%E6%96%87%E4%BB%B6%E6%97%B6-word-%E5%B0%9D%E8%AF%95%E6%89%93%E5%BC%80%E6%96%87%E4%BB%B6%E6%97%B6%E9%81%87%E5%88%B0%E9%94%99%E8%AF%AF-%E9%97%AE%E9%A2%98-%E8%BD%BB%E6%9D%BE%E4%BF%AE%E5%A4%8D-0903bb9b-d8e4-aabd-0364-f832d26ecff7",
+      "product": "Word",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-cn/office/%E7%BB%88%E6%AD%A2%E5%AF%B9-office-2007-%E7%9A%84%E6%94%AF%E6%8C%81-942272d3-bd72-4944-9f82-02ed307cf934",
+      "status": "ok",
+      "title": "终止对 Office 2007 的支持",
+      "path": "data/knowledge/microsoft/word-终止对-office-2007-的支持-b2f8c88cfffc.md",
+      "chars": 925
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/topic/%E6%97%A9%E6%9C%9F%E7%89%88%E6%9C%AC%E7%9A%84-word-%E6%96%87%E6%A1%A3%E6%97%A0%E6%B3%95%E5%9C%A8-word-2008-for-mac-%E4%B8%AD%E6%89%93%E5%BC%80-1c9a00d1-c885-2b00-217c-325b6ae6712d",
+      "product": "Word",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-cn/topic/%E6%97%A9%E6%9C%9F%E7%89%88%E6%9C%AC%E7%9A%84-word-%E6%96%87%E6%A1%A3%E6%97%A0%E6%B3%95%E5%9C%A8-word-2008-for-mac-%E4%B8%AD%E6%89%93%E5%BC%80-1c9a00d1-c885-2b00-217c-325b6ae6712d",
+      "status": "ok",
+      "title": "早期版本的 Word 文档无法在 Word 2008 for Mac 中打开",
+      "path": "data/knowledge/microsoft/word-早期版本的-word-文档无法在-word-2008-for-mac-中打开-31d61864a12c.md",
+      "chars": 1632
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/topic/%E7%AD%9B%E9%80%89%E5%99%A8%E4%B8%8D%E8%83%BD%E6%8C%89%E9%A2%84%E6%9C%9F%E4%BB%8E%E5%B7%B2%E5%9C%A8-microsoft-dynamics-ax-2012-%E4%B8%AD%E4%BD%BF%E7%94%A8%E5%A4%9A%E4%B8%AA%E6%95%B0%E6%8D%AE%E6%BA%90%E7%9A%84-word-%E6%A8%A1%E6%9D%BF%E4%B8%AD%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA-word-%E6%96%87%E6%A1%A3%E6%97%B6-134d47d3-02cc-87ae-7cd3-399ea0ec79bf",
+      "product": "Word",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-cn/topic/%E7%AD%9B%E9%80%89%E5%99%A8%E4%B8%8D%E8%83%BD%E6%8C%89%E9%A2%84%E6%9C%9F%E4%BB%8E%E5%B7%B2%E5%9C%A8-microsoft-dynamics-ax-2012-%E4%B8%AD%E4%BD%BF%E7%94%A8%E5%A4%9A%E4%B8%AA%E6%95%B0%E6%8D%AE%E6%BA%90%E7%9A%84-word-%E6%A8%A1%E6%9D%BF%E4%B8%AD%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA-word-%E6%96%87%E6%A1%A3%E6%97%B6-134d47d3-02cc-87ae-7cd3-399ea0ec79bf",
+      "status": "ok",
+      "title": "筛选器不能按预期从已在 Microsoft Dynamics AX 2012 中使用多个数据源的 Word 模板中创建一个 Word 文档时",
+      "path": "data/knowledge/microsoft/word-筛选器不能按预期从已在-microsoft-dynamics-ax-2012-中使用多个数据源的-word-模板中创建一个-word-文档时-1f333c994efc.md",
+      "chars": 3540
+    },
+    {
       "url": "https://support.microsoft.com/zh-cn/topic/%E5%9C%A8-powerpoint-%E4%B8%AD%E4%BD%BF%E7%94%A8-copilot-%E8%BF%9B%E8%A1%8C%E7%BC%96%E8%BE%91-008f17aa-8e5f-4cda-ba6c-0588000bdad7",
       "product": "PowerPoint",
       "category": "Guide",
@@ -48,6 +459,39 @@
       "title": "在 PowerPoint 中使用 Copilot 进行编辑",
       "path": "data/knowledge/microsoft/powerpoint-在-powerpoint-中使用-copilot-进行编辑-42cc75c98ec0.md",
       "chars": 3733
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E5%9C%A8microsoft-365-%E4%B8%93%E5%B1%9E-powerpoint%E4%B8%AD%E5%B0%86%E6%89%8B%E5%86%99%E5%A2%A8%E8%BF%B9%E6%9B%B4%E6%94%B9%E4%B8%BA%E5%BD%A2%E7%8A%B6-%E6%96%87%E6%9C%AC%E6%88%96%E6%95%B0%E5%AD%A6-0740dec3-6291-4c1f-8baa-011d18449919",
+      "product": "PowerPoint",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/PowerPoint/change-handwritten-ink-to-shapes-text-or-math-in-powerpoint-for-microsoft-365",
+      "status": "ok",
+      "title": "在Microsoft 365 专属 PowerPoint中将手写墨迹更改为形状、文本或数学",
+      "path": "data/knowledge/microsoft/powerpoint-在microsoft-365-专属-powerpoint中将手写墨迹更改为形状-文本或数学-07434a5ae7b2.md",
+      "chars": 1643
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E5%AE%89%E8%A3%85-2024-%E5%B9%B4-4-%E6%9C%88-9-%E6%97%A5%E6%9B%B4%E6%96%B0%E5%90%8E-%E5%8F%AF%E8%83%BD%E4%BC%9A%E7%A6%81%E7%94%A8-powerpoint-2019-%E7%9A%84%E6%9F%90%E4%BA%9B%E5%8A%9F%E8%83%BD-0e367bc6-3912-41aa-acc5-318248347733",
+      "product": "PowerPoint",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Support/known-issues/some-features-of-powerpoint-2019-might-be-disabled-after-installing-the-april-9-2024-update",
+      "status": "ok",
+      "title": "安装 2024 年 4 月 9 日更新后，可能会禁用 PowerPoint 2019 的某些功能",
+      "path": "data/knowledge/microsoft/powerpoint-安装-2024-年-4-月-9-日更新后-可能会禁用-powerpoint-2019-的某些功能-ad9899c4603c.md",
+      "chars": 1065
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E4%BD%BF%E7%94%A8%E5%B1%8F%E5%B9%95%E9%98%85%E8%AF%BB%E5%99%A8%E5%9C%A8-powerpoint-%E4%B8%AD%E9%98%85%E8%AF%BB%E6%88%96%E6%B7%BB%E5%8A%A0%E6%BC%94%E8%AE%B2%E8%80%85%E5%A4%87%E6%B3%A8%E5%92%8C%E6%B3%A8%E9%87%8A-0f40925d-8d78-4357-945b-ad7dd7bd7f60",
+      "product": "PowerPoint",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/accessibility/powerpoint/use-a-screen-reader-to-read-or-add-speaker-notes-and-comments-in-powerpoint",
+      "status": "ok",
+      "title": "使用屏幕阅读器在 PowerPoint 中阅读或添加演讲者备注和注释",
+      "path": "data/knowledge/microsoft/powerpoint-使用屏幕阅读器在-powerpoint-中阅读或添加演讲者备注和注释-40867912b091.md",
+      "chars": 11163
     },
     {
       "url": "https://support.microsoft.com/zh-cn/office/%E4%BF%AE%E5%A4%8D-powerpoint-%E4%B8%AD%E6%8D%9F%E5%9D%8F%E7%9A%84%E7%AC%94%E8%AE%B0%E9%A1%B5-087df5cf-4fac-4738-a771-707c04bab9a2",
@@ -72,6 +516,28 @@
       "chars": 270
     },
     {
+      "url": "https://support.microsoft.com/zh-cn/office/powerpoint-%E6%97%A0%E6%B3%95%E6%89%93%E5%BC%80%E6%AD%A4%E6%96%87%E4%BB%B6-2d3febf7-4842-4cdc-9756-0f368dfafa6f",
+      "product": "PowerPoint",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/PowerPoint/powerpoint-can-t-open-this-file",
+      "status": "ok",
+      "title": "PowerPoint 无法打开此文件",
+      "path": "data/knowledge/microsoft/powerpoint-powerpoint-无法打开此文件-61b4a9697358.md",
+      "chars": 812
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/powerpoint-%E4%B8%AD%E6%BC%94%E7%A4%BA%E6%96%87%E7%A8%BF%E7%9A%84%E5%AF%86%E7%A0%81%E4%BF%9D%E6%8A%A4-33dfadad-f231-4bd1-8bf6-d15e1671da41",
+      "product": "PowerPoint",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/PowerPoint/password-protection-for-presentations-in-powerpoint",
+      "status": "ok",
+      "title": "PowerPoint 中演示文稿的密码保护",
+      "path": "data/knowledge/microsoft/powerpoint-powerpoint-中演示文稿的密码保护-e87178288480.md",
+      "chars": 2047
+    },
+    {
       "url": "https://support.microsoft.com/zh-cn/account-billing/%E6%9C%89%E5%85%B3%E6%AC%A7%E7%9B%9F%E6%9C%8D%E5%8A%A1%E7%9A%84%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%9C%88%E6%B4%BB%E8%B7%83%E6%8E%A5%E5%8F%97%E8%80%85%E7%9A%84%E4%BF%A1%E6%81%AF-0515c3e5-e0c9-4471-9e11-cdbe2bb2f4c3",
       "product": "Microsoft365",
       "category": "Guide",
@@ -81,6 +547,39 @@
       "title": "有关欧盟服务的平均每月活跃接受者的信息",
       "path": "data/knowledge/microsoft/microsoft365-有关欧盟服务的平均每月活跃接受者的信息-e8889aeeba68.md",
       "chars": 220
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/account-billing/%E5%90%88%E5%B9%B6-microsoft-%E5%B8%90%E6%88%B7-06b122ca-7323-48f5-8cd7-c3408bcc2123",
+      "product": "Microsoft365",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/accounts-billing/manage/combining-microsoft-accounts",
+      "status": "ok",
+      "title": "合并 Microsoft 帐户",
+      "path": "data/knowledge/microsoft/microsoft365-合并-microsoft-帐户-dcd58ea29af2.md",
+      "chars": 2076
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/account-billing/%E5%AF%B9microsoft-authenticator-%E8%87%AA%E5%8A%A8%E5%A1%AB%E5%85%85%E7%9A%84%E6%9B%B4%E6%94%B9-09fd75df-dc04-4477-9619-811510805ab6",
+      "product": "Microsoft365",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/authenticator/changes-to-microsoft-authenticator-autofill",
+      "status": "ok",
+      "title": "对Microsoft Authenticator 自动填充的更改",
+      "path": "data/knowledge/microsoft/microsoft365-对microsoft-authenticator-自动填充的更改-26733f1f0621.md",
+      "chars": 2125
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/account-billing/%E5%9C%A8-microsoft-authenticator-%E4%B8%AD%E8%AE%BE%E7%BD%AE%E5%AF%86%E9%92%A5-0a992136-5909-4230-8232-91b0a55a92eb",
+      "product": "Microsoft365",
+      "category": "Guide",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/authenticator/how-to-add-your-accounts-to-microsoft-authenticator",
+      "status": "ok",
+      "title": "如何将帐户添加到 Microsoft Authenticator",
+      "path": "data/knowledge/microsoft/microsoft365-如何将帐户添加到-microsoft-authenticator-f823336c6ab3.md",
+      "chars": 5967
     },
     {
       "url": "https://support.microsoft.com/zh-cn/account-billing/%E5%B0%86%E7%9F%AD%E4%BF%A1%E7%99%BB%E5%BD%95%E8%AE%BE%E7%BD%AE%E4%B8%BA%E6%89%8B%E6%9C%BA%E9%AA%8C%E8%AF%81%E6%96%B9%E6%B3%95-0aa5b3b3-a716-4ff2-b0d6-31d2bcfbac42",
@@ -103,6 +602,28 @@
       "title": "登录工作或学校帐户时验证身份",
       "path": "data/knowledge/microsoft/microsoft365-登录工作或学校帐户时验证身份-026b8b3a1a32.md",
       "chars": 719
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E4%BD%BF%E7%94%A8%E6%AD%A3%E7%A1%AE%E7%9A%84%E5%AF%86%E7%A0%81%E6%89%93%E5%BC%80-vba-%E9%A1%B9%E7%9B%AE%E6%97%B6%E5%87%BA%E7%8E%B0%E9%94%99%E8%AF%AF-%E5%AF%86%E7%A0%81%E6%97%A0%E6%95%88-001908dd-0155-4a51-b405-cf181d2836d5",
+      "product": "Microsoft365",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Support/known-issues/error-invalid-password-when-opening-a-vba-project-using-the-correct-password",
+      "status": "ok",
+      "title": "使用正确的密码打开 VBA 项目时出现错误“密码无效”",
+      "path": "data/knowledge/microsoft/microsoft365-使用正确的密码打开-vba-项目时出现错误-密码无效-56d445550a2b.md",
+      "chars": 1002
+    },
+    {
+      "url": "https://support.microsoft.com/zh-cn/office/%E7%99%BB%E5%BD%95%E4%BB%A5%E6%9F%A5%E7%9C%8Bmicrosoft-365-%E5%8A%A0%E5%AF%86%E9%82%AE%E4%BB%B6-0a57775d-0a2c-4aaf-a370-ceb079f19454",
+      "product": "Microsoft365",
+      "category": "Troubleshooting",
+      "http_status": 200,
+      "final_url": "https://support.microsoft.com/zh-CN/Office/account-management/sign-in-to-view-your-microsoft-365-encrypted-message",
+      "status": "ok",
+      "title": "登录以查看Microsoft 365 加密邮件",
+      "path": "data/knowledge/microsoft/microsoft365-登录以查看microsoft-365-加密邮件-86c2d6dfeaa5.md",
+      "chars": 922
     }
   ],
   "note": "Public Microsoft Support pages via sitemap/seeds; demo use only."

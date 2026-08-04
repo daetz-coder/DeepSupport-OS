@@ -4,7 +4,7 @@ product: Outlook
 category: Troubleshooting
 source_url: https://support.microsoft.com/zh-CN/Support/known-issues/outlook-for-mac-and-outlook-mobile-intermittently-stop-syncing
 language: zh-CN
-fetched_at: 2026-08-04T11:28:50.895432+00:00
+fetched_at: 2026-08-04T11:46:56.831150+00:00
 document_id: ms-275d5e24168b
 content_type: Troubleshooting
 ---

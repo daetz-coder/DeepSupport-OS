@@ -4,7 +4,7 @@ product: OneDrive
 category: Troubleshooting
 source_url: https://support.microsoft.com/zh-CN/Support/known-issues/repeated-prompt-to-login-and-open-vti-rpc-when-using-office-2016-apps-with-documents-stored-in-onedr
 language: zh-CN
-fetched_at: 2026-08-04T11:29:04.149784+00:00
+fetched_at: 2026-08-04T11:47:35.248639+00:00
 document_id: ms-8433188e6cb9
 content_type: Troubleshooting
 ---

@@ -4,7 +4,7 @@ product: Teams
 category: Guide
 source_url: https://support.microsoft.com/zh-CN/Office/security-privacy/what-to-do-when-a-malicious-file-is-found-in-sharepoint-online-onedrive-or-microsoft-teams
 language: zh-CN
-fetched_at: 2026-08-04T11:28:55.816312+00:00
+fetched_at: 2026-08-04T11:47:09.555888+00:00
 document_id: ms-1eacb8dc4083
 content_type: Troubleshooting
 ---

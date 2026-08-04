@@ -4,7 +4,7 @@ product: Microsoft365
 category: Troubleshooting
 source_url: https://support.microsoft.com/zh-CN/accounts-billing/work-school/set-up-sms-sign-in-as-a-phone-verification-method
 language: zh-CN
-fetched_at: 2026-08-04T11:32:49.896967+00:00
+fetched_at: 2026-08-04T11:50:58.136356+00:00
 document_id: ms-f2c87743a95d
 content_type: Troubleshooting
 ---

@@ -16,6 +16,21 @@
   },
   {
     "product": "Outlook",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/topic/outlook-2016%E8%87%AA%E5%8A%A8%E5%8F%91%E7%8E%B0%E5%AE%9E%E7%8E%B0-0d7b2709-958a-7249-1c87-434d257b9087"
+  },
+  {
+    "product": "Outlook",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/office/%E5%B0%9D%E8%AF%95%E5%9C%A8%E6%96%B0%E7%9A%84-outlook-for-windows-%E4%B8%AD%E6%89%93%E5%8D%B0%E9%99%84%E5%8A%A0%E5%88%B0%E7%94%B5%E5%AD%90%E9%82%AE%E4%BB%B6%E7%9A%84word%E6%96%87%E6%A1%A3%E6%97%B6%E5%87%BA%E9%94%99-0174cf27-dd8f-4098-bc10-689efe960f8c"
+  },
+  {
+    "product": "Outlook",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/office/outlook-%E4%B8%AD%E8%87%AA%E5%8A%A8%E5%AE%8C%E6%88%90%E5%88%97%E8%A1%A8%E6%BB%9A%E5%8A%A8%E5%88%B0%E5%B1%8F%E5%B9%95%E4%B9%8B%E5%A4%96-0247f165-697f-4238-b424-b03cd2582e2d"
+  },
+  {
+    "product": "Outlook",
     "category": "Troubleshooting",
     "url": "https://support.microsoft.com/zh-cn/office/outlook-for-mac%E5%92%8C-outlook-mobile-%E9%97%B4%E6%AD%87%E6%80%A7%E5%81%9C%E6%AD%A2%E5%90%8C%E6%AD%A5-0773634b-fecf-4014-a879-f5d27ad6295e"
   },
@@ -25,9 +40,34 @@
     "url": "https://support.microsoft.com/zh-cn/office/outlook-com-%E8%BF%81%E7%A7%BB%E5%90%8E-%E5%85%B1%E4%BA%AB%E6%97%A5%E5%8E%86%E4%B8%8D%E5%86%8D%E5%8F%AF%E7%BC%96%E8%BE%91%E6%88%96%E5%90%8C%E6%AD%A5-0de81aa5-84b2-4ba2-9f71-25a34124b90b"
   },
   {
+    "product": "Outlook",
+    "category": "Troubleshooting",
+    "url": "https://support.microsoft.com/zh-cn/topic/%E5%9C%A8%E5%AE%89%E8%A3%85-2017-%E5%B9%B4-10-%E6%9C%88-microsoft-outlook-%E5%AE%89%E5%85%A8%E6%9B%B4%E6%96%B0%E5%90%8E-microsoft-dynamics-365-for-outlook-%E6%97%A0%E6%B3%95%E5%91%88%E7%8E%B0%E7%BD%91%E9%A1%B5-050fe401-86f9-e9e1-7497-6525df07bed4"
+  },
+  {
+    "product": "Outlook",
+    "category": "Troubleshooting",
+    "url": "https://support.microsoft.com/zh-cn/topic/%E6%97%A0%E6%B3%95%E5%B0%86%E6%B7%BB%E5%8A%A0%E5%88%B0-outlook-%E7%9A%84%E6%88%90%E5%91%98%E9%80%9A%E8%BF%87-http-%E4%BD%BF%E7%94%A8-mapi-%E8%81%94%E7%B3%BB%E4%BA%BA%E7%BB%84-035ba258-9a74-24f2-3d5e-2e37d550767e"
+  },
+  {
     "product": "Teams",
     "category": "Guide",
     "url": "https://support.microsoft.com/zh-cn/office/%E5%9C%A8-sharepoint-online-onedrive-%E6%88%96-microsoft-teams-%E4%B8%AD%E5%8F%91%E7%8E%B0%E6%81%B6%E6%84%8F%E6%96%87%E4%BB%B6%E6%97%B6%E9%9C%80%E9%87%87%E5%8F%96%E7%9A%84%E6%93%8D%E4%BD%9C-01e902ad-a903-4e0f-b093-1e1ac0c37ad2"
+  },
+  {
+    "product": "Teams",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/office/%E5%9C%A8microsoft-teams-%E4%BC%9A%E8%AE%AE%E4%B8%AD%E4%BD%BF%E7%94%A8%E8%83%8C%E6%99%AF%E5%B1%8F%E5%B9%95%E9%98%85%E8%AF%BB%E5%99%A8-02016a3c-c7e2-49d3-b4ba-90eae1e1a574"
+  },
+  {
+    "product": "Teams",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/office/%E9%80%82%E7%94%A8%E4%BA%8E%E4%B8%AA%E4%BA%BA%E5%92%8C%E5%B0%8F%E5%9E%8B%E4%BC%81%E4%B8%9A%E4%BD%BF%E7%94%A8%E7%9A%84-teams-%E7%9A%84%E5%B1%8F%E5%B9%95%E9%98%85%E8%AF%BB%E5%99%A8%E6%94%AF%E6%8C%81-067cf81d-6496-4a0d-b968-47d5d1a9a6e5"
+  },
+  {
+    "product": "Teams",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/topic/%E5%9C%A8-microsoft-teams-%E4%BC%9A%E8%AE%AE%E4%B8%AD%E4%BD%BF%E7%94%A8%E5%BC%B9%E5%87%BA%E5%BC%8F%E5%AD%97%E5%B9%95-081bb2fb-48fb-4f45-963e-530a24ac9ed5"
   },
   {
     "product": "Teams",
@@ -40,9 +80,34 @@
     "url": "https://support.microsoft.com/zh-cn/topic/%E5%9C%A8-microsoft-teams-%E4%B8%AD%E4%BD%BF%E7%94%A8-microsoft-modern-%E6%91%84%E5%83%8F%E5%A4%B4-2eae0ef9-c27a-4ae7-8465-65c462e2afd4"
   },
   {
+    "product": "Teams",
+    "category": "Troubleshooting",
+    "url": "https://support.microsoft.com/zh-cn/topic/%E4%B8%BA%E4%BB%80%E4%B9%88%E6%88%91%E6%97%A0%E6%B3%95%E5%9C%A8-microsoft-teams-%E4%B8%AD%E4%BD%BF%E7%94%A8%E8%81%8A%E5%A4%A9-%E5%AD%A6%E7%94%9F-38e97299-55be-4987-8125-970e696c7745"
+  },
+  {
+    "product": "Teams",
+    "category": "Troubleshooting",
+    "url": "https://support.microsoft.com/zh-cn/office/%E5%9C%A8-microsoft-teams-%E5%85%8D%E8%B4%B9%E7%89%88-%E4%B8%AD%E5%90%8C%E6%AD%A5%E8%81%94%E7%B3%BB%E4%BA%BA-313a0ecd-6d3d-4645-9db2-92762be9618a"
+  },
+  {
     "product": "OneDrive",
     "category": "Troubleshooting",
     "url": "https://support.microsoft.com/zh-cn/office/%E4%BD%BF%E7%94%A8-office-2016-%E5%BA%94%E7%94%A8%E5%A4%84%E7%90%86-onedrive-%E4%B8%8A%E5%AD%98%E5%82%A8%E7%9A%84%E6%96%87%E6%A1%A3%E6%97%B6-%E9%87%8D%E5%A4%8D%E6%8F%90%E7%A4%BA%E7%99%BB%E5%BD%95%E5%92%8C%E6%89%93%E5%BC%80-vti-rpc-03b11ce6-b736-4473-a19f-88e9d299ac2a"
+  },
+  {
+    "product": "OneDrive",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/topic/%E5%85%B3%E4%BA%8E%E5%9C%A8-office-%E4%B8%AD%E4%B8%8A%E4%BC%A0%E5%88%B0-onedrive-%E7%9A%84%E4%BD%93%E9%AA%8C-%E7%AE%A1%E7%90%86%E5%91%98%E9%9C%80%E8%A6%81%E4%BA%86%E8%A7%A3%E4%BB%80%E4%B9%88-08a37a8c-e477-4a02-811d-ef744d5a7721"
+  },
+  {
+    "product": "OneDrive",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/office/onedrive-%E4%B8%AD%E7%9A%84-microsoft-365-copilot-%E5%B8%AE%E5%8A%A9%E5%92%8C%E5%AD%A6%E4%B9%A0-097c9c3d-7f20-48a9-a341-2ab2519941d2"
+  },
+  {
+    "product": "OneDrive",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/topic/%E4%B8%9A%E5%8A%A1%E5%8A%9E%E5%85%AC%E5%AE%A4-2016-%E5%B9%B4-kb3118265-%E7%9A%84-onedrive-%E6%9B%B4%E6%96%B0-2016-9-%E6%9C%88-6-05339457-2d4a-d7c9-d74e-fede6dc68a31"
   },
   {
     "product": "OneDrive",
@@ -55,9 +120,34 @@
     "url": "https://support.microsoft.com/zh-cn/office/onedrive-%E6%97%A0%E6%B3%95%E5%90%AF%E5%8A%A8-0c158fa6-0cd8-4373-98c8-9179e24f10f2"
   },
   {
+    "product": "OneDrive",
+    "category": "Troubleshooting",
+    "url": "https://support.microsoft.com/zh-cn/office/%E5%BD%93%E6%82%A8%E5%B0%9D%E8%AF%95%E4%BB%8E-onedrive-for-%E5%B7%A5%E4%BD%9C%E6%88%96%E5%AD%A6%E6%A0%A1%E6%89%93%E5%BC%80%E6%96%87%E6%A1%A3%E6%97%B6-%E5%87%BA%E7%8E%B0-%E5%BE%88%E6%8A%B1%E6%AD%89-%E6%97%A0%E6%B3%95%E6%89%A7%E8%A1%8C%E6%AD%A4%E6%93%8D%E4%BD%9C-%E9%94%99%E8%AF%AF-0eed92fd-de5e-4a3a-82ad-f9822285e2a8"
+  },
+  {
+    "product": "OneDrive",
+    "category": "Troubleshooting",
+    "url": "https://support.microsoft.com/zh-cn/office/%E4%B8%8D%E8%83%BD%E5%B0%86%E6%96%87%E4%BB%B6%E4%BB%8E-onedrive-for-%E5%B7%A5%E4%BD%9C%E6%88%96%E5%AD%A6%E6%A0%A1%E7%BD%91%E9%A1%B5%E6%8B%96%E5%8A%A8%E5%88%B0%E6%A1%8C%E9%9D%A2-16d567c4-fdc4-44d6-b784-684a10cdb816"
+  },
+  {
     "product": "Excel",
     "category": "Guide",
     "url": "https://support.microsoft.com/zh-cn/office/%E9%99%90%E5%88%B6%E5%AF%B9-excel-%E4%B8%AD%E7%9A%84%E6%96%87%E4%BB%B6%E7%9A%84%E6%9B%B4%E6%94%B9-021f1709-1ff6-48ec-bc4e-b23729db28f6"
+  },
+  {
+    "product": "Excel",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/office/%E5%9C%A8-excel-%E4%B8%AD%E4%BD%BF%E7%94%A8-copilot-%E5%8F%AF%E8%A7%86%E5%8C%96%E6%95%B0%E6%8D%AE-05302e3f-de42-4475-b235-be9cb3d4e936"
+  },
+  {
+    "product": "Excel",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/office/%E4%BD%BF%E7%94%A8%E5%B1%8F%E5%B9%95%E9%98%85%E8%AF%BB%E5%99%A8%E5%9C%A8-excel-%E4%B8%AD%E5%88%9B%E5%BB%BA%E6%95%B0%E6%8D%AE%E9%80%8F%E8%A7%86%E8%A1%A8%E6%88%96%E6%95%B0%E6%8D%AE%E9%80%8F%E8%A7%86%E5%9B%BE-07fdd613-e679-4783-8731-7376315fad67"
+  },
+  {
+    "product": "Excel",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/office/excel-%E7%9A%84%E5%B1%8F%E5%B9%95%E9%98%85%E8%AF%BB%E5%99%A8%E6%94%AF%E6%8C%81-0976b140-7033-4e2d-8887-187280701bf8"
   },
   {
     "product": "Excel",
@@ -70,9 +160,24 @@
     "url": "https://support.microsoft.com/zh-cn/topic/-%E6%88%91%E4%BB%AC%E6%97%A0%E6%B3%95%E8%BF%9E%E6%8E%A5%E5%88%B0%E6%AD%A4%E5%BA%94%E7%94%A8%E7%A8%8B%E5%BA%8F%E7%9A%84%E7%9B%AE%E5%BD%95%E6%9C%8D%E5%8A%A1%E5%99%A8-%E7%9A%84%E9%94%99%E8%AF%AF%E6%97%B6%E6%82%A8%E4%BD%BF%E7%94%A8-excel-web-app-%E6%89%93%E5%BC%80%E7%94%B5%E5%AD%90%E8%A1%A8%E6%A0%BC-04397a6f-cce1-b428-58d1-3632f2f7273c"
   },
   {
+    "product": "Excel",
+    "category": "Troubleshooting",
+    "url": "https://support.microsoft.com/zh-cn/topic/%E4%BB%8E-excel-web-app-%E4%BF%AE%E5%A4%8D%E7%A8%8B%E5%BA%8F%E5%8C%85-wacmui-en-us-msp-xlwacwfe-msp-%E7%9A%84%E6%8F%8F%E8%BF%B0-2010-%E5%B9%B4-10-%E6%9C%88-26-%E6%97%A5-0955ba89-76b9-37a4-60a4-42398c166890"
+  },
+  {
+    "product": "Excel",
+    "category": "Troubleshooting",
+    "url": "https://support.microsoft.com/zh-cn/topic/%E4%BF%AE%E5%A4%8D-%E4%B8%8D%E8%83%BD%E4%B8%BB%E6%95%B0%E6%8D%AE%E6%9C%8D%E5%8A%A1%E6%B7%BB%E5%8A%A0%E5%9C%A8-excel-%E7%9A%84%E8%AE%A1%E7%AE%97%E6%9C%BA%E4%B8%8A%E5%AE%89%E8%A3%85%E5%85%B7%E6%9C%89%E5%AE%89%E8%A3%85-microsoft-office-2013-0c9d74b5-cc64-d486-f2db-9edf35976fe8"
+  },
+  {
     "product": "Word",
     "category": "Guide",
     "url": "https://support.microsoft.com/zh-cn/topic/%E5%BD%93%E6%82%A8%E4%BF%A1%E4%BB%BB-word-2007-%E6%88%96-word-2010-%E4%B8%AD%E7%9A%84%E4%BD%8D%E7%BD%AE%E6%97%B6-%E6%98%A0%E5%B0%84%E9%A9%B1%E5%8A%A8%E5%99%A8%E7%BD%91%E7%BB%9C%E4%BD%8D%E7%BD%AE%E5%B0%86%E6%9B%B4%E6%94%B9%E4%B8%BA-unc-%E8%B7%AF%E5%BE%84-069a242f-7d3e-45aa-019e-664c09d8d126"
+  },
+  {
+    "product": "Word",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/topic/%E6%AF%8F%E6%AC%A1%E9%80%80%E5%87%BA%E6%97%B6-%E7%B3%BB%E7%BB%9F%E9%83%BD%E4%BC%9A%E6%8F%90%E7%A4%BA%E4%BD%A0%E4%BF%9D%E5%AD%98%E5%AF%B9-normal-dotm-%E6%A8%A1%E6%9D%BF%E6%89%80%E5%81%9A%E7%9A%84%E6%9B%B4%E6%94%B9word-09d0c9bd-31fa-a53b-79fd-1cab746a64d8"
   },
   {
     "product": "Word",
@@ -81,13 +186,48 @@
   },
   {
     "product": "Word",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/office/%E4%BD%BF%E7%94%A8-word-%E4%B8%AD%E7%9A%84-copilot-%E8%B5%B7%E8%8D%89%E5%92%8C%E6%B7%BB%E5%8A%A0%E5%86%85%E5%AE%B9-069c91f0-9e42-4c9a-bbce-fddf5d581541"
+  },
+  {
+    "product": "Word",
     "category": "Troubleshooting",
     "url": "https://support.microsoft.com/zh-cn/office/%E5%AE%89%E8%A3%85-kb5002542-%E5%90%8E%E5%B0%9D%E8%AF%95%E6%BF%80%E6%B4%BB%E5%B5%8C%E5%85%A5%E5%8C%85%E5%AF%B9%E8%B1%A1%E6%97%B6-word%E5%8F%AF%E8%83%BD%E4%BC%9A%E5%81%9C%E6%AD%A2%E5%93%8D%E5%BA%94-0f9c8d3a-1ef7-40ba-b00c-359520d58085"
+  },
+  {
+    "product": "Word",
+    "category": "Troubleshooting",
+    "url": "https://support.microsoft.com/zh-cn/topic/%E5%A6%82%E4%BD%95%E8%A7%A3%E5%86%B3%E6%89%93%E5%BC%80-word-2007-2010-%E6%96%87%E4%BB%B6%E6%97%B6-word-%E5%B0%9D%E8%AF%95%E6%89%93%E5%BC%80%E6%96%87%E4%BB%B6%E6%97%B6%E9%81%87%E5%88%B0%E9%94%99%E8%AF%AF-%E9%97%AE%E9%A2%98-%E8%BD%BB%E6%9D%BE%E4%BF%AE%E5%A4%8D-0903bb9b-d8e4-aabd-0364-f832d26ecff7"
+  },
+  {
+    "product": "Word",
+    "category": "Troubleshooting",
+    "url": "https://support.microsoft.com/zh-cn/topic/%E6%97%A9%E6%9C%9F%E7%89%88%E6%9C%AC%E7%9A%84-word-%E6%96%87%E6%A1%A3%E6%97%A0%E6%B3%95%E5%9C%A8-word-2008-for-mac-%E4%B8%AD%E6%89%93%E5%BC%80-1c9a00d1-c885-2b00-217c-325b6ae6712d"
+  },
+  {
+    "product": "Word",
+    "category": "Troubleshooting",
+    "url": "https://support.microsoft.com/zh-cn/topic/%E7%AD%9B%E9%80%89%E5%99%A8%E4%B8%8D%E8%83%BD%E6%8C%89%E9%A2%84%E6%9C%9F%E4%BB%8E%E5%B7%B2%E5%9C%A8-microsoft-dynamics-ax-2012-%E4%B8%AD%E4%BD%BF%E7%94%A8%E5%A4%9A%E4%B8%AA%E6%95%B0%E6%8D%AE%E6%BA%90%E7%9A%84-word-%E6%A8%A1%E6%9D%BF%E4%B8%AD%E5%88%9B%E5%BB%BA%E4%B8%80%E4%B8%AA-word-%E6%96%87%E6%A1%A3%E6%97%B6-134d47d3-02cc-87ae-7cd3-399ea0ec79bf"
   },
   {
     "product": "PowerPoint",
     "category": "Guide",
     "url": "https://support.microsoft.com/zh-cn/topic/%E5%9C%A8-powerpoint-%E4%B8%AD%E4%BD%BF%E7%94%A8-copilot-%E8%BF%9B%E8%A1%8C%E7%BC%96%E8%BE%91-008f17aa-8e5f-4cda-ba6c-0588000bdad7"
+  },
+  {
+    "product": "PowerPoint",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/office/%E5%9C%A8microsoft-365-%E4%B8%93%E5%B1%9E-powerpoint%E4%B8%AD%E5%B0%86%E6%89%8B%E5%86%99%E5%A2%A8%E8%BF%B9%E6%9B%B4%E6%94%B9%E4%B8%BA%E5%BD%A2%E7%8A%B6-%E6%96%87%E6%9C%AC%E6%88%96%E6%95%B0%E5%AD%A6-0740dec3-6291-4c1f-8baa-011d18449919"
+  },
+  {
+    "product": "PowerPoint",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/office/%E5%AE%89%E8%A3%85-2024-%E5%B9%B4-4-%E6%9C%88-9-%E6%97%A5%E6%9B%B4%E6%96%B0%E5%90%8E-%E5%8F%AF%E8%83%BD%E4%BC%9A%E7%A6%81%E7%94%A8-powerpoint-2019-%E7%9A%84%E6%9F%90%E4%BA%9B%E5%8A%9F%E8%83%BD-0e367bc6-3912-41aa-acc5-318248347733"
+  },
+  {
+    "product": "PowerPoint",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/office/%E4%BD%BF%E7%94%A8%E5%B1%8F%E5%B9%95%E9%98%85%E8%AF%BB%E5%99%A8%E5%9C%A8-powerpoint-%E4%B8%AD%E9%98%85%E8%AF%BB%E6%88%96%E6%B7%BB%E5%8A%A0%E6%BC%94%E8%AE%B2%E8%80%85%E5%A4%87%E6%B3%A8%E5%92%8C%E6%B3%A8%E9%87%8A-0f40925d-8d78-4357-945b-ad7dd7bd7f60"
   },
   {
     "product": "PowerPoint",
@@ -100,9 +240,34 @@
     "url": "https://support.microsoft.com/zh-cn/office/%E4%B8%BA%E4%BB%80%E4%B9%88%E4%B8%8D%E8%83%BD%E6%89%93%E5%BC%80%E6%88%91%E7%9A%84-powerpoint-%E6%96%87%E4%BB%B6-1ddae9b6-83e6-4995-8edf-57f2207dab86"
   },
   {
+    "product": "PowerPoint",
+    "category": "Troubleshooting",
+    "url": "https://support.microsoft.com/zh-cn/office/powerpoint-%E6%97%A0%E6%B3%95%E6%89%93%E5%BC%80%E6%AD%A4%E6%96%87%E4%BB%B6-2d3febf7-4842-4cdc-9756-0f368dfafa6f"
+  },
+  {
+    "product": "PowerPoint",
+    "category": "Troubleshooting",
+    "url": "https://support.microsoft.com/zh-cn/office/powerpoint-%E4%B8%AD%E6%BC%94%E7%A4%BA%E6%96%87%E7%A8%BF%E7%9A%84%E5%AF%86%E7%A0%81%E4%BF%9D%E6%8A%A4-33dfadad-f231-4bd1-8bf6-d15e1671da41"
+  },
+  {
     "product": "Microsoft365",
     "category": "Guide",
     "url": "https://support.microsoft.com/zh-cn/account-billing/%E6%9C%89%E5%85%B3%E6%AC%A7%E7%9B%9F%E6%9C%8D%E5%8A%A1%E7%9A%84%E5%B9%B3%E5%9D%87%E6%AF%8F%E6%9C%88%E6%B4%BB%E8%B7%83%E6%8E%A5%E5%8F%97%E8%80%85%E7%9A%84%E4%BF%A1%E6%81%AF-0515c3e5-e0c9-4471-9e11-cdbe2bb2f4c3"
+  },
+  {
+    "product": "Microsoft365",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/account-billing/%E5%90%88%E5%B9%B6-microsoft-%E5%B8%90%E6%88%B7-06b122ca-7323-48f5-8cd7-c3408bcc2123"
+  },
+  {
+    "product": "Microsoft365",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/account-billing/%E5%AF%B9microsoft-authenticator-%E8%87%AA%E5%8A%A8%E5%A1%AB%E5%85%85%E7%9A%84%E6%9B%B4%E6%94%B9-09fd75df-dc04-4477-9619-811510805ab6"
+  },
+  {
+    "product": "Microsoft365",
+    "category": "Guide",
+    "url": "https://support.microsoft.com/zh-cn/account-billing/%E5%9C%A8-microsoft-authenticator-%E4%B8%AD%E8%AE%BE%E7%BD%AE%E5%AF%86%E9%92%A5-0a992136-5909-4230-8232-91b0a55a92eb"
   },
   {
     "product": "Microsoft365",
@@ -113,5 +278,15 @@
     "product": "Microsoft365",
     "category": "Troubleshooting",
     "url": "https://support.microsoft.com/zh-cn/account-billing/%E7%99%BB%E5%BD%95%E6%97%B6%E9%AA%8C%E8%AF%81%E8%BA%AB%E4%BB%BD-0d3aaf52-d71c-4c4f-bd20-c933231d32e9"
+  },
+  {
+    "product": "Microsoft365",
+    "category": "Troubleshooting",
+    "url": "https://support.microsoft.com/zh-cn/office/%E4%BD%BF%E7%94%A8%E6%AD%A3%E7%A1%AE%E7%9A%84%E5%AF%86%E7%A0%81%E6%89%93%E5%BC%80-vba-%E9%A1%B9%E7%9B%AE%E6%97%B6%E5%87%BA%E7%8E%B0%E9%94%99%E8%AF%AF-%E5%AF%86%E7%A0%81%E6%97%A0%E6%95%88-001908dd-0155-4a51-b405-cf181d2836d5"
+  },
+  {
+    "product": "Microsoft365",
+    "category": "Troubleshooting",
+    "url": "https://support.microsoft.com/zh-cn/office/%E7%99%BB%E5%BD%95%E4%BB%A5%E6%9F%A5%E7%9C%8Bmicrosoft-365-%E5%8A%A0%E5%AF%86%E9%82%AE%E4%BB%B6-0a57775d-0a2c-4aaf-a370-ceb079f19454"
   }
 ]

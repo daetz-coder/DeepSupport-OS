@@ -4,7 +4,7 @@ product: PowerPoint
 category: Guide
 source_url: https://support.microsoft.com/zh-CN/PowerPoint/edit-with-copilot-in-powerpoint
 language: zh-CN
-fetched_at: 2026-08-04T11:32:23.513228+00:00
+fetched_at: 2026-08-04T11:50:27.142377+00:00
 document_id: ms-42cc75c98ec0
 content_type: Troubleshooting
 ---

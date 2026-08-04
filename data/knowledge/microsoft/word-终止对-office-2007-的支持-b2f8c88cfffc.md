@@ -1,10 +1,10 @@
 ---
 title: "终止对 Office 2007 的支持"
 product: Word
-category: Guide
+category: Troubleshooting
 source_url: https://support.microsoft.com/zh-cn/office/%E7%BB%88%E6%AD%A2%E5%AF%B9-office-2007-%E7%9A%84%E6%94%AF%E6%8C%81-942272d3-bd72-4944-9f82-02ed307cf934
 language: zh-CN
-fetched_at: 2026-08-04T11:32:07.496502+00:00
+fetched_at: 2026-08-04T11:50:14.670533+00:00
 document_id: ms-b2f8c88cfffc
 content_type: Troubleshooting
 ---

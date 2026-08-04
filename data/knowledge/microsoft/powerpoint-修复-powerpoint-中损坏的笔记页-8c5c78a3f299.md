@@ -4,7 +4,7 @@ product: PowerPoint
 category: Troubleshooting
 source_url: https://support.microsoft.com/zh-CN/PowerPoint/fix-broken-notes-pages-in-powerpoint
 language: zh-CN
-fetched_at: 2026-08-04T11:32:28.935881+00:00
+fetched_at: 2026-08-04T11:50:38.080118+00:00
 document_id: ms-8c5c78a3f299
 content_type: Troubleshooting
 ---

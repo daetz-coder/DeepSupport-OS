@@ -1,0 +1,374 @@
+{
+  "ingested_at": "2026-08-04T12:04:25.855667+00:00",
+  "raglab_url": "http://127.0.0.1:8001",
+  "total": 52,
+  "ok": 52,
+  "failed": 0,
+  "dry_run": false,
+  "results": [
+    {
+      "path": "data/knowledge/microsoft/excel-使用屏幕阅读器在-excel-中创建数据透视表或数据透视图-0e58b906c1c0.md",
+      "title": "使用屏幕阅读器在 Excel 中创建数据透视表或数据透视图",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_excel-使用屏幕阅读器在-excel-中创建数据透视表或数据透视图-0e58b906c1c0\",\"doc_family_id\":\"upload_excel-使用屏幕阅读器在-excel-中创建数据透视表或数据透视图-0e58b906c1c0\",\"version\":\"1.0\",\"filename\":\"excel-使用屏幕阅读器在-excel-中创建数据透视表或数据透视图-0e58b906c1c0.md\",\"chunks\":25,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/excel-修复-不能主数据服务添加在-excel-的计算机上安装具有安装-microsoft-office-2013-052c00791fbb.md",
+      "title": "修复： 不能主数据服务添加在 excel 的计算机上安装具有安装 Microsoft Office 2013",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_excel-修复-不能主数据服务添加在-excel-的计算机上安装具有安装-microsoft-office-20\",\"doc_family_id\":\"upload_excel-修复-不能主数据服务添加在-excel-的计算机上安装具有安装-microsoft-office-20\",\"version\":\"1.0\",\"filename\":\"excel-修复-不能主数据服务添加在-excel-的计算机上安装具有安装-microsoft-office-2013-052c00791fbb.md\",\"chunks\":8,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/excel-在-excel-中使用-copilot-可视化数据-8ec1ba2bc3c1.md",
+      "title": "在 Excel 中使用 Copilot 可视化数据",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_excel-在-excel-中使用-copilot-可视化数据-8ec1ba2bc3c1\",\"doc_family_id\":\"upload_excel-在-excel-中使用-copilot-可视化数据-8ec1ba2bc3c1\",\"version\":\"1.0\",\"filename\":\"excel-在-excel-中使用-copilot-可视化数据-8ec1ba2bc3c1.md\",\"chunks\":6,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/excel-限制对-excel-中的文件的更改-a89104143534.md",
+      "title": "限制对 Excel 中的文件的更改",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_excel-限制对-excel-中的文件的更改-a89104143534\",\"doc_family_id\":\"upload_excel-限制对-excel-中的文件的更改-a89104143534\",\"version\":\"1.0\",\"filename\":\"excel-限制对-excel-中的文件的更改-a89104143534.md\",\"chunks\":4,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/microsoft365-使用正确的密码打开-vba-项目时出现错误-密码无效-56d445550a2b.md",
+      "title": "使用正确的密码打开 VBA 项目时出现错误“密码无效”",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_microsoft365-使用正确的密码打开-vba-项目时出现错误-密码无效-56d445550a2b\",\"doc_family_id\":\"upload_microsoft365-使用正确的密码打开-vba-项目时出现错误-密码无效-56d445550a2b\",\"version\":\"1.0\",\"filename\":\"microsoft365-使用正确的密码打开-vba-项目时出现错误-密码无效-56d445550a2b.md\",\"chunks\":4,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/microsoft365-合并-microsoft-帐户-dcd58ea29af2.md",
+      "title": "合并 Microsoft 帐户",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_microsoft365-合并-microsoft-帐户-dcd58ea29af2\",\"doc_family_id\":\"upload_microsoft365-合并-microsoft-帐户-dcd58ea29af2\",\"version\":\"1.0\",\"filename\":\"microsoft365-合并-microsoft-帐户-dcd58ea29af2.md\",\"chunks\":9,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/microsoft365-如何将帐户添加到-microsoft-authenticator-f823336c6ab3.md",
+      "title": "如何将帐户添加到 Microsoft Authenticator",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_microsoft365-如何将帐户添加到-microsoft-authenticator-f823336c6ab\",\"doc_family_id\":\"upload_microsoft365-如何将帐户添加到-microsoft-authenticator-f823336c6ab\",\"version\":\"1.0\",\"filename\":\"microsoft365-如何将帐户添加到-microsoft-authenticator-f823336c6ab3.md\",\"chunks\":22,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/microsoft365-对microsoft-authenticator-自动填充的更改-26733f1f0621.md",
+      "title": "对Microsoft Authenticator 自动填充的更改",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_microsoft365-对microsoft-authenticator-自动填充的更改-26733f1f062\",\"doc_family_id\":\"upload_microsoft365-对microsoft-authenticator-自动填充的更改-26733f1f062\",\"version\":\"1.0\",\"filename\":\"microsoft365-对microsoft-authenticator-自动填充的更改-26733f1f0621.md\",\"chunks\":11,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/microsoft365-将短信登录设置为手机验证方法-f2c87743a95d.md",
+      "title": "将短信登录设置为手机验证方法",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_microsoft365-将短信登录设置为手机验证方法-f2c87743a95d\",\"doc_family_id\":\"upload_microsoft365-将短信登录设置为手机验证方法-f2c87743a95d\",\"version\":\"1.0\",\"filename\":\"microsoft365-将短信登录设置为手机验证方法-f2c87743a95d.md\",\"chunks\":6,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/microsoft365-有关欧盟服务的平均每月活跃接受者的信息-e8889aeeba68.md",
+      "title": "有关欧盟服务的平均每月活跃接受者的信息",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_microsoft365-有关欧盟服务的平均每月活跃接受者的信息-e8889aeeba68\",\"doc_family_id\":\"upload_microsoft365-有关欧盟服务的平均每月活跃接受者的信息-e8889aeeba68\",\"version\":\"1.0\",\"filename\":\"microsoft365-有关欧盟服务的平均每月活跃接受者的信息-e8889aeeba68.md\",\"chunks\":2,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/microsoft365-登录以查看microsoft-365-加密邮件-86c2d6dfeaa5.md",
+      "title": "登录以查看Microsoft 365 加密邮件",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_microsoft365-登录以查看microsoft-365-加密邮件-86c2d6dfeaa5\",\"doc_family_id\":\"upload_microsoft365-登录以查看microsoft-365-加密邮件-86c2d6dfeaa5\",\"version\":\"1.0\",\"filename\":\"microsoft365-登录以查看microsoft-365-加密邮件-86c2d6dfeaa5.md\",\"chunks\":4,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/microsoft365-登录工作或学校帐户时验证身份-026b8b3a1a32.md",
+      "title": "登录工作或学校帐户时验证身份",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_microsoft365-登录工作或学校帐户时验证身份-026b8b3a1a32\",\"doc_family_id\":\"upload_microsoft365-登录工作或学校帐户时验证身份-026b8b3a1a32\",\"version\":\"1.0\",\"filename\":\"microsoft365-登录工作或学校帐户时验证身份-026b8b3a1a32.md\",\"chunks\":5,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/onedrive-2016-年-9-月-6-日-office-2016-onedrive-for-business-更新-kb3118265-27bd518bfd20.md",
+      "title": "2016 年 9 月 6 日，Office 2016 OneDrive for Business 更新 (KB3118265)",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_onedrive-2016-年-9-月-6-日-office-2016-onedrive-for-business\",\"doc_family_id\":\"upload_onedrive-2016-年-9-月-6-日-office-2016-onedrive-for-business\",\"version\":\"1.0\",\"filename\":\"onedrive-2016-年-9-月-6-日-office-2016-onedrive-for-business-更新-kb3118265-27bd518bfd20.md\",\"chunks\":9,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/onedrive-onedrive-中最新问题的修补程序或解决方法-c13f9fcb4e1b.md",
+      "title": "OneDrive 中最新问题的修补程序或解决方法",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_onedrive-onedrive-中最新问题的修补程序或解决方法-c13f9fcb4e1b\",\"doc_family_id\":\"upload_onedrive-onedrive-中最新问题的修补程序或解决方法-c13f9fcb4e1b\",\"version\":\"1.0\",\"filename\":\"onedrive-onedrive-中最新问题的修补程序或解决方法-c13f9fcb4e1b.md\",\"chunks\":13,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/onedrive-onedrive-无法启动-8acf42f06e24.md",
+      "title": "OneDrive 无法启动",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_onedrive-onedrive-无法启动-8acf42f06e24\",\"doc_family_id\":\"upload_onedrive-onedrive-无法启动-8acf42f06e24\",\"version\":\"1.0\",\"filename\":\"onedrive-onedrive-无法启动-8acf42f06e24.md\",\"chunks\":6,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/onedrive-使用-office-2016-应用处理-onedrive-上存储的文档时-重复提示登录和打开-_vti_rpc-8433188e6cb9.md",
+      "title": "使用 Office 2016 应用处理 OneDrive 上存储的文档时，重复提示登录和打开“_vti_rpc”",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_onedrive-使用-office-2016-应用处理-onedrive-上存储的文档时-重复提示登录和打开-_\",\"doc_family_id\":\"upload_onedrive-使用-office-2016-应用处理-onedrive-上存储的文档时-重复提示登录和打开-_\",\"version\":\"1.0\",\"filename\":\"onedrive-使用-office-2016-应用处理-onedrive-上存储的文档时-重复提示登录和打开-_vti_rpc-8433188e6cb9.md\",\"chunks\":4,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/onedrive-修复-onedrive-同步问题-a2effe662b1f.md",
+      "title": "修复 OneDrive 同步问题",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_onedrive-修复-onedrive-同步问题-a2effe662b1f\",\"doc_family_id\":\"upload_onedrive-修复-onedrive-同步问题-a2effe662b1f\",\"version\":\"1.0\",\"filename\":\"onedrive-修复-onedrive-同步问题-a2effe662b1f.md\",\"chunks\":5,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/onedrive-关于在-office-中上传到-onedrive-的体验-管理员需要了解什么-b72213f23f42.md",
+      "title": "关于在 Office 中上传到 OneDrive 的体验，管理员需要了解什么",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_onedrive-关于在-office-中上传到-onedrive-的体验-管理员需要了解什么-b72213f23\",\"doc_family_id\":\"upload_onedrive-关于在-office-中上传到-onedrive-的体验-管理员需要了解什么-b72213f23\",\"version\":\"1.0\",\"filename\":\"onedrive-关于在-office-中上传到-onedrive-的体验-管理员需要了解什么-b72213f23f42.md\",\"chunks\":9,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/onedrive-开始使用-onedrive-中的-copilot-9d1b9062a7d1.md",
+      "title": "开始使用 OneDrive 中的 Copilot",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_onedrive-开始使用-onedrive-中的-copilot-9d1b9062a7d1\",\"doc_family_id\":\"upload_onedrive-开始使用-onedrive-中的-copilot-9d1b9062a7d1\",\"version\":\"1.0\",\"filename\":\"onedrive-开始使用-onedrive-中的-copilot-9d1b9062a7d1.md\",\"chunks\":5,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/outlook-outlook-com-迁移后-共享日历不再可编辑或同步-a973121ac33c.md",
+      "title": "Outlook.com 迁移后，共享日历不再可编辑或同步",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_outlook-outlook-com-迁移后-共享日历不再可编辑或同步-a973121ac33c\",\"doc_family_id\":\"upload_outlook-outlook-com-迁移后-共享日历不再可编辑或同步-a973121ac33c\",\"version\":\"1.0\",\"filename\":\"outlook-outlook-com-迁移后-共享日历不再可编辑或同步-a973121ac33c.md\",\"chunks\":5,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/outlook-outlook-for-mac和-outlook-mobile-间歇性停止同步-275d5e24168b.md",
+      "title": "Outlook for Mac和 Outlook Mobile 间歇性停止同步",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_outlook-outlook-for-mac和-outlook-mobile-间歇性停止同步-275d5e241\",\"doc_family_id\":\"upload_outlook-outlook-for-mac和-outlook-mobile-间歇性停止同步-275d5e241\",\"version\":\"1.0\",\"filename\":\"outlook-outlook-for-mac和-outlook-mobile-间歇性停止同步-275d5e24168b.md\",\"chunks\":4,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/outlook-outlook-中自动完成列表滚动到屏幕之外-fab77982983d.md",
+      "title": "Outlook 中自动完成列表滚动到屏幕之外",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_outlook-outlook-中自动完成列表滚动到屏幕之外-fab77982983d\",\"doc_family_id\":\"upload_outlook-outlook-中自动完成列表滚动到屏幕之外-fab77982983d\",\"version\":\"1.0\",\"filename\":\"outlook-outlook-中自动完成列表滚动到屏幕之外-fab77982983d.md\",\"chunks\":4,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/outlook-outlook-电子邮件停滞-19b9dbfd645b.md",
+      "title": "Outlook 电子邮件停滞",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_outlook-outlook-电子邮件停滞-19b9dbfd645b\",\"doc_family_id\":\"upload_outlook-outlook-电子邮件停滞-19b9dbfd645b\",\"version\":\"1.0\",\"filename\":\"outlook-outlook-电子邮件停滞-19b9dbfd645b.md\",\"chunks\":8,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/outlook-双击-msg文件将打开意外版本的-outlook-63e353a02680.md",
+      "title": "双击.msg文件将打开意外版本的 Outlook",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_outlook-双击-msg文件将打开意外版本的-outlook-63e353a02680\",\"doc_family_id\":\"upload_outlook-双击-msg文件将打开意外版本的-outlook-63e353a02680\",\"version\":\"1.0\",\"filename\":\"outlook-双击-msg文件将打开意外版本的-outlook-63e353a02680.md\",\"chunks\":6,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/outlook-安装-2017-年-10-月microsoft-outlook-安全更新后-outlook-microsoft-dynamics-365无法呈现网页-bc1571572c04.md",
+      "title": "安装 2017 年 10 月Microsoft Outlook 安全更新后，Outlook Microsoft Dynamics 365无法呈现网页",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_outlook-安装-2017-年-10-月microsoft-outlook-安全更新后-outlook-mic\",\"doc_family_id\":\"upload_outlook-安装-2017-年-10-月microsoft-outlook-安全更新后-outlook-mic\",\"version\":\"1.0\",\"filename\":\"outlook-安装-2017-年-10-月microsoft-outlook-安全更新后-outlook-microsoft-dynamics-365无法呈现网页-bc1571572c04.md\",\"chunks\":7,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/outlook-尝试在新的-outlook-for-windows-中打印附加到电子邮件的word文档时出错-45212943a20c.md",
+      "title": "尝试在新的 Outlook for Windows 中打印附加到电子邮件的Word文档时出错",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_outlook-尝试在新的-outlook-for-windows-中打印附加到电子邮件的word文档时出错-45\",\"doc_family_id\":\"upload_outlook-尝试在新的-outlook-for-windows-中打印附加到电子邮件的word文档时出错-45\",\"version\":\"1.0\",\"filename\":\"outlook-尝试在新的-outlook-for-windows-中打印附加到电子邮件的word文档时出错-45212943a20c.md\",\"chunks\":4,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/outlook-我在-outlook-中无法发送或接收邮件-043fd88290de.md",
+      "title": "我在 Outlook 中无法发送或接收邮件",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_outlook-我在-outlook-中无法发送或接收邮件-043fd88290de\",\"doc_family_id\":\"upload_outlook-我在-outlook-中无法发送或接收邮件-043fd88290de\",\"version\":\"1.0\",\"filename\":\"outlook-我在-outlook-中无法发送或接收邮件-043fd88290de.md\",\"chunks\":16,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/outlook-无法通过-http-使用-mapi-将成员添加到-outlook-联系人组-071c73d8d64e.md",
+      "title": "无法通过 HTTP 使用 MAPI 将成员添加到 Outlook 联系人组",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_outlook-无法通过-http-使用-mapi-将成员添加到-outlook-联系人组-071c73d8d64\",\"doc_family_id\":\"upload_outlook-无法通过-http-使用-mapi-将成员添加到-outlook-联系人组-071c73d8d64\",\"version\":\"1.0\",\"filename\":\"outlook-无法通过-http-使用-mapi-将成员添加到-outlook-联系人组-071c73d8d64e.md\",\"chunks\":6,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/outlook-自动发现outlook-2016实现-1c5685de9feb.md",
+      "title": "自动发现Outlook 2016实现",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_outlook-自动发现outlook-2016实现-1c5685de9feb\",\"doc_family_id\":\"upload_outlook-自动发现outlook-2016实现-1c5685de9feb\",\"version\":\"1.0\",\"filename\":\"outlook-自动发现outlook-2016实现-1c5685de9feb.md\",\"chunks\":23,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/powerpoint-powerpoint-中演示文稿的密码保护-e87178288480.md",
+      "title": "PowerPoint 中演示文稿的密码保护",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_powerpoint-powerpoint-中演示文稿的密码保护-e87178288480\",\"doc_family_id\":\"upload_powerpoint-powerpoint-中演示文稿的密码保护-e87178288480\",\"version\":\"1.0\",\"filename\":\"powerpoint-powerpoint-中演示文稿的密码保护-e87178288480.md\",\"chunks\":10,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/powerpoint-powerpoint-无法打开此文件-61b4a9697358.md",
+      "title": "PowerPoint 无法打开此文件",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_powerpoint-powerpoint-无法打开此文件-61b4a9697358\",\"doc_family_id\":\"upload_powerpoint-powerpoint-无法打开此文件-61b4a9697358\",\"version\":\"1.0\",\"filename\":\"powerpoint-powerpoint-无法打开此文件-61b4a9697358.md\",\"chunks\":6,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/powerpoint-为什么无法打开-powerpoint-文件-39a541279dd1.md",
+      "title": "为什么无法打开 PowerPoint 文件？",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_powerpoint-为什么无法打开-powerpoint-文件-39a541279dd1\",\"doc_family_id\":\"upload_powerpoint-为什么无法打开-powerpoint-文件-39a541279dd1\",\"version\":\"1.0\",\"filename\":\"powerpoint-为什么无法打开-powerpoint-文件-39a541279dd1.md\",\"chunks\":2,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/powerpoint-使用屏幕阅读器在-powerpoint-中阅读或添加演讲者备注和注释-40867912b091.md",
+      "title": "使用屏幕阅读器在 PowerPoint 中阅读或添加演讲者备注和注释",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_powerpoint-使用屏幕阅读器在-powerpoint-中阅读或添加演讲者备注和注释-40867912b09\",\"doc_family_id\":\"upload_powerpoint-使用屏幕阅读器在-powerpoint-中阅读或添加演讲者备注和注释-40867912b09\",\"version\":\"1.0\",\"filename\":\"powerpoint-使用屏幕阅读器在-powerpoint-中阅读或添加演讲者备注和注释-40867912b091.md\",\"chunks\":48,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/powerpoint-修复-powerpoint-中损坏的笔记页-8c5c78a3f299.md",
+      "title": "修复 PowerPoint 中损坏的笔记页",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_powerpoint-修复-powerpoint-中损坏的笔记页-8c5c78a3f299\",\"doc_family_id\":\"upload_powerpoint-修复-powerpoint-中损坏的笔记页-8c5c78a3f299\",\"version\":\"1.0\",\"filename\":\"powerpoint-修复-powerpoint-中损坏的笔记页-8c5c78a3f299.md\",\"chunks\":5,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/powerpoint-在-powerpoint-中使用-copilot-进行编辑-42cc75c98ec0.md",
+      "title": "在 PowerPoint 中使用 Copilot 进行编辑",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_powerpoint-在-powerpoint-中使用-copilot-进行编辑-42cc75c98ec0\",\"doc_family_id\":\"upload_powerpoint-在-powerpoint-中使用-copilot-进行编辑-42cc75c98ec0\",\"version\":\"1.0\",\"filename\":\"powerpoint-在-powerpoint-中使用-copilot-进行编辑-42cc75c98ec0.md\",\"chunks\":17,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/powerpoint-在microsoft-365-专属-powerpoint中将手写墨迹更改为形状-文本或数学-07434a5ae7b2.md",
+      "title": "在Microsoft 365 专属 PowerPoint中将手写墨迹更改为形状、文本或数学",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_powerpoint-在microsoft-365-专属-powerpoint中将手写墨迹更改为形状-文本或数学-\",\"doc_family_id\":\"upload_powerpoint-在microsoft-365-专属-powerpoint中将手写墨迹更改为形状-文本或数学-\",\"version\":\"1.0\",\"filename\":\"powerpoint-在microsoft-365-专属-powerpoint中将手写墨迹更改为形状-文本或数学-07434a5ae7b2.md\",\"chunks\":5,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/powerpoint-安装-2024-年-4-月-9-日更新后-可能会禁用-powerpoint-2019-的某些功能-ad9899c4603c.md",
+      "title": "安装 2024 年 4 月 9 日更新后，可能会禁用 PowerPoint 2019 的某些功能",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_powerpoint-安装-2024-年-4-月-9-日更新后-可能会禁用-powerpoint-2019-的某些\",\"doc_family_id\":\"upload_powerpoint-安装-2024-年-4-月-9-日更新后-可能会禁用-powerpoint-2019-的某些\",\"version\":\"1.0\",\"filename\":\"powerpoint-安装-2024-年-4-月-9-日更新后-可能会禁用-powerpoint-2019-的某些功能-ad9899c4603c.md\",\"chunks\":5,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/teams-为什么我无法在-microsoft-teams-中使用聊天-学生-09bf91961cbd.md",
+      "title": "为什么我无法在 Microsoft Teams 中使用聊天？ （学生）",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_teams-为什么我无法在-microsoft-teams-中使用聊天-学生-09bf91961cbd\",\"doc_family_id\":\"upload_teams-为什么我无法在-microsoft-teams-中使用聊天-学生-09bf91961cbd\",\"version\":\"1.0\",\"filename\":\"teams-为什么我无法在-microsoft-teams-中使用聊天-学生-09bf91961cbd.md\",\"chunks\":9,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/teams-在-microsoft-teams-中使用-microsoft-新式网络摄像头-726620d9ab9a.md",
+      "title": "在 Microsoft Teams 中使用 Microsoft 新式网络摄像头",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_teams-在-microsoft-teams-中使用-microsoft-新式网络摄像头-726620d9ab9\",\"doc_family_id\":\"upload_teams-在-microsoft-teams-中使用-microsoft-新式网络摄像头-726620d9ab9\",\"version\":\"1.0\",\"filename\":\"teams-在-microsoft-teams-中使用-microsoft-新式网络摄像头-726620d9ab9a.md\",\"chunks\":14,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/teams-在-microsoft-teams-中将麦克风静音和取消静音-52fba8b87edd.md",
+      "title": "在 Microsoft Teams 中将麦克风静音和取消静音",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_teams-在-microsoft-teams-中将麦克风静音和取消静音-52fba8b87edd\",\"doc_family_id\":\"upload_teams-在-microsoft-teams-中将麦克风静音和取消静音-52fba8b87edd\",\"version\":\"1.0\",\"filename\":\"teams-在-microsoft-teams-中将麦克风静音和取消静音-52fba8b87edd.md\",\"chunks\":7,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/teams-在-microsoft-teams-会议中使用弹出式字幕-270715814fad.md",
+      "title": "在 Microsoft Teams 会议中使用弹出式字幕",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_teams-在-microsoft-teams-会议中使用弹出式字幕-270715814fad\",\"doc_family_id\":\"upload_teams-在-microsoft-teams-会议中使用弹出式字幕-270715814fad\",\"version\":\"1.0\",\"filename\":\"teams-在-microsoft-teams-会议中使用弹出式字幕-270715814fad.md\",\"chunks\":7,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/teams-在-microsoft-teams-免费版-中同步联系人-ee4acd4a0ea1.md",
+      "title": "在 Microsoft Teams 免费版 中同步联系人",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_teams-在-microsoft-teams-免费版-中同步联系人-ee4acd4a0ea1\",\"doc_family_id\":\"upload_teams-在-microsoft-teams-免费版-中同步联系人-ee4acd4a0ea1\",\"version\":\"1.0\",\"filename\":\"teams-在-microsoft-teams-免费版-中同步联系人-ee4acd4a0ea1.md\",\"chunks\":4,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/teams-在-sharepoint-online-onedrive-或-microsoft-teams-中找到恶意文件需采取的操作-1eacb8dc4083.md",
+      "title": "在 SharePoint Online、OneDrive 或 Microsoft Teams 中找到恶意文件需采取的操作",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_teams-在-sharepoint-online-onedrive-或-microsoft-teams-中找到恶\",\"doc_family_id\":\"upload_teams-在-sharepoint-online-onedrive-或-microsoft-teams-中找到恶\",\"version\":\"1.0\",\"filename\":\"teams-在-sharepoint-online-onedrive-或-microsoft-teams-中找到恶意文件需采取的操作-1eacb8dc4083.md\",\"chunks\":8,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/teams-在microsoft-teams-会议中使用具有背景的屏幕阅读器-ef3393a45636.md",
+      "title": "在Microsoft Teams 会议中使用具有背景的屏幕阅读器",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_teams-在microsoft-teams-会议中使用具有背景的屏幕阅读器-ef3393a45636\",\"doc_family_id\":\"upload_teams-在microsoft-teams-会议中使用具有背景的屏幕阅读器-ef3393a45636\",\"version\":\"1.0\",\"filename\":\"teams-在microsoft-teams-会议中使用具有背景的屏幕阅读器-ef3393a45636.md\",\"chunks\":62,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/teams-适用于个人和小型企业使用的-teams-的屏幕阅读器支持-b0ee7dcdd2b0.md",
+      "title": "适用于个人和小型企业使用的 Teams 的屏幕阅读器支持",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_teams-适用于个人和小型企业使用的-teams-的屏幕阅读器支持-b0ee7dcdd2b0\",\"doc_family_id\":\"upload_teams-适用于个人和小型企业使用的-teams-的屏幕阅读器支持-b0ee7dcdd2b0\",\"version\":\"1.0\",\"filename\":\"teams-适用于个人和小型企业使用的-teams-的屏幕阅读器支持-b0ee7dcdd2b0.md\",\"chunks\":3,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/word-使用-word-中的-copilot-起草和添加内容-cfda0453cf9a.md",
+      "title": "使用 Word 中的 Copilot 起草和添加内容",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_word-使用-word-中的-copilot-起草和添加内容-cfda0453cf9a\",\"doc_family_id\":\"upload_word-使用-word-中的-copilot-起草和添加内容-cfda0453cf9a\",\"version\":\"1.0\",\"filename\":\"word-使用-word-中的-copilot-起草和添加内容-cfda0453cf9a.md\",\"chunks\":9,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/word-使用密码保护word文档-3e2edeef0584.md",
+      "title": "使用密码保护Word文档",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_word-使用密码保护word文档-3e2edeef0584\",\"doc_family_id\":\"upload_word-使用密码保护word文档-3e2edeef0584\",\"version\":\"1.0\",\"filename\":\"word-使用密码保护word文档-3e2edeef0584.md\",\"chunks\":3,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/word-安装-kb5002542-后尝试激活嵌入包对象时-word可能会停止响应-b76e9175a92f.md",
+      "title": "安装 KB5002542 后尝试激活嵌入包对象时，Word可能会停止响应",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_word-安装-kb5002542-后尝试激活嵌入包对象时-word可能会停止响应-b76e9175a92f\",\"doc_family_id\":\"upload_word-安装-kb5002542-后尝试激活嵌入包对象时-word可能会停止响应-b76e9175a92f\",\"version\":\"1.0\",\"filename\":\"word-安装-kb5002542-后尝试激活嵌入包对象时-word可能会停止响应-b76e9175a92f.md\",\"chunks\":4,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/word-早期版本的-word-文档无法在-word-2008-for-mac-中打开-31d61864a12c.md",
+      "title": "早期版本的 Word 文档无法在 Word 2008 for Mac 中打开",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_word-早期版本的-word-文档无法在-word-2008-for-mac-中打开-31d61864a12c\",\"doc_family_id\":\"upload_word-早期版本的-word-文档无法在-word-2008-for-mac-中打开-31d61864a12c\",\"version\":\"1.0\",\"filename\":\"word-早期版本的-word-文档无法在-word-2008-for-mac-中打开-31d61864a12c.md\",\"chunks\":7,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/word-每次退出时-系统都会提示你保存对-normal-dotm-模板所做的更改word-410afdd69be7.md",
+      "title": "每次退出时，系统都会提示你保存对 Normal.dotm 模板所做的更改Word",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_word-每次退出时-系统都会提示你保存对-normal-dotm-模板所做的更改word-410afdd69be\",\"doc_family_id\":\"upload_word-每次退出时-系统都会提示你保存对-normal-dotm-模板所做的更改word-410afdd69be\",\"version\":\"1.0\",\"filename\":\"word-每次退出时-系统都会提示你保存对-normal-dotm-模板所做的更改word-410afdd69be7.md\",\"chunks\":11,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/word-筛选器不能按预期从已在-microsoft-dynamics-ax-2012-中使用多个数据源的-word-模板中创建一个-word-文档时-1f333c994efc.md",
+      "title": "筛选器不能按预期从已在 Microsoft Dynamics AX 2012 中使用多个数据源的 Word 模板中创建一个 Word 文档时",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_word-筛选器不能按预期从已在-microsoft-dynamics-ax-2012-中使用多个数据源的-wor\",\"doc_family_id\":\"upload_word-筛选器不能按预期从已在-microsoft-dynamics-ax-2012-中使用多个数据源的-wor\",\"version\":\"1.0\",\"filename\":\"word-筛选器不能按预期从已在-microsoft-dynamics-ax-2012-中使用多个数据源的-word-模板中创建一个-word-文档时-1f333c994efc.md\",\"chunks\":13,\"superseded\":[],\"message\":\"ingested\"}"
+    },
+    {
+      "path": "data/knowledge/microsoft/word-终止对-office-2007-的支持-b2f8c88cfffc.md",
+      "title": "终止对 Office 2007 的支持",
+      "ok": true,
+      "status": 200,
+      "body": "{\"doc_id\":\"upload_word-终止对-office-2007-的支持-b2f8c88cfffc\",\"doc_family_id\":\"upload_word-终止对-office-2007-的支持-b2f8c88cfffc\",\"version\":\"1.0\",\"filename\":\"word-终止对-office-2007-的支持-b2f8c88cfffc.md\",\"chunks\":6,\"superseded\":[],\"message\":\"ingested\"}"
+    }
+  ]
+}

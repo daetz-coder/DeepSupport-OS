@@ -4,7 +4,7 @@ product: Word
 category: Troubleshooting
 source_url: https://support.microsoft.com/zh-CN/Word/protect-a-word-document-with-a-password
 language: zh-CN
-fetched_at: 2026-08-04T11:32:12.615171+00:00
+fetched_at: 2026-08-04T11:50:08.660224+00:00
 document_id: ms-3e2edeef0584
 content_type: Troubleshooting
 ---

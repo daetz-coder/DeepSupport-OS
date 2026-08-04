@@ -38,8 +38,15 @@ class Settings(BaseSettings):
     # Mock enterprise DB
     database_url: str = "sqlite:///data/deepsupport.db"
 
-    # Agent workspace (filesystem context / offloading)
+    # Agent workspace (filesystem context / offloading; local fallback)
     workspace_dir: str = "workspace"
+
+    # Daytona sandbox for Deep Agents backend (skills / shell isolation)
+    daytona_enabled: bool = True
+    daytona_api_key: str = ""
+    daytona_sandbox_name: str = "deepsupport-sandbox"
+    daytona_api_url: str = "https://app.daytona.io/api"
+    daytona_target: str = ""
 
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 

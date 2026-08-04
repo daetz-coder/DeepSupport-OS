@@ -4,7 +4,7 @@ product: PowerPoint
 category: Troubleshooting
 source_url: https://support.microsoft.com/zh-CN/PowerPoint/why-can-t-i-open-my-powerpoint-file
 language: zh-CN
-fetched_at: 2026-08-04T11:32:34.861870+00:00
+fetched_at: 2026-08-04T11:50:40.558368+00:00
 document_id: ms-39a541279dd1
 content_type: Troubleshooting
 ---

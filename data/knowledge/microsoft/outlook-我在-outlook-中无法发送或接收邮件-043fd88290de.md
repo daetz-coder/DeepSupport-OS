@@ -4,7 +4,7 @@ product: Outlook
 category: SendReceive
 source_url: https://support.microsoft.com/zh-CN/Outlook/i-can-t-send-or-receive-messages-in-outlook
 language: zh-CN
-fetched_at: 2026-08-04T11:28:43.382226+00:00
+fetched_at: 2026-08-04T11:46:37.445954+00:00
 document_id: ms-043fd88290de
 content_type: Troubleshooting
 ---

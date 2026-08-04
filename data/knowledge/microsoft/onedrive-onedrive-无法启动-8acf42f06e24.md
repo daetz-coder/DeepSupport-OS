@@ -4,7 +4,7 @@ product: OneDrive
 category: Troubleshooting
 source_url: https://support.microsoft.com/zh-CN/onedrive/onedrive-won-t-start
 language: zh-CN
-fetched_at: 2026-08-04T11:29:10.697786+00:00
+fetched_at: 2026-08-04T11:47:59.224354+00:00
 document_id: ms-8acf42f06e24
 content_type: Troubleshooting
 ---

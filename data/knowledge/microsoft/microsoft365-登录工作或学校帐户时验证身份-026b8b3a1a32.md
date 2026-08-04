@@ -4,7 +4,7 @@ product: Microsoft365
 category: Troubleshooting
 source_url: https://support.microsoft.com/zh-CN/accounts-billing/work-school/verifying-your-identity-when-signing-in
 language: zh-CN
-fetched_at: 2026-08-04T11:32:57.680509+00:00
+fetched_at: 2026-08-04T11:51:00.473437+00:00
 document_id: ms-026b8b3a1a32
 content_type: Troubleshooting
 ---
