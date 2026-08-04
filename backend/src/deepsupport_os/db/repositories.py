@@ -159,6 +159,25 @@ class AccountRepo:
             s.commit()
             return {"ok": True, "email": email, "status": "active", "message": "password reset applied"}
 
+    def apply_license_change(self, email: str, new_license_type: str) -> dict:
+        Session = get_session_factory()
+        with Session() as s:
+            a = s.scalar(select(Account).where(Account.email == email))
+            if not a:
+                return {"ok": False, "error": "account_not_found"}
+            a.license_type = new_license_type or a.license_type
+            # Reactivate related licenses
+            rows = s.scalars(select(License).where(License.account_id == a.account_id)).all()
+            for lic in rows:
+                lic.status = "active"
+            s.commit()
+            return {
+                "ok": True,
+                "email": email,
+                "license_type": a.license_type,
+                "message": "license change applied",
+            }
+
 
 class TicketRepo:
     def create_ticket(self, **fields: Any) -> dict:

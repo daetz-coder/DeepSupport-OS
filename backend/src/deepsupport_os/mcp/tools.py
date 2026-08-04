@@ -170,19 +170,12 @@ def update_ticket(ticket_id: str, status: str = "", resolution: str = "", assign
 
 @tool
 def escalate_ticket(ticket_id: str, reason: str) -> dict:
-    """升级工单（通常需要审批）。"""
-    result = _ticket.update_ticket(
-        ticket_id,
-        status="escalated",
-        priority="P1",
-        assignee="L2 Support",
-        resolution=f"Escalation reason: {reason}",
-    )
+    """升级工单（通常需要审批；批准后才会真正写入）。"""
     out = {
-        "ok": bool(result),
+        "ok": True,
         "pending_approval": True,
         "action": "escalate_ticket",
-        "ticket": result,
+        "ticket_id": ticket_id,
         "reason": reason,
     }
     return _audit("escalate_ticket", {"ticket_id": ticket_id, "reason": reason}, out)

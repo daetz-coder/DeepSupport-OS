@@ -78,15 +78,16 @@
 - [x] ~~create_deep_agent + tools + HITL + MemorySaver~~
 - [x] ~~MVP Subagents 挂载~~
 - [x] ~~持久化 checkpointer（SQLite）~~
-- [ ] Execution Trace API 完善
+- [x] ~~Execution Trace API 完善~~
+- [x] ~~HITL 批准后写操作落库~~
 
 ---
 
 ## Phase 6 — API + 前端
 
 - [x] ~~Tasks API + Vue 提问/轨迹/HITL 壳~~
-- [ ] SSE 流式进度
-- [ ] 工具调用结构化展示
+- [x] ~~SSE 流式进度~~
+- [x] ~~工具调用结构化展示~~
 
 ---
 
@@ -115,3 +116,4 @@
 | 2026-08-04 | 0–6 | 骨架到 API/UI 已 push |
 | 2026-08-04 | 确认项 | 用户确认全部默认决策 |
 | 2026-08-04 | 5/7 | Subagents + Skills 补齐；Outlook/HITL/建单 Demo 跑通 |
+| 2026-08-04 | P0 | Trace API + SSE + 结构化前端 + HITL 落库 |
