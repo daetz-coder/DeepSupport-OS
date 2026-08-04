@@ -69,3 +69,18 @@ def test_artifacts_endpoint_for_saved_task(fresh_db, tmp_path, monkeypatch):
     assert detail.status_code == 200
     assert "locked" in detail.json()["content"]
     get_settings.cache_clear()
+
+
+def test_meta_skills_and_mcp(fresh_db):
+    get_settings.cache_clear()
+    reset_engine()
+    client = TestClient(create_app())
+    skills = client.get("/api/meta/skills")
+    assert skills.status_code == 200
+    body = skills.json()
+    assert "installed" in body
+    assert "catalog" in body
+    mcp = client.get("/api/meta/mcp")
+    assert mcp.status_code == 200
+    assert "settings" in mcp.json()
+    assert "config_servers" in mcp.json()
