@@ -252,7 +252,22 @@ ALL_MOCK_TOOLS = (
 
 
 def all_agent_tools():
-    """Lazy combine mock MCP tools + knowledge tools (avoid circular import)."""
+    """Combine in-process mock tools + knowledge + optional remote MCP tools."""
+    from deepsupport_os.core.extensions import ext_bool
     from deepsupport_os.rag.knowledge_tools import KNOWLEDGE_TOOLS
 
-    return list(ALL_MOCK_TOOLS) + list(KNOWLEDGE_TOOLS)
+    tools: list = []
+    if ext_bool("mcp_local_tools"):
+        tools.extend(ALL_MOCK_TOOLS)
+    tools.extend(KNOWLEDGE_TOOLS)
+
+    if ext_bool("mcp_remote_enabled"):
+        from deepsupport_os.mcp.remote_client import load_remote_mcp_tools
+
+        existing = {getattr(t, "name", "") for t in tools}
+        for t in load_remote_mcp_tools():
+            name = getattr(t, "name", "")
+            if name and name not in existing:
+                tools.append(t)
+                existing.add(name)
+    return tools

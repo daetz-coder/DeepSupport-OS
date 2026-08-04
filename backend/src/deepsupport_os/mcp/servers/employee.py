@@ -1,6 +1,16 @@
-"""Employee MCP server (template). Run: uv run python -m deepsupport_os.mcp.servers.employee"""
+"""Employee MCP server (template).
+
+Local stdio:
+  uv run python -m deepsupport_os.mcp.servers.employee
+
+Remote-style HTTP (for MCP client tests):
+  uv run python -m deepsupport_os.mcp.servers.employee --http
+  # listens http://127.0.0.1:8100/mcp
+"""
 
 from __future__ import annotations
+
+import argparse
 
 from mcp.server.fastmcp import FastMCP
 
@@ -11,7 +21,7 @@ from deepsupport_os.db.seed import seed_database
 init_db()
 seed_database(force=False)
 
-mcp = FastMCP("employee-mcp")
+mcp = FastMCP("employee-mcp", host="127.0.0.1", port=8100)
 _repo = EmployeeRepo()
 
 
@@ -38,7 +48,22 @@ def get_manager(employee_id: str) -> dict:
 
 
 def main() -> None:
-    mcp.run()
+    parser = argparse.ArgumentParser(description="Employee MCP server")
+    parser.add_argument(
+        "--http",
+        action="store_true",
+        help="Serve streamable HTTP on 127.0.0.1:8100/mcp (remote client path)",
+    )
+    parser.add_argument("--host", default="127.0.0.1")
+    parser.add_argument("--port", type=int, default=8100)
+    args = parser.parse_args()
+
+    if args.http:
+        mcp.settings.host = args.host
+        mcp.settings.port = args.port
+        mcp.run(transport="streamable-http")
+    else:
+        mcp.run()
 
 
 if __name__ == "__main__":

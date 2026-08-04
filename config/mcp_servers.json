@@ -1,0 +1,22 @@
+{
+  "servers": {
+    "employee-local-stdio": {
+      "enabled": false,
+      "transport": "stdio",
+      "command": "uv",
+      "args": ["run", "python", "-m", "deepsupport_os.mcp.servers.employee"],
+      "description": "Local stdio Employee FastMCP (same process machine)"
+    },
+    "employee-remote-http": {
+      "enabled": true,
+      "transport": "streamable_http",
+      "url": "http://127.0.0.1:8100/mcp",
+      "description": "Remote-style HTTP MCP — start: uv run python -m deepsupport_os.mcp.servers.employee --http"
+    }
+  },
+  "notes": [
+    "In-process LangChain mock tools remain the default (MCP_LOCAL_TOOLS=true).",
+    "Enable remote servers here and set MCP_REMOTE_ENABLED=true to merge remote tools into the agent.",
+    "Add public/third-party MCP by appending a server block with url + transport (sse|streamable_http|http)."
+  ]
+}
