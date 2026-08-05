@@ -78,8 +78,16 @@ F-13 … F-20 仍后置（见原建议）。F-16 部分被 F-03/F-09 覆盖（ma
 
 ---
 
+## 对话化 UX（进行中）
+
+- **[x]** Step 1–2：Thread 侧栏 + 对话气泡 + `ask_user` 中断/resume 闭环  
+- **[x]** Step 3：阶段折叠（对话区）+ 运行概览右栏（Agent/Plan/Skill/MCP/Tool）  
+- **[x]** Step 4：Skill 路径识别 + MCP/local/knowledge 来源埋点（`tool_provenance` + `overview`）  
+- **[x]** SSE：尾帧 flush + 即时 `interrupt`/`token`；LLM `streaming=True`（ask 无需手动点会话刷新）  
+- **[x]** SSE：CRLF 分帧规范化（修复 `done` 多段 data 拼接解析失败）+ 精简 `done` 载荷（去 audit）  
+
 ## 建议落地顺序（下一迭代）
 
 1. F-12 Demo 截图 / README 开箱路径补全  
-2. F-02 MCP 双轨实现收敛（可选）  
-3. F-11 继续拆面板组件（可选）
+2. F-02 MCP 双轨实现收敛 / 同名工具优先级（可选）  
+3. ~~概览按「单轮 Run」精切~~（已按最后一条用户消息切片）
