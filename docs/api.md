@@ -19,6 +19,7 @@ OpenAPI：[/docs](http://127.0.0.1:8000/docs)
 |---|---|---|
 | GET | `/api/tasks` | List recent tasks (runs) |
 | GET | `/api/tasks/threads` | List conversations (thread → nested runs) |
+| DELETE | `/api/tasks/threads/{thread_id}` | 清除会话（删除该 Thread 全部 runs + 工作区） |
 | POST | `/api/tasks` | Sync harness turn（可传 `thread_id` 续聊） |
 | POST | `/api/tasks/stream` | SSE turn（含 `token`） |
 | POST | `/api/tasks/resume` | 同步续跑：`interrupt_type=ask` + `answer`，或 HITL `approved` |

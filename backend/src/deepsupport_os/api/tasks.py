@@ -69,6 +69,9 @@ def _sse_done_payload(record: dict[str, Any]) -> dict[str, Any]:
         for k in (
             "status",
             "duration_ms",
+            "thread_duration_ms",
+            "run_count",
+            "run_step_count",
             "scope",
             "plan",
             "agents",
@@ -147,12 +150,36 @@ def _build_record(
     if todos is None and agent is not None and config is not None:
         todos = extract_todos(agent, config, result=result)
     todos = todos or []
-    overview = build_run_overview(
-        list(trace.get("steps") or []),
+    steps = list(trace.get("steps") or [])
+    run_overview = build_run_overview(
+        steps,
         todos=todos,
         metrics={"duration_ms": duration_ms},
         status=status,
+        current_run_only=True,
     )
+    thread_overview = build_run_overview(
+        steps,
+        todos=todos,
+        metrics={"duration_ms": duration_ms},
+        status=status,
+        current_run_only=False,
+    )
+    prior_ms = task_store.sum_thread_duration_ms(thread_id, exclude_task_id=task_id)
+    run_count = max(1, task_store.count_thread_runs(thread_id))
+    # If this task_id is new, count_thread_runs won't include it yet
+    if task_store.get_task(task_id) is None:
+        run_count = task_store.count_thread_runs(thread_id) + 1
+    overview = {
+        **thread_overview,
+        # Chat stage fold stays on the current turn
+        "stages": run_overview.get("stages") or [],
+        "run_step_count": run_overview.get("step_count") or 0,
+        "duration_ms": duration_ms,
+        "thread_duration_ms": prior_ms + float(duration_ms or 0),
+        "run_count": run_count,
+        "scope": "full_thread",
+    }
     manifest = write_manifest(thread_id, task_id=task_id, status=status)
     metrics = write_turn_metrics(
         thread_id,
@@ -165,6 +192,8 @@ def _build_record(
             "agents_used": overview.get("agents") or [],
             "mcp": overview.get("mcp") or {},
             "stage_count": len(overview.get("stages") or []),
+            "thread_duration_ms": overview.get("thread_duration_ms"),
+            "run_count": overview.get("run_count"),
         },
     )
     artifacts = list_artifacts(thread_id)
@@ -221,6 +250,26 @@ def list_tasks(limit: int = 50):
 def list_threads(limit: int = 40):
     """Conversation sidebar: threads with nested runs."""
     return {"items": task_store.list_threads(limit=limit)}
+
+
+@router.delete("/threads/{thread_id}")
+def delete_thread(thread_id: str):
+    """Clear a conversation: drop persisted runs and drop cached agent for the thread."""
+    tid = (thread_id or "").strip()
+    if not tid:
+        raise HTTPException(status_code=400, detail="thread_id required")
+    deleted = task_store.delete_thread(tid)
+    _agents.pop(tid, None)
+    # Best-effort workspace cleanup
+    try:
+        import shutil
+
+        ws = ensure_thread_workspace(tid)
+        if ws.exists() and ws.is_dir():
+            shutil.rmtree(ws, ignore_errors=True)
+    except Exception:  # noqa: BLE001
+        pass
+    return {"ok": True, "thread_id": tid, "deleted_runs": deleted}
 
 
 @router.post("", response_model=TaskCreateResponse)

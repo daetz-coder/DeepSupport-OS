@@ -93,3 +93,8 @@ def test_current_run_slice_ignores_prior_turn():
     names = [t["name"] for t in overview["tools"]["items"]]
     assert "ask_user" in names
     assert "create_ticket" not in names
+    full = build_run_overview(steps, current_run_only=False)
+    assert full["scope"] == "full_thread"
+    full_names = [t["name"] for t in full["tools"]["items"]]
+    assert "create_ticket" in full_names
+    assert "ask_user" in full_names
