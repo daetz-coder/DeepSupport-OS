@@ -126,6 +126,7 @@ class AuditLog(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     task_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    thread_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     tool: Mapped[str] = mapped_column(String(128), nullable=False)
     arguments: Mapped[str] = mapped_column(Text, default="")
     result: Mapped[str] = mapped_column(Text, default="")

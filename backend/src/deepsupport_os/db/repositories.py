@@ -435,12 +435,24 @@ class PolicyRepo:
         return self.check_action_permission(action)
 
 
-def write_audit(task_id: str, tool: str, arguments: Any, result: Any) -> None:
+def write_audit(
+    task_id: str | None = None,
+    tool: str = "",
+    arguments: Any = None,
+    result: Any = None,
+    *,
+    thread_id: str | None = None,
+) -> None:
+    from deepsupport_os.harness.runtime_context import get_task_id, get_thread_id
+
+    resolved_task = (task_id or "").strip() or get_task_id("adhoc")
+    resolved_thread = (thread_id or "").strip() or get_thread_id()
     Session = get_session_factory()
     with Session() as s:
         s.add(
             AuditLog(
-                task_id=task_id,
+                task_id=resolved_task,
+                thread_id=resolved_thread,
                 tool=tool,
                 arguments=json.dumps(arguments, ensure_ascii=False, default=str),
                 result=json.dumps(result, ensure_ascii=False, default=str),
@@ -449,14 +461,32 @@ def write_audit(task_id: str, tool: str, arguments: Any, result: Any) -> None:
         s.commit()
 
 
-def list_audit(limit: int = 50, task_id: str | None = None) -> list[dict[str, Any]]:
+def list_audit(
+    limit: int = 50,
+    task_id: str | None = None,
+    thread_id: str | None = None,
+) -> list[dict[str, Any]]:
     Session = get_session_factory()
     with Session() as s:
         stmt = select(AuditLog).order_by(desc(AuditLog.id)).limit(limit)
-        if task_id:
+        if task_id and thread_id:
+            stmt = (
+                select(AuditLog)
+                .where(AuditLog.task_id == task_id, AuditLog.thread_id == thread_id)
+                .order_by(desc(AuditLog.id))
+                .limit(limit)
+            )
+        elif task_id:
             stmt = (
                 select(AuditLog)
                 .where(AuditLog.task_id == task_id)
+                .order_by(desc(AuditLog.id))
+                .limit(limit)
+            )
+        elif thread_id:
+            stmt = (
+                select(AuditLog)
+                .where(AuditLog.thread_id == thread_id)
                 .order_by(desc(AuditLog.id))
                 .limit(limit)
             )
@@ -465,6 +495,7 @@ def list_audit(limit: int = 50, task_id: str | None = None) -> list[dict[str, An
             {
                 "id": r.id,
                 "task_id": r.task_id,
+                "thread_id": r.thread_id,
                 "tool": r.tool,
                 "arguments": r.arguments,
                 "result": (r.result or "")[:1000],

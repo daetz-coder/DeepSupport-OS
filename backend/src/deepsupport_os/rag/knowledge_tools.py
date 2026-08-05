@@ -68,7 +68,7 @@ def search_docs(query: str, top_k: int = 5) -> dict:
             "raglab_error": remote.get("error"),
             "results": local,
         }
-    write_audit("adhoc", "search_docs", {"query": query, "top_k": top_k}, result)
+    write_audit(tool="search_docs", arguments={"query": query, "top_k": top_k}, result=result)
     return result
 
 
@@ -96,7 +96,7 @@ def get_document(document_id: str) -> dict:
             }
         else:
             result = {"ok": False, "error": "not_found", "raglab_error": remote.get("error")}
-    write_audit("adhoc", "get_document", {"document_id": document_id}, result)
+    write_audit(tool="get_document", arguments={"document_id": document_id}, result=result)
     return result
 
 
@@ -104,7 +104,7 @@ def get_document(document_id: str) -> dict:
 def search_cases(query: str, limit: int = 5) -> list:
     """检索历史故障案例（Mock Case 库）。"""
     result = _case.search_similar_cases(query, limit=limit)
-    write_audit("adhoc", "search_cases", {"query": query, "limit": limit}, result)
+    write_audit(tool="search_cases", arguments={"query": query, "limit": limit}, result=result)
     return result
 
 

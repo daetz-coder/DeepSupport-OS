@@ -52,8 +52,8 @@ def reset_agents() -> None:
     clear_thread_backends()
 
 
-def _recent_audit(limit: int = 30) -> list[dict[str, Any]]:
-    return list_audit(limit=limit)
+def _recent_audit(limit: int = 30, thread_id: str | None = None) -> list[dict[str, Any]]:
+    return list_audit(limit=limit, thread_id=thread_id)
 
 
 def _slim_interrupt(interrupt: Any) -> Any:
@@ -152,7 +152,9 @@ def _build_record(
     result: dict | None = None,
     duration_ms: float | None = None,
 ) -> dict[str, Any]:
-    trace = build_trace(messages, interrupt=interrupt, audit=_recent_audit(20))
+    trace = build_trace(
+        messages, interrupt=interrupt, audit=_recent_audit(20, thread_id=thread_id)
+    )
     ws = workspace_path or str(ensure_thread_workspace(thread_id))
     if todos is None and agent is not None and config is not None:
         todos = extract_todos(agent, config, result=result)
@@ -299,6 +301,8 @@ def delete_thread(thread_id: str):
 @router.post("", response_model=TaskCreateResponse)
 def create_task(body: TaskCreateRequest):
     """Run one support turn via Deep Agents Harness."""
+    from deepsupport_os.harness.runtime_context import run_context
+
     thread_id = body.thread_id or str(uuid.uuid4())
     task_id = str(uuid.uuid4())
     ws = ensure_thread_workspace(thread_id)
@@ -307,10 +311,11 @@ def create_task(body: TaskCreateRequest):
     timer = TurnTimer()
 
     try:
-        result = agent.invoke(
-            {"messages": [{"role": "user", "content": body.message}]},
-            config=config,
-        )
+        with run_context(thread_id=thread_id, task_id=task_id):
+            result = agent.invoke(
+                {"messages": [{"role": "user", "content": body.message}]},
+                config=config,
+            )
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -383,24 +388,26 @@ def resume_task(body: ResumeRequest):
     """Resume after ask_user answer or HITL write approval (sync). Prefer /resume/stream for UI."""
     from langgraph.types import Command
 
+    from deepsupport_os.harness.runtime_context import run_context
+
     ws = ensure_thread_workspace(body.thread_id)
     timer = TurnTimer()
+    task_id = body.task_id or str(uuid.uuid4())
     resume_payload, applied, fallback, itype, agent, config, interrupt_before = _prepare_resume(
         body
     )
 
     try:
-        result = agent.invoke(Command(resume=resume_payload), config=config)
+        with run_context(thread_id=body.thread_id, task_id=task_id):
+            result = agent.invoke(Command(resume=resume_payload), config=config)
+            if itype == "hitl":
+                _inject_hitl_notice(agent, config, interrupt_before, body.approved)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"resume failed: {exc}") from exc
-
-    if itype == "hitl":
-        _inject_hitl_notice(agent, config, interrupt_before, body.approved)
 
     messages = result.get("messages", [])
     interrupt = extract_interrupt_info(agent, config)
     status = "interrupted" if interrupt else fallback
-    task_id = body.task_id or str(uuid.uuid4())
     record = _build_record(
         task_id=task_id,
         thread_id=body.thread_id,
@@ -425,8 +432,10 @@ def resume_task(body: ResumeRequest):
 
 
 @router.get("/meta/audit")
-def get_audit(limit: int = 50, task_id: str | None = None):
-    return {"items": list_audit(limit=limit, task_id=task_id)}
+def get_audit(
+    limit: int = 50, task_id: str | None = None, thread_id: str | None = None
+):
+    return {"items": list_audit(limit=limit, task_id=task_id, thread_id=thread_id)}
 
 
 def _message_text(content: Any) -> str:
@@ -463,6 +472,39 @@ def _iter_agent_sse(
     hitl_notice: tuple[dict[str, Any], bool] | None = None,
 ) -> Iterator[dict[str, str]]:
     """Shared SSE loop for new turns and ask/HITL resume."""
+    from deepsupport_os.harness.runtime_context import reset_run_context, set_run_context
+
+    tokens = set_run_context(thread_id=thread_id, task_id=task_id)
+    try:
+        yield from _iter_agent_sse_body(
+            agent=agent,
+            config=config,
+            stream_input=stream_input,
+            task_id=task_id,
+            thread_id=thread_id,
+            workspace_path=workspace_path,
+            timer=timer,
+            applied=applied,
+            fallback_status=fallback_status,
+            hitl_notice=hitl_notice,
+        )
+    finally:
+        reset_run_context(tokens)
+
+
+def _iter_agent_sse_body(
+    *,
+    agent: Any,
+    config: dict,
+    stream_input: Any,
+    task_id: str,
+    thread_id: str,
+    workspace_path: str,
+    timer: TurnTimer,
+    applied: list[dict[str, Any]] | None = None,
+    fallback_status: str = "completed",
+    hitl_notice: tuple[dict[str, Any], bool] | None = None,
+) -> Iterator[dict[str, str]]:
     yield {
         "event": "status",
         "data": json.dumps(
@@ -765,13 +807,16 @@ def _prepare_resume(
         resume_payload: Any = str(answer).strip()
         fallback = "completed"
     else:
+        from deepsupport_os.harness.runtime_context import run_context
+
         pending = collect_pending_writes(None, pending=interrupt_before.get("pending_writes"))
         if body.approved and pending:
-            applied = apply_approved_writes(
-                pending,
-                task_id=body.task_id or body.thread_id,
-                thread_id=tid,
-            )
+            with run_context(thread_id=tid, task_id=body.task_id or tid):
+                applied = apply_approved_writes(
+                    pending,
+                    task_id=body.task_id or body.thread_id,
+                    thread_id=tid,
+                )
         resume_payload = {
             "decisions": _hitl_resume_decisions(
                 approved=body.approved, pending=pending, applied=applied

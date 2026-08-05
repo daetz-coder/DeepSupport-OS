@@ -27,7 +27,7 @@ _case = CaseRepo()
 _policy = PolicyRepo()
 
 
-def _audit(tool_name: str, args: dict[str, Any], result: Any, task_id: str = "adhoc") -> Any:
+def _audit(tool_name: str, args: dict[str, Any], result: Any, task_id: str | None = None) -> Any:
     write_audit(task_id, tool_name, args, result)
     return result
 
