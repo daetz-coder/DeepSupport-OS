@@ -72,7 +72,8 @@ Outputs:
 | Cost proxies | `avg_tool_calls` / `avg_step_count` / `avg_subagent_dispatches` |
 | By tag | Pass rate broken down by case tags |
 
-Full catalog + DB persistence: [testing.md](./testing.md).
+Full catalog + DB persistence: [testing.md](./testing.md).  
+Latest numeric snapshot: [eval-results.md](./eval-results.md).
 
 ## Expected qualitative result
 

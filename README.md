@@ -149,7 +149,7 @@ DeepSupport-OS/
 
 ## 当前状态
 
-Phase 0–11 主链路已可运行（Harness、HITL、Memory/Todo、Artifacts+manifest/metrics、Daytona sidecar）。Skills SOP + 公开导入 + 远程 MCP 客户端已接入。架构债跟踪见 [fix.md](./fix.md)；产品待办见 [plan.md](./plan.md)。
+Phase 0–11 主链路已可运行（Harness、HITL、Memory/Todo、Artifacts+manifest/metrics、Daytona sidecar）。Skills SOP + 公开导入 + 远程 MCP 客户端已接入。架构债跟踪见 [fix.md](./fix.md)；产品待办见 [plan.md](./plan.md)；评测指标快照见 [docs/eval-results.md](./docs/eval-results.md)。
 
 ## License
 

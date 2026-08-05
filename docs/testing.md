@@ -12,7 +12,8 @@ DeepSupport OS 将 benchmark 用例与跑分结果写入同一 SQLite（`data/de
 
 ## 指标目录
 
-完整列表见 `GET /api/eval/metrics`（由 `harness/eval_metrics.py` 维护）。
+完整列表见 `GET /api/eval/metrics`（由 `harness/eval_metrics.py` 维护）。  
+最新跑分快照见 [eval-results.md](./eval-results.md)。
 
 ### 成功 / 编排
 

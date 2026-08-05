@@ -207,21 +207,29 @@ def main() -> None:
 
     mode_online = args.online
     results = []
-    for case in cases:
+    total_n = len(cases)
+    for idx, case in enumerate(cases, start=1):
+        cid = case.get("id") or f"case-{idx}"
         if mode_online:
+            print(f"[{idx}/{total_n}] online {cid} ...", flush=True)
+            t_case = time.perf_counter()
             try:
-                results.append(score_online(case, use_daytona=args.daytona))
+                row = score_online(case, use_daytona=args.daytona)
+                results.append(row)
             except Exception as exc:  # noqa: BLE001
-                results.append(
-                    {
-                        "id": case.get("id"),
-                        "ok": False,
-                        "mode": "online",
-                        "error": str(exc),
-                        "use_daytona": args.daytona,
-                        "tags": list(case.get("tags") or []),
-                    }
-                )
+                row = {
+                    "id": case.get("id"),
+                    "ok": False,
+                    "mode": "online",
+                    "error": str(exc),
+                    "use_daytona": args.daytona,
+                    "tags": list(case.get("tags") or []),
+                }
+                results.append(row)
+            elapsed = round((time.perf_counter() - t_case) * 1000, 1)
+            mark = "OK" if row.get("ok") else "FAIL"
+            err = f" err={row.get('error')}" if row.get("error") else ""
+            print(f"[{idx}/{total_n}] {mark} {cid} ({elapsed} ms){err}", flush=True)
         else:
             row = score_offline(case)
             row["tags"] = list(case.get("tags") or [])
