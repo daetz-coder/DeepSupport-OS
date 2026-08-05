@@ -729,7 +729,12 @@ Tool Registry + 按 Skill 动态挂载；SubAgent 目录化；Checkpoint 外置 
 
 ## 8. 下一步
 
-R1 / R2 已落地。下一迭代按 **R3-1 → R3-2 → R3-3 → R3-4 → R3-5** 推进 Runtime 硬化。  
+R1 / R2 / R3 路线图项均已勾选落地。后续可按业务优先级推进：
+
+- Checkpoint 外置 Postgres；Agent 无状态水平扩展
+- 租户级 Memory / Workspace / Registry
+- OTel exporter 接入生产后端；补偿事务自动化
+- 按 Skill 更细粒度动态挂载工具（Registry 已预留 affinity）  
 每完成一项：更新本文件勾选 + 补充回归测试 + 必要时同步 `fix.md`。
 
 **本审查结论一句话**：  
