@@ -105,14 +105,26 @@ def request_password_reset(email: str) -> dict:
 
 @tool
 def request_license_change(email: str, new_license_type: str) -> dict:
-    """发起许可证变更申请（需审批）。"""
-    result = {
-        "ok": True,
-        "pending_approval": True,
-        "action": "license_change",
-        "email": email,
-        "new_license_type": new_license_type,
-    }
+    """发起许可证变更申请（需审批）。已生效时返回 already_applied，避免重复审批。"""
+    account = _account.get_account_status(email)
+    if account and account.get("license_type") == new_license_type:
+        result = {
+            "ok": True,
+            "already_applied": True,
+            "action": "license_change",
+            "email": email,
+            "new_license_type": new_license_type,
+            "status": "active",
+            "message": "许可证已是目标类型，无需重复变更",
+        }
+    else:
+        result = {
+            "ok": True,
+            "pending_approval": True,
+            "action": "license_change",
+            "email": email,
+            "new_license_type": new_license_type,
+        }
     return _audit("request_license_change", {"email": email, "new_license_type": new_license_type}, result)
 
 
@@ -178,29 +190,56 @@ def update_ticket(ticket_id: str, status: str = "", resolution: str = "", assign
     return _audit("update_ticket", {"ticket_id": ticket_id, **fields}, result or {"error": "not_found"})
 
 
+def _ticket_state(ticket_id: str) -> dict | None:
+    """Read current ticket state (None when missing)."""
+    return _ticket.get_ticket(ticket_id)
+
+
 @tool
 def escalate_ticket(ticket_id: str, reason: str) -> dict:
-    """升级工单（通常需要审批；批准后才会真正写入）。"""
-    out = {
-        "ok": True,
-        "pending_approval": True,
-        "action": "escalate_ticket",
-        "ticket_id": ticket_id,
-        "reason": reason,
-    }
-    return _audit("escalate_ticket", {"ticket_id": ticket_id, "reason": reason}, out)
+    """升级工单（通常需要审批；批准后才会真正写入）。已升级时返回 already_applied，避免重复审批。"""
+    ticket = _ticket_state(ticket_id)
+    if ticket and ticket.get("status") == "escalated":
+        result = {
+            "ok": True,
+            "already_applied": True,
+            "action": "escalate_ticket",
+            "ticket_id": ticket_id,
+            "status": "escalated",
+            "message": "工单已升级，无需重复升级",
+        }
+    else:
+        result = {
+            "ok": True,
+            "pending_approval": True,
+            "action": "escalate_ticket",
+            "ticket_id": ticket_id,
+            "reason": reason,
+        }
+    return _audit("escalate_ticket", {"ticket_id": ticket_id, "reason": reason}, result)
 
 
 @tool
 def close_ticket(ticket_id: str, resolution: str) -> dict:
-    """关闭工单（通常需要审批）。"""
-    result = {
-        "ok": True,
-        "pending_approval": True,
-        "action": "close_ticket",
-        "ticket_id": ticket_id,
-        "resolution": resolution,
-    }
+    """关闭工单（通常需要审批）。已关闭时返回 already_applied，避免重复审批。"""
+    ticket = _ticket_state(ticket_id)
+    if ticket and ticket.get("status") == "closed":
+        result = {
+            "ok": True,
+            "already_applied": True,
+            "action": "close_ticket",
+            "ticket_id": ticket_id,
+            "status": "closed",
+            "message": "工单已关闭，无需重复关闭",
+        }
+    else:
+        result = {
+            "ok": True,
+            "pending_approval": True,
+            "action": "close_ticket",
+            "ticket_id": ticket_id,
+            "resolution": resolution,
+        }
     return _audit("close_ticket", {"ticket_id": ticket_id, "resolution": resolution}, result)
 
 

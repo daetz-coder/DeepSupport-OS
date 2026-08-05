@@ -10,7 +10,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.sqlite import SqliteSaver
 
 from deepsupport_os.core.config import get_settings
-from deepsupport_os.harness.builder import HarnessBuilder, RuntimePorts
+from deepsupport_os.harness.builder import INTERRUPT_ON, HarnessBuilder, RuntimePorts
 from deepsupport_os.harness.memory_files import (
     MEMORY_PATHS,
     ORG_MEMORY_FILE,
@@ -21,13 +21,8 @@ from deepsupport_os.harness.memory_files import (
 from deepsupport_os.harness.prompts import SYSTEM_PROMPT, build_system_prompt
 
 # Re-exports for API / tests
+# INTERRUPT_ON (InterruptOnConfig with `when` guards) is defined in builder.py.
 MEMORY_FILE = SESSION_MEMORY_FILE
-INTERRUPT_ON = {
-    "request_password_reset": True,
-    "request_license_change": True,
-    "close_ticket": True,
-    "escalate_ticket": True,
-}
 
 _checkpointer: SqliteSaver | MemorySaver | None = None
 _sqlite_conn: sqlite3.Connection | None = None

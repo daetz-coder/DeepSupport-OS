@@ -134,12 +134,27 @@ class AccountRepo:
             ]
 
     def request_password_reset(self, email: str) -> dict:
-        """Write intent only — actual reset requires HITL approval in harness."""
+        """Write intent only — actual reset requires HITL approval in harness.
+
+        State-aware: if the account is already active (reset already applied),
+        report ``already_applied`` instead of ``pending_approval`` so the agent
+        does not re-request the same reset (which caused approval loops).
+        """
         Session = get_session_factory()
         with Session() as s:
             a = s.scalar(select(Account).where(Account.email == email))
             if not a:
                 return {"ok": False, "error": "account_not_found"}
+            if a.status == "active":
+                return {
+                    "ok": True,
+                    "already_applied": True,
+                    "action": "password_reset",
+                    "email": email,
+                    "account_id": a.account_id,
+                    "status": "active",
+                    "message": "账号已是 active，密码重置已生效，无需重复申请",
+                }
             return {
                 "ok": True,
                 "pending_approval": True,

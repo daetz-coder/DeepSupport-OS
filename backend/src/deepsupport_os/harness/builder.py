@@ -6,11 +6,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
-from langchain.agents.middleware import TodoListMiddleware
+from langchain.agents.middleware import InterruptOnConfig, TodoListMiddleware
 
 from deepagents import create_deep_agent
 
 from deepsupport_os.core.config import get_settings
+from deepsupport_os.db.repositories import AccountRepo, TicketRepo
 from deepsupport_os.harness.daytona_backend import build_hybrid_backend, run_sandbox_shell
 from deepsupport_os.harness.memory_files import MEMORY_PATHS, ensure_memory_files
 from deepsupport_os.harness.prompts import build_system_prompt
@@ -19,12 +20,70 @@ from deepsupport_os.harness.subagents import build_mvp_subagents
 from deepsupport_os.harness.workspace import ensure_thread_workspace
 from deepsupport_os.mcp.tools import all_agent_tools
 
-INTERRUPT_ON = {
-    "request_password_reset": True,
-    "request_license_change": True,
-    "close_ticket": True,
-    "escalate_ticket": True,
-}
+WRITE_TOOL_NAMES = frozenset(
+    {"request_password_reset", "request_license_change", "close_ticket", "escalate_ticket"}
+)
+
+
+def _needs_password_reset(req) -> bool:
+    try:
+        email = str((req.tool_call.get("args") or {}).get("email") or "")
+        account = AccountRepo().get_account_status(email) if email else None
+        return not account or account.get("status") != "active"
+    except Exception:  # noqa: BLE001 - conservative: interrupt on lookup failure
+        return True
+
+
+def _needs_license_change(req) -> bool:
+    try:
+        args = req.tool_call.get("args") or {}
+        email = str(args.get("email") or "")
+        target = str(args.get("new_license_type") or "")
+        account = AccountRepo().get_account_status(email) if email else None
+        return not account or account.get("license_type") != target
+    except Exception:  # noqa: BLE001
+        return True
+
+
+def _needs_close(req) -> bool:
+    try:
+        ticket_id = str((req.tool_call.get("args") or {}).get("ticket_id") or "")
+        ticket = TicketRepo().get_ticket(ticket_id) if ticket_id else None
+        return not ticket or ticket.get("status") != "closed"
+    except Exception:  # noqa: BLE001
+        return True
+
+
+def _needs_escalate(req) -> bool:
+    try:
+        ticket_id = str((req.tool_call.get("args") or {}).get("ticket_id") or "")
+        ticket = TicketRepo().get_ticket(ticket_id) if ticket_id else None
+        return not ticket or ticket.get("status") != "escalated"
+    except Exception:  # noqa: BLE001
+        return True
+
+
+def build_interrupt_on() -> dict[str, bool | InterruptOnConfig]:
+    """Interrupt-on map with `when` guards: an action that is already applied
+    auto-approves instead of interrupting, so a re-issued write after approval
+    cannot loop the HITL prompt."""
+    return {
+        "request_password_reset": InterruptOnConfig(
+            allowed_decisions=["approve", "reject"], when=_needs_password_reset
+        ),
+        "request_license_change": InterruptOnConfig(
+            allowed_decisions=["approve", "reject"], when=_needs_license_change
+        ),
+        "close_ticket": InterruptOnConfig(
+            allowed_decisions=["approve", "reject"], when=_needs_close
+        ),
+        "escalate_ticket": InterruptOnConfig(
+            allowed_decisions=["approve", "reject"], when=_needs_escalate
+        ),
+    }
+
+
+INTERRUPT_ON = build_interrupt_on()
 
 
 @dataclass
@@ -37,7 +96,7 @@ class RuntimePorts:
     subagents_factory: Callable[[], list[dict]] = field(default=build_mvp_subagents)
     backend_factory: Callable[..., Any] = field(default=build_hybrid_backend)
     checkpointer_factory: Callable[[], Any] | None = None
-    interrupt_on: dict[str, bool] = field(default_factory=lambda: dict(INTERRUPT_ON))
+    interrupt_on: dict[str, bool | InterruptOnConfig] = field(default_factory=lambda: dict(INTERRUPT_ON))
     memory_paths: list[str] = field(default_factory=lambda: list(MEMORY_PATHS))
     name: str = "deepsupport-os"
 
