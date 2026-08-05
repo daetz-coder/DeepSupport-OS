@@ -5,18 +5,20 @@ Does not copy RAGLab code — only HTTP multipart upload to /api/ingest.
 Prereq:
   RAGLab API on RAGLAB_BASE_URL (default http://127.0.0.1:8001)
   Role header with write permission (editor/admin)
+  RAGLAB_KB=deepsupport (logical isolation from Huawei corpus)
 
 Usage:
   cd backend
   uv run python ../scripts/ingest_to_raglab.py
   uv run python ../scripts/ingest_to_raglab.py --dir ../data/knowledge/microsoft --limit 20
+  uv run python ../scripts/ingest_to_raglab.py --kb deepsupport
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import re
+import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +31,7 @@ DEFAULT_DIRS = [
     ROOT / "data" / "knowledge",
 ]
 REPORT = ROOT / "data" / "raw" / "microsoft" / "ingest_report.json"
+DEFAULT_KB = os.environ.get("RAGLAB_KB", "deepsupport")
 
 
 def parse_frontmatter(text: str) -> dict[str, str]:
@@ -84,6 +87,7 @@ def ingest_one(
     base_url: str,
     path: Path,
     *,
+    kb: str,
     role: str,
 ) -> dict:
     path = path.resolve()
@@ -95,7 +99,7 @@ def ingest_one(
     with path.open("rb") as f:
         files = {"file": (path.name, f, "text/markdown")}
         data = {
-            "kb": "huawei",
+            "kb": kb,
             "title": title[:200],
             "doc_type": str(doc_type)[:64],
             "dept": str(product)[:64],
@@ -114,6 +118,7 @@ def ingest_one(
     return {
         "path": rel_path(path),
         "title": title,
+        "kb": kb,
         "ok": ok,
         "status": r.status_code,
         "body": body,
@@ -122,7 +127,15 @@ def ingest_one(
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--raglab-url", default="http://127.0.0.1:8001")
+    parser.add_argument(
+        "--raglab-url",
+        default=os.environ.get("RAGLAB_BASE_URL", "http://127.0.0.1:8001"),
+    )
+    parser.add_argument(
+        "--kb",
+        default=DEFAULT_KB,
+        help="RAGLab logical KB name (default: deepsupport)",
+    )
     parser.add_argument("--dir", action="append", type=Path, default=None)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--min-chars", type=int, default=300)
@@ -136,7 +149,10 @@ def main() -> None:
     if args.limit:
         files = files[: args.limit]
 
-    print(f"candidates={len(files)} raglab={args.raglab_url} dry_run={args.dry_run}")
+    print(
+        f"candidates={len(files)} raglab={args.raglab_url} "
+        f"kb={args.kb} dry_run={args.dry_run}"
+    )
 
     # Health probe
     try:
@@ -156,6 +172,7 @@ def main() -> None:
                     "path": rel_path(p),
                     "title": meta.get("title") or p.stem,
                     "product": meta.get("product"),
+                    "kb": args.kb,
                     "ok": True,
                     "dry_run": True,
                 }
@@ -164,10 +181,13 @@ def main() -> None:
         with httpx.Client() as client:
             for i, p in enumerate(files, start=1):
                 try:
-                    item = ingest_one(client, args.raglab_url, p, role=args.role)
+                    item = ingest_one(
+                        client, args.raglab_url, p, kb=args.kb, role=args.role
+                    )
                 except Exception as exc:  # noqa: BLE001
                     item = {
                         "path": rel_path(p),
+                        "kb": args.kb,
                         "ok": False,
                         "error": str(exc),
                     }
@@ -180,6 +200,7 @@ def main() -> None:
     report = {
         "ingested_at": datetime.now(timezone.utc).isoformat(),
         "raglab_url": args.raglab_url,
+        "kb": args.kb,
         "total": len(results),
         "ok": ok,
         "failed": len(results) - ok,
@@ -188,7 +209,12 @@ def main() -> None:
     }
     REPORT.parent.mkdir(parents=True, exist_ok=True)
     REPORT.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(json.dumps({k: report[k] for k in ("total", "ok", "failed", "dry_run")}, ensure_ascii=False))
+    print(
+        json.dumps(
+            {k: report[k] for k in ("total", "ok", "failed", "kb", "dry_run")},
+            ensure_ascii=False,
+        )
+    )
     print(f"wrote {REPORT}")
 
 

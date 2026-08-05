@@ -47,6 +47,8 @@ class Settings(BaseSettings):
 
     # RAGLab HTTP client (do not copy RAGLab source / local model paths)
     raglab_base_url: str = "http://127.0.0.1:8001"
+    # Logical KB name on shared RAGLab instance (must match RAGLab KbName)
+    raglab_kb: str = "deepsupport"
 
     # Mock enterprise DB
     database_url: str = "sqlite:///data/deepsupport.db"

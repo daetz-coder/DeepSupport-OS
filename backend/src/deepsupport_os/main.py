@@ -68,6 +68,7 @@ def create_app() -> FastAPI:
             "raglab": {
                 "ok": bool(rag.get("ok")),
                 "base_url": live.raglab_base_url,
+                "kb": live.raglab_kb,
                 "path": rag.get("path"),
                 "error": rag.get("error"),
             },

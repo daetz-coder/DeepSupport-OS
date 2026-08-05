@@ -47,7 +47,7 @@ Deep Agents Harness
 ```bash
 cp .env.example .env
 cp config/mcp_servers.example.json config/mcp_servers.json   # 若尚无
-# 编辑 .env：DEEPSEEK_API_KEY、可选 DAYTONA_API_KEY、RAGLAB_BASE_URL=http://127.0.0.1:8001
+# 编辑 .env：DEEPSEEK_API_KEY、可选 DAYTONA_API_KEY、RAGLAB_BASE_URL=http://127.0.0.1:8001、RAGLAB_KB=deepsupport
 # 可选 ADMIN_TOKEN（非空时管理接口需 Header X-Admin-Token；前端可设 VITE_ADMIN_TOKEN）
 ```
 

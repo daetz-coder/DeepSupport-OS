@@ -258,6 +258,22 @@ def is_trouble(url: str) -> bool:
     return any(k.lower() in decoded for k in TROUBLE_KEYS)
 
 
+def existing_source_urls() -> set[str]:
+    """URLs already saved under data/knowledge/microsoft/*.md."""
+    urls: set[str] = set()
+    if not OUT_DIR.exists():
+        return urls
+    for p in OUT_DIR.glob("*.md"):
+        try:
+            text = p.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        m = re.search(r"^source_url:\s*(.+)$", text, re.M)
+        if m:
+            urls.add(m.group(1).strip())
+    return urls
+
+
 def discover_seeds(client: httpx.Client, per_product: int) -> list[dict[str, str]]:
     r = client.get(SITEMAP_COLLECTION, follow_redirects=True, timeout=45.0)
     r.raise_for_status()
@@ -307,12 +323,17 @@ def discover_seeds(client: httpx.Client, per_product: int) -> list[dict[str, str
     return seeds
 
 
-def try_ingest_raglab(md_path: Path, raglab_url: str) -> dict[str, Any]:
+def try_ingest_raglab(
+    md_path: Path,
+    raglab_url: str,
+    *,
+    kb: str = "deepsupport",
+) -> dict[str, Any]:
     try:
         with md_path.open("rb") as f:
             files = {"file": (md_path.name, f, "text/markdown")}
-            data = {"kb": "huawei", "title": md_path.stem, "doc_type": "support"}
-            headers = {"X-Role": "editor"}
+            data = {"kb": kb, "title": md_path.stem, "doc_type": "support"}
+            headers = {"X-RAGLab-Role": "editor"}
             r = httpx.post(
                 f"{raglab_url.rstrip('/')}/api/ingest",
                 files=files,
@@ -320,7 +341,7 @@ def try_ingest_raglab(md_path: Path, raglab_url: str) -> dict[str, Any]:
                 headers=headers,
                 timeout=60.0,
             )
-        return {"ok": r.status_code < 300, "status": r.status_code, "body": r.text[:500]}
+        return {"ok": r.status_code < 300, "status": r.status_code, "kb": kb, "body": r.text[:500]}
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "error": str(exc)}
 
@@ -331,9 +352,12 @@ def crawl(
     delay: float,
     ingest: bool,
     raglab_url: str,
+    raglab_kb: str = "deepsupport",
+    skip_existing: bool = True,
 ) -> dict[str, Any]:
     rp = load_robots()
     RAW_DIR.mkdir(parents=True, exist_ok=True)
+    known = existing_source_urls() if skip_existing else set()
     results: list[dict[str, Any]] = []
     headers = {
         "User-Agent": USER_AGENT,
@@ -349,6 +373,11 @@ def crawl(
                 "product": seed["product"],
                 "category": seed.get("category", "Guide"),
             }
+            if skip_existing and url in known:
+                item["status"] = "skipped_existing"
+                results.append(item)
+                print(f"[{i}/{len(seeds)}] SKIP existing {url}")
+                continue
             if not allowed(rp, url):
                 item["status"] = "disallowed_robots"
                 results.append(item)
@@ -399,8 +428,12 @@ def crawl(
                         "chars": len(body),
                     }
                 )
+                known.add(url)
+                known.add(str(resp.url))
                 if ingest:
-                    item["ingest"] = try_ingest_raglab(path, raglab_url)
+                    item["ingest"] = try_ingest_raglab(
+                        path, raglab_url, kb=raglab_kb
+                    )
                 results.append(item)
                 print(f"[{i}/{len(seeds)}] OK {title} ({len(body)} chars)")
             except Exception as exc:  # noqa: BLE001
@@ -438,6 +471,12 @@ def main() -> None:
     parser.add_argument("--delay", type=float, default=1.2)
     parser.add_argument("--ingest", action="store_true")
     parser.add_argument("--raglab-url", default="http://127.0.0.1:8001")
+    parser.add_argument("--raglab-kb", default="deepsupport")
+    parser.add_argument(
+        "--no-skip-existing",
+        action="store_true",
+        help="Re-fetch even if source_url already exists locally",
+    )
     args = parser.parse_args()
 
     headers = {"User-Agent": USER_AGENT, "Accept-Language": "zh-CN,zh;q=0.9"}
@@ -447,6 +486,18 @@ def main() -> None:
         print("discovering seeds from sitemap...")
         with httpx.Client(headers=headers, timeout=120.0) as client:
             seeds = discover_seeds(client, args.per_product)
+        # Merge prior seeds so we keep unused URLs across runs
+        if SEEDS_FILE.exists():
+            try:
+                prior = json.loads(SEEDS_FILE.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                prior = []
+            seen = {s["url"] for s in seeds}
+            for s in prior:
+                u = s.get("url")
+                if u and u not in seen:
+                    seeds.append(s)
+                    seen.add(u)
         SEEDS_FILE.parent.mkdir(parents=True, exist_ok=True)
         SEEDS_FILE.write_text(json.dumps(seeds, ensure_ascii=False, indent=2), encoding="utf-8")
         print(f"wrote {SEEDS_FILE} ({len(seeds)} seeds)")
@@ -463,6 +514,8 @@ def main() -> None:
         delay=args.delay,
         ingest=args.ingest,
         raglab_url=args.raglab_url,
+        raglab_kb=args.raglab_kb,
+        skip_existing=not args.no_skip_existing,
     )
     print(json.dumps({"ok": summary["ok"], "failed": summary["failed"], "manifest": str(MANIFEST)}, ensure_ascii=False))
 

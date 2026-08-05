@@ -14,9 +14,15 @@ logger = logging.getLogger(__name__)
 class RAGLabClient:
     """Thin HTTP facade over a running RAGLab instance."""
 
-    def __init__(self, base_url: str | None = None, timeout: float = 120.0):
+    def __init__(
+        self,
+        base_url: str | None = None,
+        kb: str | None = None,
+        timeout: float = 120.0,
+    ):
         settings = get_settings()
         self.base_url = (base_url or settings.raglab_base_url).rstrip("/")
+        self.kb = kb or settings.raglab_kb
         self.timeout = timeout
 
     def health(self) -> dict[str, Any]:
@@ -51,8 +57,20 @@ class RAGLabClient:
         headers = {"X-RAGLab-Role": "viewer"}
         last_err = "unreachable"
         attempts = [
-            {"question": question, "top_k": top_k, "use_rerank": use_rerank, "use_query_understanding": False},
-            {"question": question, "top_k": top_k, "use_rerank": False, "use_query_understanding": False},
+            {
+                "question": question,
+                "top_k": top_k,
+                "kb": self.kb,
+                "use_rerank": use_rerank,
+                "use_query_understanding": False,
+            },
+            {
+                "question": question,
+                "top_k": top_k,
+                "kb": self.kb,
+                "use_rerank": False,
+                "use_query_understanding": False,
+            },
         ]
         seen: set[str] = set()
         for payload in attempts:
@@ -101,6 +119,42 @@ class RAGLabClient:
                     continue
                 r.raise_for_status()
                 return {"ok": True, "source": "raglab", "data": r.json()}
+            except Exception as exc:  # noqa: BLE001
+                last_err = str(exc)
+        return {"ok": False, "error": last_err}
+
+    def list_documents(
+        self,
+        *,
+        kb: str | None = None,
+        status: str = "active",
+        limit: int = 200,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """List documents in a KB (GET /api/documents?kb=...)."""
+        headers = {"X-RAGLab-Role": "viewer"}
+        params = {
+            "kb": kb or self.kb,
+            "status": status,
+            "limit": limit,
+            "offset": offset,
+        }
+        last_err = "unreachable"
+        for path in ("/api/documents", "/documents"):
+            try:
+                r = request_with_retries(
+                    "GET",
+                    f"{self.base_url}{path}",
+                    timeout=self.timeout,
+                    retries=1,
+                    params=params,
+                    headers=headers,
+                )
+                if r.status_code == 404:
+                    last_err = f"404 {path}"
+                    continue
+                r.raise_for_status()
+                return {"ok": True, "source": "raglab", "path": path, "data": r.json()}
             except Exception as exc:  # noqa: BLE001
                 last_err = str(exc)
         return {"ok": False, "error": last_err}
