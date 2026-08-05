@@ -38,6 +38,7 @@ data/qdrant/
 data/uploads/
 backend/data/
 conversation_history/
+memory/AGENTS.md
 workspace/**
 !workspace/.gitkeep
 !data/.gitkeep
