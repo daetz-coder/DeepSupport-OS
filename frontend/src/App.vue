@@ -3,6 +3,10 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { API, apiHeaders } from './api/client'
 import { buildChatBubbles, shortThreadLabel } from './composables/chatBubbles'
+import {
+  buildLiveOverview,
+  mergeOverviews,
+} from './composables/liveOverview'
 import { useHealth } from './composables/useHealth'
 import { useMcp } from './composables/useMcp'
 import { useSkills } from './composables/useSkills'
@@ -53,6 +57,9 @@ const viewMode = ref<'chat' | 'workspace'>('chat')
 const lastError = ref<string | null>(null)
 const lastQuestion = ref('')
 const overview = ref<RunOverview | null>(null)
+/** Snapshot of thread-cumulative overview at stream start (merged with live steps). */
+const overviewBaseline = ref<RunOverview | null>(null)
+const overviewLiveActive = ref(false)
 const overviewOpen = ref(true)
 const stagesPanelOpen = ref(false)
 const openStages = ref<Record<string, boolean>>({})
@@ -97,6 +104,16 @@ const isHitlInterrupt = computed(
 const chatBubbles = computed(() =>
   buildChatBubbles(messages.value, interrupt.value),
 )
+
+/** Side-panel overview: live-merge during SSE, authoritative record after done. */
+const displayOverview = computed<RunOverview | null>(() => {
+  if (overviewLiveActive.value) {
+    const live = buildLiveOverview(steps.value, todos.value, status.value || 'running')
+    return mergeOverviews(overviewBaseline.value, live)
+  }
+  return overview.value
+})
+
 const composerPlaceholder = computed(() =>
   isAskInterrupt.value
     ? '回复以继续（回答 Agent 的提问）'
@@ -129,18 +146,31 @@ const pendingPreview = computed<HitlPreview[]>(() => {
 })
 
 const stageBuckets = computed<StageBucket[]>(() => {
-  if (overview.value?.stages?.length) return overview.value.stages
+  if (displayOverview.value?.stages?.length) return displayOverview.value.stages
   return []
 })
 
 const threadDurationLabel = computed(() => {
-  const ms = overview.value?.thread_duration_ms ?? overview.value?.duration_ms
-  if (ms == null) return '—'
+  const ms =
+    displayOverview.value?.thread_duration_ms ?? displayOverview.value?.duration_ms
+  if (ms == null) return overviewLiveActive.value ? '进行中' : '—'
   if (ms < 1000) return `${Math.round(ms)} ms`
   return `${(ms / 1000).toFixed(1)} s`
 })
 
-const threadRunCount = computed(() => overview.value?.run_count ?? 1)
+const threadRunCount = computed(() => displayOverview.value?.run_count ?? 1)
+
+function beginLiveOverview() {
+  overviewBaseline.value = overview.value
+    ? (JSON.parse(JSON.stringify(overview.value)) as RunOverview)
+    : null
+  overviewLiveActive.value = true
+}
+
+function endLiveOverview() {
+  overviewLiveActive.value = false
+  overviewBaseline.value = null
+}
 
 function applyRecord(data: Record<string, unknown>) {
   threadId.value = (data.thread_id as string) || threadId.value
@@ -160,6 +190,12 @@ function applyRecord(data: Record<string, unknown>) {
   }
   if (data.overview && typeof data.overview === 'object') {
     overview.value = data.overview as RunOverview
+  } else if (overviewLiveActive.value) {
+    // done 未带 overview 时，把本轮 live 统计落成当前概览
+    overview.value = mergeOverviews(
+      overviewBaseline.value,
+      buildLiveOverview(steps.value, todos.value, status.value),
+    )
   }
   if (data.metrics && typeof data.metrics === 'object') {
     metrics.value = data.metrics as Record<string, unknown>
@@ -180,6 +216,8 @@ function applyRecord(data: Record<string, unknown>) {
       },
     }
   }
+  // Authoritative server overview replaces any live merge
+  endLiveOverview()
 }
 
 async function refreshThreads() {
@@ -219,6 +257,7 @@ function newThread() {
   artifactContent.value = null
   artifactFocus.value = null
   overview.value = null
+  endLiveOverview()
   metrics.value = null
   openStages.value = {}
   stagesPanelOpen.value = false
@@ -553,6 +592,8 @@ async function submitStream() {
   streamingText.value = ''
   // Keep conversation history; only clear run-local interrupt until stream updates it
   interrupt.value = null
+  status.value = 'running'
+  beginLiveOverview()
   const res = await fetch(`${API}/api/tasks/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
@@ -581,6 +622,7 @@ async function resumeAsk() {
   steps.value = []
   streamingText.value = ''
   messages.value = [...messages.value, { role: 'user', content: answer }]
+  beginLiveOverview()
   const sent = answer
   question.value = ''
   try {
@@ -622,6 +664,7 @@ async function resumeAsk() {
   } catch (e) {
     lastError.value = e instanceof Error ? e.message : String(e)
     ElMessage.error(`继续失败: ${lastError.value}`)
+    endLiveOverview()
   } finally {
     loading.value = false
   }
@@ -663,6 +706,7 @@ async function submit() {
     status.value = 'failed'
     question.value = outbound
     ElMessage.error(`执行失败: ${lastError.value}`)
+    endLiveOverview()
   } finally {
     loading.value = false
   }
@@ -705,6 +749,7 @@ async function resume(approved: boolean) {
       streamingText.value = ''
       interrupt.value = null
       status.value = 'running'
+      beginLiveOverview()
       const res = await fetch(`${API}/api/tasks/resume/stream`, {
         method: 'POST',
         headers: apiHeaders({
@@ -744,6 +789,7 @@ async function resume(approved: boolean) {
   } catch (e) {
     lastError.value = e instanceof Error ? e.message : String(e)
     ElMessage.error(`恢复失败: ${lastError.value}`)
+    endLiveOverview()
   } finally {
     loading.value = false
   }
@@ -1090,7 +1136,7 @@ onMounted(async () => {
           </button>
         </div>
         <template v-if="overviewOpen">
-          <div v-if="!overview && !taskId" class="empty-hint">提交任务后显示本会话累计统计</div>
+          <div v-if="!displayOverview && !taskId" class="empty-hint">提交任务后显示本会话累计统计</div>
           <template v-else>
             <div v-if="isAskInterrupt" class="ov-block">
               <div class="ov-title">当前等待</div>
@@ -1101,27 +1147,32 @@ onMounted(async () => {
               <p class="muted">有高风险写操作待审批，请在对话区批准或拒绝。</p>
             </div>
             <div class="ov-block">
-              <div class="ov-title">Meta · 本会话累计</div>
-              <p><span class="meta-k">状态</span> {{ overview?.status || status || '—' }}</p>
+              <div class="ov-title">
+                Meta · 本会话累计
+                <el-tag v-if="overviewLiveActive" size="small" type="warning" effect="plain">
+                  实时
+                </el-tag>
+              </div>
+              <p><span class="meta-k">状态</span> {{ displayOverview?.status || status || '—' }}</p>
               <p><span class="meta-k">运行</span> {{ threadRunCount }} 次</p>
               <p><span class="meta-k">会话耗时</span> {{ threadDurationLabel }}</p>
               <p>
                 <span class="meta-k">步骤</span>
-                {{ overview?.step_count ?? steps.length }}
+                {{ displayOverview?.step_count ?? steps.length }}
               </p>
             </div>
             <div class="ov-block">
               <div class="ov-title">
                 规划
                 <span class="muted">
-                  {{ overview?.plan?.completed ?? todos.filter((t) => t.status === 'completed').length }}
+                  {{ displayOverview?.plan?.completed ?? todos.filter((t) => t.status === 'completed').length }}
                   /
-                  {{ overview?.plan?.total ?? todos.length }}
+                  {{ displayOverview?.plan?.total ?? todos.length }}
                 </span>
               </div>
-              <div v-if="!(overview?.plan?.items || todos).length" class="muted">暂无 todos</div>
+              <div v-if="!(displayOverview?.plan?.items || todos).length" class="muted">暂无 todos</div>
               <div
-                v-for="(p, i) in overview?.plan?.items || todos"
+                v-for="(p, i) in displayOverview?.plan?.items || todos"
                 :key="i"
                 class="ov-row"
               >
@@ -1130,10 +1181,10 @@ onMounted(async () => {
               </div>
             </div>
             <div class="ov-block">
-              <div class="ov-title">Agent · {{ overview?.agents?.length || 0 }}</div>
-              <div v-if="!overview?.agents?.length" class="muted">未委派 SubAgent</div>
+              <div class="ov-title">Agent · {{ displayOverview?.agents?.length || 0 }}</div>
+              <div v-if="!displayOverview?.agents?.length" class="muted">未委派 SubAgent</div>
               <el-tag
-                v-for="a in overview?.agents || []"
+                v-for="a in displayOverview?.agents || []"
                 :key="a"
                 size="small"
                 class="ov-tag"
@@ -1143,10 +1194,10 @@ onMounted(async () => {
               </el-tag>
             </div>
             <div class="ov-block">
-              <div class="ov-title">Skill · {{ overview?.skills?.length || 0 }}</div>
-              <div v-if="!overview?.skills?.length" class="muted">未读 Skill 文件</div>
+              <div class="ov-title">Skill · {{ displayOverview?.skills?.length || 0 }}</div>
+              <div v-if="!displayOverview?.skills?.length" class="muted">未读 Skill 文件</div>
               <el-tag
-                v-for="s in overview?.skills || []"
+                v-for="s in displayOverview?.skills || []"
                 :key="s"
                 size="small"
                 class="ov-tag"
@@ -1158,20 +1209,20 @@ onMounted(async () => {
             <div class="ov-block">
               <div class="ov-title">MCP / 来源 · 累计</div>
               <p class="muted">
-                本地 {{ overview?.mcp?.local_calls ?? 0 }} ·
-                知识 {{ overview?.mcp?.knowledge_calls ?? 0 }} ·
-                远程 {{ overview?.mcp?.remote_calls ?? 0 }}
+                本地 {{ displayOverview?.mcp?.local_calls ?? 0 }} ·
+                知识 {{ displayOverview?.mcp?.knowledge_calls ?? 0 }} ·
+                远程 {{ displayOverview?.mcp?.remote_calls ?? 0 }}
               </p>
-              <p v-if="overview?.mcp?.servers?.length" class="muted">
-                servers: {{ overview.mcp.servers.join(', ') }}
+              <p v-if="displayOverview?.mcp?.servers?.length" class="muted">
+                servers: {{ displayOverview.mcp.servers.join(', ') }}
               </p>
             </div>
             <div class="ov-block">
               <div class="ov-title">
-                Tool · {{ overview?.tools?.total_calls ?? 0 }} 次（累计）
+                Tool · {{ displayOverview?.tools?.total_calls ?? 0 }} 次（累计）
               </div>
               <div
-                v-for="t in (overview?.tools?.items || []).slice(0, 10)"
+                v-for="t in (displayOverview?.tools?.items || []).slice(0, 10)"
                 :key="t.name"
                 class="ov-row"
               >
@@ -2270,7 +2321,9 @@ pre {
 
 .ov-title {
   display: flex;
+  align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
   font-weight: 600;
   font-size: 0.82rem;
