@@ -20,14 +20,6 @@ import type {
   TraceStep,
 } from './types'
 
-type InteractionItem = {
-  id: string
-  kind: 'ask' | 'answer' | 'hitl' | 'decision'
-  title: string
-  detail?: string
-  at: string
-}
-
 const question = ref('我的 Outlook 一直登录不上')
 const loading = ref(false)
 const useStream = ref(true)
@@ -67,26 +59,8 @@ const openStages = ref<Record<string, boolean>>({})
 const metrics = ref<Record<string, unknown> | null>(null)
 const streamingText = ref('')
 const chatScrollEl = ref<HTMLElement | null>(null)
-const interactionLog = ref<InteractionItem[]>([])
-let interactionSeq = 0
-
-function pushInteraction(
-  kind: InteractionItem['kind'],
-  title: string,
-  detail?: string,
-) {
-  interactionSeq += 1
-  interactionLog.value = [
-    {
-      id: `ix-${interactionSeq}`,
-      kind,
-      title,
-      detail,
-      at: new Date().toLocaleTimeString(),
-    },
-    ...interactionLog.value,
-  ].slice(0, 40)
-}
+/** Local system notices (HITL decisions etc.) kept in the transcript for this thread. */
+const threadNotices = ref<ChatMessage[]>([])
 
 const {
   skillsInstalled,
@@ -122,7 +96,9 @@ const isAskInterrupt = computed(() => interrupt.value?.type === 'ask')
 const isHitlInterrupt = computed(
   () => hasInterrupt.value && interrupt.value?.type !== 'ask',
 )
-const chatBubbles = computed(() => buildChatBubbles(messages.value, interrupt.value))
+const chatBubbles = computed(() =>
+  buildChatBubbles([...messages.value, ...threadNotices.value], interrupt.value),
+)
 const composerPlaceholder = computed(() =>
   isAskInterrupt.value
     ? '回复以继续（回答 Agent 的提问）'
@@ -165,6 +141,15 @@ const durationLabel = computed(() => {
   if (ms < 1000) return `${Math.round(ms)} ms`
   return `${(ms / 1000).toFixed(1)} s`
 })
+
+const threadDurationLabel = computed(() => {
+  const ms = overview.value?.thread_duration_ms ?? overview.value?.duration_ms
+  if (ms == null) return '—'
+  if (ms < 1000) return `${Math.round(ms)} ms`
+  return `${(ms / 1000).toFixed(1)} s`
+})
+
+const threadRunCount = computed(() => overview.value?.run_count ?? 1)
 
 function applyRecord(data: Record<string, unknown>) {
   threadId.value = (data.thread_id as string) || threadId.value
@@ -246,7 +231,7 @@ function newThread() {
   metrics.value = null
   openStages.value = {}
   stagesPanelOpen.value = false
-  interactionLog.value = []
+  threadNotices.value = []
   viewMode.value = 'chat'
   lastError.value = null
   question.value = ''
@@ -261,13 +246,39 @@ async function openThread(item: ThreadItem) {
     applyRecord(data)
     lastError.value = null
     stagesPanelOpen.value = false
+    threadNotices.value = []
     viewMode.value = 'chat'
     activeTab.value = 'trace'
     await refreshArtifacts()
-    ElMessage.success(`已打开会话 · ${item.run_count} 轮`)
+    ElMessage.success(`已打开会话 · ${item.run_count} 次运行`)
   } catch (e) {
     lastError.value = e instanceof Error ? e.message : String(e)
     ElMessage.error(`加载失败: ${lastError.value}`)
+  }
+}
+
+async function clearThread(item: ThreadItem, ev?: Event) {
+  ev?.stopPropagation()
+  const ok = window.confirm(
+    `清除会话「${shortThreadLabel(item.thread_id, item.preview)}」？\n将删除该会话的全部运行记录与工作区文件。`,
+  )
+  if (!ok) return
+  try {
+    const res = await fetch(`${API}/api/tasks/threads/${encodeURIComponent(item.thread_id)}`, {
+      method: 'DELETE',
+      headers: apiHeaders(),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || res.statusText)
+    }
+    if (threadId.value === item.thread_id) {
+      newThread()
+    }
+    await refreshThreads()
+    ElMessage.success('会话已清除')
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : String(e))
   }
 }
 
@@ -461,13 +472,6 @@ function handleSseEvent(event: string, data: string) {
           },
         ]
       }
-      pushInteraction('ask', 'Agent 提问', q.slice(0, 160))
-    } else if (info.type === 'hitl' || (info.type !== 'ask' && info.pending_preview?.length)) {
-      const labels = (info.pending_preview || [])
-        .map((p) => p.label || p.name)
-        .filter(Boolean)
-        .join('、')
-      pushInteraction('hitl', '待人工审批', labels || '高风险写操作')
     }
     interrupt.value = info
     status.value = 'interrupted'
@@ -588,7 +592,6 @@ async function resumeAsk() {
   steps.value = []
   streamingText.value = ''
   messages.value = [...messages.value, { role: 'user', content: answer }]
-  pushInteraction('answer', '你的回复', answer.slice(0, 160))
   const sent = answer
   question.value = ''
   try {
@@ -694,7 +697,16 @@ async function resume(approved: boolean) {
   loading.value = true
   lastError.value = null
   viewMode.value = 'chat'
-  pushInteraction('decision', approved ? '已批准写操作' : '已拒绝写操作')
+  const labels = pendingPreview.value.map((p) => p.label || p.name).filter(Boolean).join('、')
+  threadNotices.value = [
+    ...threadNotices.value,
+    {
+      role: 'system',
+      content: approved
+        ? `已批准写操作${labels ? `：${labels}` : ''}`
+        : `已拒绝写操作${labels ? `：${labels}` : ''}`,
+    },
+  ]
   try {
     if (useStream.value) {
       liveEvents.value = []
@@ -888,6 +900,14 @@ onMounted(async () => {
           <div class="task-meta">
             <el-tag size="small" effect="plain">{{ item.latest_status }}</el-tag>
             <span>{{ item.run_count }} 次运行</span>
+            <button
+              type="button"
+              class="thread-clear"
+              title="清除会话"
+              @click="clearThread(item, $event)"
+            >
+              清除
+            </button>
           </div>
           <div class="task-preview">{{ shortThreadLabel(item.thread_id, item.preview) }}</div>
           <div class="task-meta muted">{{ item.updated_at?.slice(0, 19) || '' }}</div>
@@ -907,8 +927,13 @@ onMounted(async () => {
               :class="[`role-${b.role}`, { 'pending-ask': b.pendingAsk }]"
             >
               <div class="bubble-meta">
-                <span>{{ b.role === 'user' ? '你' : 'Agent' }}</span>
+                <span>
+                  {{ b.role === 'user' ? '你' : b.role === 'system' ? '系统' : 'Agent' }}
+                </span>
                 <el-tag v-if="b.pendingAsk" type="warning" size="small">需要你回答</el-tag>
+                <el-tag v-else-if="b.role === 'system'" type="info" size="small" effect="plain">
+                  操作记录
+                </el-tag>
               </div>
               <div class="bubble-body">{{ b.content }}</div>
             </div>
@@ -1074,64 +1099,27 @@ onMounted(async () => {
           </button>
         </div>
         <template v-if="overviewOpen">
-          <div v-if="!overview && !taskId && !interactionLog.length" class="empty-hint">提交任务后显示本轮统计</div>
+          <div v-if="!overview && !taskId" class="empty-hint">提交任务后显示本会话累计统计</div>
           <template v-else>
-            <div
-              v-if="isAskInterrupt || isHitlInterrupt || interactionLog.length"
-              class="ov-block ov-action"
-            >
-              <div class="ov-title">待你处理 / 互动</div>
-              <div v-if="isAskInterrupt" class="ix-card is-ask">
-                <el-tag type="warning" size="small">提问中</el-tag>
-                <p>{{ interrupt?.question || '请在下方回复' }}</p>
-              </div>
-              <div v-if="isHitlInterrupt" class="ix-card is-hitl">
-                <el-tag type="danger" size="small">待审批</el-tag>
-                <ul v-if="pendingPreview.length" class="ix-list">
-                  <li v-for="(p, i) in pendingPreview" :key="i">
-                    <strong>{{ p.label || p.name }}</strong>
-                    <span v-for="(h, j) in p.highlights.slice(0, 3)" :key="j" class="muted">
-                      {{ h.key }}={{ h.value }}
-                    </span>
-                  </li>
-                </ul>
-                <div class="ix-actions">
-                  <el-button type="success" size="small" :loading="loading" @click="resume(true)">
-                    批准
-                  </el-button>
-                  <el-button type="danger" size="small" plain :loading="loading" @click="resume(false)">
-                    拒绝
-                  </el-button>
-                </div>
-              </div>
-              <div v-if="interactionLog.length" class="ix-log">
-                <div class="ov-subtitle">本会话记录</div>
-                <div v-for="ix in interactionLog" :key="ix.id" class="ix-row">
-                  <el-tag
-                    size="small"
-                    :type="
-                      ix.kind === 'ask' || ix.kind === 'hitl'
-                        ? 'warning'
-                        : ix.kind === 'decision'
-                          ? 'success'
-                          : 'info'
-                    "
-                  >
-                    {{ ix.kind }}
-                  </el-tag>
-                  <div class="ix-body">
-                    <strong>{{ ix.title }}</strong>
-                    <p v-if="ix.detail" class="muted">{{ ix.detail }}</p>
-                    <span class="muted">{{ ix.at }}</span>
-                  </div>
-                </div>
-              </div>
+            <div v-if="isAskInterrupt" class="ov-block">
+              <div class="ov-title">当前等待</div>
+              <p class="muted">Agent 正在对话中提问，请在中间输入框直接回复。</p>
+            </div>
+            <div v-if="isHitlInterrupt" class="ov-block">
+              <div class="ov-title">当前等待</div>
+              <p class="muted">有高风险写操作待审批，请在对话区批准或拒绝。</p>
             </div>
             <div class="ov-block">
-              <div class="ov-title">Meta</div>
+              <div class="ov-title">Meta · 本会话累计</div>
               <p><span class="meta-k">状态</span> {{ overview?.status || status || '—' }}</p>
-              <p><span class="meta-k">耗时</span> {{ durationLabel }}</p>
-              <p><span class="meta-k">步骤</span> {{ overview?.step_count ?? steps.length }}</p>
+              <p><span class="meta-k">运行</span> {{ threadRunCount }} 次</p>
+              <p><span class="meta-k">会话耗时</span> {{ threadDurationLabel }}</p>
+              <p><span class="meta-k">本轮耗时</span> {{ durationLabel }}</p>
+              <p>
+                <span class="meta-k">步骤</span>
+                {{ overview?.step_count ?? steps.length }}
+                <span class="muted">（本轮 {{ overview?.run_step_count ?? '—' }}）</span>
+              </p>
             </div>
             <div class="ov-block">
               <div class="ov-title">
@@ -1179,7 +1167,7 @@ onMounted(async () => {
               </el-tag>
             </div>
             <div class="ov-block">
-              <div class="ov-title">MCP / 来源</div>
+              <div class="ov-title">MCP / 来源 · 累计</div>
               <p class="muted">
                 本地 {{ overview?.mcp?.local_calls ?? 0 }} ·
                 知识 {{ overview?.mcp?.knowledge_calls ?? 0 }} ·
@@ -1191,7 +1179,7 @@ onMounted(async () => {
             </div>
             <div class="ov-block">
               <div class="ov-title">
-                Tool · {{ overview?.tools?.total_calls ?? 0 }} 次
+                Tool · {{ overview?.tools?.total_calls ?? 0 }} 次（累计）
               </div>
               <div
                 v-for="t in (overview?.tools?.items || []).slice(0, 10)"
@@ -1771,10 +1759,25 @@ button.status-chip:disabled {
 .task-meta {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 8px;
   font-size: 0.72rem;
   color: var(--ds-muted);
   margin-bottom: 6px;
+}
+
+.thread-clear {
+  margin-left: auto;
+  border: none;
+  background: transparent;
+  color: #b91c1c;
+  cursor: pointer;
+  font-size: 0.72rem;
+  padding: 0 2px;
+}
+
+.thread-clear:hover {
+  text-decoration: underline;
 }
 
 .task-preview {
@@ -1839,6 +1842,15 @@ button.status-chip:disabled {
 .bubble.role-assistant {
   align-self: flex-start;
   background: #fff;
+}
+
+.bubble.role-system {
+  align-self: center;
+  max-width: min(92%, 720px);
+  background: #f8fafc;
+  border-style: dashed;
+  color: var(--ds-ink-soft);
+  font-size: 0.9rem;
 }
 
 .bubble.streaming .bubble-body::after {

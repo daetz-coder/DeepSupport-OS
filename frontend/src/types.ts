@@ -57,6 +57,10 @@ export type TodoItem = {
 export type RunOverview = {
   status?: string
   duration_ms?: number | null
+  thread_duration_ms?: number | null
+  run_count?: number
+  run_step_count?: number
+  scope?: string
   plan?: { total: number; completed: number; items?: TodoItem[] }
   stages?: StageBucket[]
   agents?: string[]
@@ -74,6 +78,7 @@ export type RunOverview = {
     items?: { name: string; count: number }[]
   }
   step_count?: number
+  thread_step_count?: number
 }
 
 export type TaskItem = {

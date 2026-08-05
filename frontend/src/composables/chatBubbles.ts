@@ -66,6 +66,11 @@ export function buildChatBubbles(
       continue
     }
 
+    if (role === 'system' && content) {
+      out.push({ id: `sys-${i++}`, role: 'system', content })
+      continue
+    }
+
     // ask_user tool return value IS the user's answer — show it as a user bubble
     if (role === 'tool' && name === 'ask_user' && content) {
       const last = out[out.length - 1]
