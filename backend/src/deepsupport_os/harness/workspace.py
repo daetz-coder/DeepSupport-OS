@@ -22,3 +22,8 @@ def ensure_thread_workspace(thread_id: str) -> Path:
     path = root / sanitize_thread_id(thread_id)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def thread_workspace_virtual(thread_id: str) -> str:
+    """Virtual path for Deep Agents read_file/write_file (must start with /)."""
+    return f"/workspace/{sanitize_thread_id(thread_id)}"

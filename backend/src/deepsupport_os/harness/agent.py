@@ -18,7 +18,7 @@ from deepsupport_os.harness.artifacts import CANONICAL_ARTIFACTS
 from deepsupport_os.harness.daytona_backend import build_hybrid_backend, run_sandbox_shell
 from deepsupport_os.harness.skills_registry import skill_source_paths
 from deepsupport_os.harness.subagents import build_mvp_subagents
-from deepsupport_os.harness.workspace import ensure_thread_workspace
+from deepsupport_os.harness.workspace import ensure_thread_workspace, thread_workspace_virtual
 from deepsupport_os.mcp.tools import all_agent_tools
 
 MEMORY_FILE = "/memory/AGENTS.md"
@@ -39,7 +39,7 @@ SYSTEM_PROMPT = """你是 DeepSupport OS，企业 Microsoft 365 IT 技术支持�
 7. 云端 Daytona（/sandbox/ 或 run_sandbox_shell）仅用于简单短命令；禁止放 Skills 或大批量文件。
 8. 高风险写操作必须先 check_action_permission，并等待人工审批。
 9. 可更新 /memory/AGENTS.md 中的「会话记忆」短条目（脱敏，禁止密码）。
-10. Skills 采用渐进披露：先依据 name/description 选择技能；需要细节时再 read_file 读取 SKILL.md 正文与 references/。
+10. Skills 采用渐进披露：先依据 name/description 选择技能；需要细节时再 read_file 读取 `/skills/<name>/SKILL.md` 与 references/（虚拟路径，勿用盘符绝对路径）。
 11. 所有结论需有工具结果或文档依据，禁止臆造。
 
 演示账号提示：张伟 wei.zhang@contoso.com 账号状态为 locked，适合 Outlook 登录失败场景。
@@ -143,11 +143,13 @@ def build_support_agent(
     prompt = SYSTEM_PROMPT
     if thread_id:
         names = ", ".join(CANONICAL_ARTIFACTS)
+        vws = thread_workspace_virtual(thread_id)
         prompt += (
-            f"\n\n当前本地工作区：`{ws.as_posix()}`。"
+            f"\n\n当前工作区虚拟路径：`{vws}/`（read_file / write_file 必须用此类以 `/` 开头的路径，"
+            "禁止使用 Windows 盘符绝对路径如 `D:\\...`）。"
             f"长内容与标准产物（{names}）写入该目录；"
             "云端仅 `/sandbox/` 短小试跑。"
-            "Skills 细节在 `skills/*/references/`，按需 read_file。"
+            "Skills 用 `read_file` 读取 `/skills/<name>/SKILL.md` 与 `/skills/<name>/references/`。"
         )
 
     return create_deep_agent(

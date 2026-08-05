@@ -65,18 +65,23 @@ def list_skill_dirs(*, include_imported: bool | None = None, only_enabled: bool 
 
 
 def skill_source_paths(*, include_imported: bool | None = None) -> list[str]:
-    """Roots for create_deep_agent(skills=...). Disabled skills use SKILL.md.off."""
+    """Virtual skill roots for create_deep_agent(skills=...).
+
+    Deep Agents FilesystemBackend (virtual_mode) only accepts POSIX virtual
+    paths like ``/skills/…``. Windows absolute paths make ``read_file`` fail with
+    "Windows absolute paths are not supported".
+    """
     if include_imported is None:
         include_imported = ext_bool("skills_imported_enabled")
     roots: list[str] = []
     builtin = skills_root()
     if builtin.exists():
-        roots.append(str(builtin))
+        roots.append("/skills/")
     imported = builtin / "imported"
     if include_imported and imported.exists() and any(
         p.is_dir() and (p / "SKILL.md").exists() for p in imported.iterdir()
     ):
-        roots.append(str(imported))
+        roots.append("/skills/imported/")
     return roots
 
 

@@ -5,7 +5,8 @@ from deepsupport_os.mcp.remote_client import build_client_connections, load_mcp_
 def test_skill_sources_and_index():
     roots = skill_source_paths()
     assert roots
-    assert any("skills" in r.replace("\\", "/") for r in roots)
+    assert all(r.startswith("/") for r in roots)
+    assert any(r.rstrip("/").endswith("skills") or "/skills" in r for r in roots)
     dirs = list_skill_dirs()
     names = {d.name for d in dirs}
     assert "outlook-troubleshooting" in names
