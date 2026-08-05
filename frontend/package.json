@@ -11,10 +11,13 @@
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.2",
     "axios": "^1.19.0",
+    "dompurify": "^3.4.13",
     "element-plus": "^2.14.3",
+    "marked": "^18.0.9",
     "vue": "^3.5.40"
   },
   "devDependencies": {
+    "@types/dompurify": "^3.0.5",
     "@types/node": "^24.13.3",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vue/tsconfig": "^0.9.1",

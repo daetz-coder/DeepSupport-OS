@@ -2,6 +2,7 @@
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { API, apiHeaders } from './api/client'
+import MarkdownBody from './components/MarkdownBody.vue'
 import { buildChatBubbles, shortThreadLabel } from './composables/chatBubbles'
 import {
   buildLiveOverview,
@@ -972,14 +973,14 @@ onMounted(async () => {
                   操作记录
                 </el-tag>
               </div>
-              <div class="bubble-body">{{ b.content }}</div>
+              <MarkdownBody class="bubble-body" :source="b.content" />
             </div>
             <div v-if="streamingText" class="bubble role-assistant streaming">
               <div class="bubble-meta">
                 <span>Agent</span>
                 <el-tag size="small" effect="plain">输出中</el-tag>
               </div>
-              <div class="bubble-body">{{ streamingText }}</div>
+              <MarkdownBody class="bubble-body" :source="streamingText" />
             </div>
           </div>
 
@@ -1935,11 +1936,15 @@ button.status-chip:disabled {
 }
 
 .bubble-body {
-  white-space: pre-wrap;
   word-break: break-word;
   font-size: 0.95rem;
   line-height: 1.5;
   color: var(--ds-ink);
+}
+
+/* Plain text fallback if MarkdownBody is not used */
+.bubble-body:not(.md-body) {
+  white-space: pre-wrap;
 }
 
 .composer {
