@@ -1,8 +1,8 @@
 # 评测结果快照
 
-> 生成时间：2026-08-05 09:46 UTC  
+> 生成时间：2026-08-05 10:42 UTC  
 > 指标目录：[testing.md](./testing.md) · Baseline 说明：[baselines.md](./baselines.md)  
-> 原始 JSON（gitignore）：`data/benchmark/last_eval.json`
+> 数据源：`last_eval.resume_partial.json`（gitignore 目录 `data/benchmark/`）
 
 ## 环境
 
@@ -11,7 +11,8 @@
 | 用例集 | `data/benchmark/full_cases.jsonl`（150） |
 | Pytest | **61 passed** |
 | Offline `run_id` | `0b46199c-1916-48d2-bb28-e0729bbc4f4c` |
-| Online `run_id` | `3012f3c2-814e-4510-b4d2-96db644be1c0` |
+| Online `run_id`（库内最近） | `3012f3c2-814e-4510-b4d2-96db644be1c0` |
+| 快照说明 | 含 `--fast` 续跑；**推荐看「已跑完样本」** |
 
 ## 用例覆盖（生成统计）
 
@@ -30,11 +31,9 @@
 
 ## Pytest
 
-全量后端单测：**61 passed**（见 `data/benchmark/pytest_last.txt`）。
+全量后端单测：**61 passed**。
 
 ## Offline 评测
-
-Schema / 门禁校验（不调用 LLM）：
 
 | 指标 | 值 |
 |---|---|
@@ -45,90 +44,110 @@ Schema / 门禁校验（不调用 LLM）：
 | `error_rate` | 0.0 |
 | `run_id` | `0b46199c-1916-48d2-bb28-e0729bbc4f4c` |
 
-## Online 评测（Full harness + LLM）
+## Online 评测（推荐：已跑完样本）
+
+已实际跑完 **50** 案（排除仍为 `Insufficient Balance`、尚未续跑的 **100** 案）。通过 **30/50**。
 
 | 指标 | 含义 | 值 |
 |---|---|---|
-| `pass_rate` | 任务成功率 | 0.08 |
-| `tool_hit_rate` | 工具命中率 | 0.875 |
-| `hitl_hit_rate` | HITL 命中率 | 0.938 |
+| `total` / `passed` / `failed` | 规模 | 50 / 30 / 20 |
+| `pass_rate` | 任务成功率 | 0.6 |
+| `tool_hit_rate` | 工具命中率 | 0.895 |
+| `hitl_hit_rate` | HITL 命中率 | 0.947 |
 | `skill_hit_rate` | Skill 命中率 | 1 |
 | `subagent_hit_rate` | SubAgent 命中率 | 0 |
 | `planning_hit_rate` | 规划命中率 | 1 |
 | `write_safety_rate` | 写安全率 | 1 |
-| `grounding_rate` | 接地率 | — |
-| `offload_hit_rate` | Offload 命中率 | 1 |
-| `long_task_pass_rate` | 长任务通过率 | 0.167 |
-| `hitl_case_pass_rate` | HITL 用例通过率 | 0.75 |
-| `interrupt_rate` | 中断率 | 0.25 |
-| `error_rate` | 异常率 | 0.893 |
-| `avg_elapsed_ms` | 平均耗时 ms | 4249.9 |
-| `p50_elapsed_ms` | P50 ms | 557.6 |
-| `p95_elapsed_ms` | P95 ms | 30629.6 |
-| `avg_tool_calls` | 平均工具调用 | 14.88 |
-| `avg_step_count` | 平均步数 | 36.94 |
-| `avg_subagent_dispatches` | 平均 SubAgent 委派 | 0.44 |
+| `grounding_rate` | 接地率 | 1 |
+| `offload_hit_rate` | Offload 命中率 | 0.947 |
+| `long_task_pass_rate` | 长任务通过率 | 0.286 |
+| `hitl_case_pass_rate` | HITL 用例通过率 | 0.714 |
+| `interrupt_rate` | 中断率 | 0.158 |
+| `error_rate` | 异常率 | 0.24 |
+| `avg_elapsed_ms` | 平均耗时 ms | 22450.8 |
+| `p50_elapsed_ms` | P50 ms | 15845.6 |
+| `p95_elapsed_ms` | P95 ms | 77002.3 |
+| `avg_tool_calls` | 平均工具调用 | 9.68 |
+| `avg_step_count` | 平均步数 | 24.29 |
+| `avg_subagent_dispatches` | 平均 SubAgent 委派 | 0.24 |
 
-### 说明（余额中断）
+### 解读（已跑完）
 
-本次 online 共 **150** 案，其中 **134** 案因 DeepSeek `Insufficient Balance` 失败（`error_rate=0.893`）。  
-在余额耗尽前实际跑完（非余额错误）**16** 案，其中通过 **12**。  
-下列命中率（`tool_hit_rate` 等）由 `aggregate_summary` 在**全部结果行**上统计；含大量提前失败案时，整体 `pass_rate` 会被拉低。充值后请重跑：
+- **强项**：`tool_hit≈0.895`、`hitl_hit≈0.947`、`planning/write_safety/grounding` 高。
+- **短板**：`subagent_hit=0`；`long_task_pass_rate=0.286`；`error_rate=0.24`（多为 Agent 递归上限）。
+- **`--fast` 注意**：关闭 skills Glob / RAGLab HTTP，`skill_hit` 偏乐观；与生产全量 harness 不完全等价。
 
-```bash
-cd backend
-uv run python ../scripts/run_eval.py --online --from-db
-```
-
-### Online 主要错误
+### 已跑完样本：主要硬错误
 
 | 次数 | 错误摘要 |
 |---:|---|
-| 134 | `Error code: 402 - {'error': {'message': 'Insufficient Balance', 'type': 'unknown_error', 'param': No` |
+| 11 | `Recursion limit (agent loop)` |
+| 1 | `timeout` |
 
-### Online `by_tag`
+### 已跑完样本：`by_tag`
 
 | tag | total | passed | pass_rate |
 |---|---:|---:|---:|
-| tool | 43 | 1 | 0.023 |
-| grounding | 33 | 0 | 0 |
-| rag | 29 | 0 | 0 |
-| microsoft | 24 | 0 | 0 |
-| ticket | 22 | 2 | 0.091 |
-| excel | 21 | 2 | 0.095 |
-| teams | 21 | 3 | 0.143 |
-| office | 19 | 3 | 0.158 |
-| outlook | 19 | 0 | 0 |
-| onedrive | 17 | 0 | 0 |
-| skill | 17 | 0 | 0 |
-| short-task | 16 | 0 | 0 |
-| hitl | 15 | 3 | 0.2 |
-| account | 12 | 1 | 0.083 |
-| long-task | 12 | 2 | 0.167 |
-| microsoft365 | 12 | 0 | 0 |
-| license | 11 | 2 | 0.182 |
-| subagent | 9 | 1 | 0.111 |
-| compound | 5 | 2 | 0.4 |
-| context-offload | 5 | 0 | 0 |
-| employee | 5 | 1 | 0.2 |
-| escalation | 5 | 1 | 0.2 |
-| offload | 5 | 0 | 0 |
-| powerpoint | 5 | 0 | 0 |
-| asset | 4 | 1 | 0.25 |
-| case | 4 | 1 | 0.25 |
-| harness | 4 | 0 | 0 |
-| mfa | 4 | 0 | 0 |
-| word | 4 | 0 | 0 |
-| write-safety | 4 | 0 | 0 |
-| no-hitl | 3 | 0 | 0 |
-| notification | 3 | 0 | 0 |
-| interrupt | 2 | 0 | 0 |
-| planning | 2 | 0 | 0 |
-| policy | 2 | 0 | 0 |
-| report | 2 | 0 | 0 |
+| ticket | 12 | 5 | 0.417 |
+| hitl | 10 | 5 | 0.5 |
+| short-task | 10 | 8 | 0.8 |
+| license | 8 | 6 | 0.75 |
+| long-task | 7 | 2 | 0.286 |
+| outlook | 6 | 1 | 0.167 |
+| skill | 6 | 1 | 0.167 |
+| account | 5 | 5 | 1 |
+| grounding | 5 | 4 | 0.8 |
+| teams | 5 | 3 | 0.6 |
+| tool | 5 | 5 | 1 |
+| case | 4 | 2 | 0.5 |
+| compound | 4 | 2 | 0.5 |
+| employee | 4 | 4 | 1 |
+| excel | 4 | 2 | 0.5 |
+| office | 4 | 3 | 0.75 |
+| onedrive | 4 | 1 | 0.25 |
+| asset | 3 | 3 | 1 |
+| context-offload | 3 | 0 | 0 |
+| escalation | 3 | 1 | 0.333 |
+| offload | 3 | 0 | 0 |
+| harness | 2 | 0 | 0 |
+| mfa | 2 | 1 | 0.5 |
+| no-hitl | 2 | 2 | 1 |
+| notification | 2 | 1 | 0.5 |
+| rag | 2 | 1 | 0.5 |
+| subagent | 2 | 1 | 0.5 |
+| write-safety | 2 | 0 | 0 |
 | checkpoint | 1 | 1 | 1 |
-| smoke | 1 | 0 | 0 |
-| write-safe-update | 1 | 0 | 0 |
+| interrupt | 1 | 1 | 1 |
+| planning | 1 | 0 | 0 |
+| policy | 1 | 1 | 1 |
+| powerpoint | 1 | 0 | 0 |
+
+## Online 全量 150（含未续跑余额失败，仅供对照）
+
+| 指标 | 含义 | 值 |
+|---|---|---|
+| `total` / `passed` / `failed` | 规模 | 150 / 30 / 120 |
+| `pass_rate` | 任务成功率 | 0.2 |
+| `tool_hit_rate` | 工具命中率 | 0.895 |
+| `hitl_hit_rate` | HITL 命中率 | 0.947 |
+| `skill_hit_rate` | Skill 命中率 | 1 |
+| `subagent_hit_rate` | SubAgent 命中率 | 0 |
+| `planning_hit_rate` | 规划命中率 | 1 |
+| `write_safety_rate` | 写安全率 | 1 |
+| `grounding_rate` | 接地率 | 1 |
+| `offload_hit_rate` | Offload 命中率 | 0.947 |
+| `long_task_pass_rate` | 长任务通过率 | 0.167 |
+| `hitl_case_pass_rate` | HITL 用例通过率 | 0.714 |
+| `interrupt_rate` | 中断率 | 0.158 |
+| `error_rate` | 异常率 | 0.747 |
+| `avg_elapsed_ms` | 平均耗时 ms | 7883.9 |
+| `p50_elapsed_ms` | P50 ms | 602.1 |
+| `p95_elapsed_ms` | P95 ms | 44494.4 |
+| `avg_tool_calls` | 平均工具调用 | 9.68 |
+| `avg_step_count` | 平均步数 | 24.29 |
+| `avg_subagent_dispatches` | 平均 SubAgent 委派 | 0.24 |
+
+> 全量 `pass_rate` 被未续跑的余额失败拉低，**不要当作真实能力分**。
 
 ## Baselines（能力矩阵）
 
@@ -144,7 +163,8 @@ uv run python ../scripts/run_eval.py --online --from-db
 cd backend
 uv run pytest -q
 uv run python ../scripts/run_eval.py --offline --from-db
-uv run python ../scripts/run_eval.py --online --from-db
-uv run python ../scripts/run_baselines.py --offline
+# 续跑剩余（快模式）
+uv run python ../scripts/run_eval.py --online --from-db --resume --fast --timeout-s 60
 uv run python ../scripts/write_eval_results_md.py
+uv run python ../scripts/print_eval_metrics.py
 ```

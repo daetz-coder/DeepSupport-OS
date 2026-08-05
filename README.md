@@ -128,6 +128,76 @@ cd backend && uv run python ../scripts/test_remote_mcp.py
 
 第三方/公开 MCP：在 `mcp_servers.json` 增加 `url` + `transport`（`streamable_http` / `sse`）即可，无需改代码。
 
+## 一次运行链路（示例：Outlook 登录失败）
+
+```text
+用户：我的 Outlook 一直登录不上，邮箱 wei.zhang@contoso.com
+  ↓ POST /api/tasks/stream（SSE 进度）
+  ↓ get_agent(thread)  → HarnessBuilder → create_deep_agent
+  ↓ 系统提示词：先收集上下文 → 规划 → 诊断 → 检索 → 解决
+  ├─ write_todos                          # 建立排障计划
+  ├─ get_employee / get_account_status / get_device   # 环境诊断
+  ├─ search_docs / read_file(/skills/…)   # 知识 + Skill
+  ├─ request_password_reset  → HITL 中断  # 等待人工审批
+  ├─ apply_approved_writes                # 批准后密码重置落库
+  ├─ write_file(final_resolution.md)      # 产物
+  └─ notify_user / create_ticket          # 收尾
+```
+
+## 评测（Automated Eval）
+
+- **离线**（不调 LLM）：`cd backend && uv run python ../scripts/run_eval.py --offline --from-db`
+- **在线**：`uv run python ../scripts/run_eval.py --online --from-db`（可用 `--fast --resume` 加速续跑）
+- 指标目录：`GET /api/eval/metrics`
+- 说明：[docs/testing.md](./docs/testing.md) · 快照：[docs/eval-results.md](./docs/eval-results.md) · 基线：[docs/baselines.md](./docs/baselines.md)
+
+### 当前指标快照（已跑完 50 案，排除未续跑的余额失败）
+
+| 指标 | 值 | 说明 |
+|---|---:|---|
+| `pass_rate` | **0.60** | 30/50 通过 |
+| `tool_hit_rate` | 0.90 | 工具期望命中 |
+| `hitl_hit_rate` | 0.95 | HITL 写工具命中 |
+| `planning_hit_rate` | 1.00 | 长任务/复合题 todos |
+| `write_safety_rate` | 1.00 | 未绕过 HITL 直接关单/升级 |
+| `grounding_rate` | 1.00 | grounding 标签证据工具 |
+| `offload_hit_rate` | 0.95 | 工作区 offload |
+| `subagent_hit_rate` | **0.00** | 子代理委派短板 |
+| `long_task_pass_rate` | 0.29 | 长任务整案通过偏低 |
+| `error_rate` | 0.24 | 硬错误（多为递归上限） |
+| `p50` / `p95` ms | 16s / 77s | 耗时分布 |
+
+Offline schema：**150/150**。Pytest：**61 passed**。完整表格与 `by_tag` 见 [docs/eval-results.md](./docs/eval-results.md)。
+（含 `--fast`：Skill/RAGLab 路径被简化，`skill_hit` 偏乐观，不宜当作生产全量分。）
+
+## 知识管线（本地语料 → RAGLab KB）
+
+```bash
+# 抓取 Microsoft 支持文档 → data/knowledge/microsoft/*.md（已 gitignore，可再生成）
+cd backend && uv run python ../scripts/crawl_ms_support.py --per-product 30
+
+# 导入 RAGLab（KB 名由 RAGLAB_KB=deepsupport 指定，与共享实例上的其它语料隔离）
+uv run python ../scripts/ingest_to_raglab.py
+
+# 在共享 RAGLab 实例上迁移 / 重命名 KB
+uv run python ../scripts/migrate_ms_kb.py
+```
+
+## 文档地图
+
+| 文档 | 内容 |
+|---|---|
+| [docs/architecture.md](./docs/architecture.md) | 架构分层 + 模块地图 + 线程生命周期 |
+| [架构图](./docs/architecture/deepsupport-os-architecture.svg) | 系统架构图（draw.io 源在 `.drawio-tmp/`，本地交付物） |
+| [案例图](./docs/architecture/case-*.svg) | Outlook+HITL 审批 / ask_user 多轮 / 在线评测 / Docker 拓扑 |
+| [docs/api.md](./docs/api.md) | HTTP API |
+| [docs/testing.md](./docs/testing.md) | 评测指标与落库 |
+| [docs/baselines.md](./docs/baselines.md) | 评测基线设计 |
+| [docs/eval-results.md](./docs/eval-results.md) | 评测指标快照 |
+| [docs/adr/](./docs/adr/) | 架构决策记录 |
+| [fix.md](./fix.md) | 架构债 backlog |
+| [plan.md](./plan.md) | 产品待办 |
+
 ## 仓库结构
 
 ```text
@@ -149,7 +219,7 @@ DeepSupport-OS/
 
 ## 当前状态
 
-Phase 0–11 主链路已可运行（Harness、HITL、Memory/Todo、Artifacts+manifest/metrics、Daytona sidecar）。Skills SOP + 公开导入 + 远程 MCP 客户端已接入。架构债跟踪见 [fix.md](./fix.md)；产品待办见 [plan.md](./plan.md)；评测指标快照见 [docs/eval-results.md](./docs/eval-results.md)。
+Phase 0–11 主链路已可运行（Harness、HITL、Memory/Todo、Artifacts+manifest/metrics、Daytona sidecar）。Skills SOP + 公开导入 + 远程 MCP + RAGLab `kb=deepsupport` 已接入。Benchmark：**150** 用例；offline **150/150**；online 已跑样本 **pass_rate≈0.60**（详见 [docs/eval-results.md](./docs/eval-results.md)）。架构债见 [fix.md](./fix.md)；产品待办见 [plan.md](./plan.md)。
 
 ## License
 
