@@ -95,6 +95,13 @@ type McpServerSpec = {
 
 // Dev: hit API directly. Production/Docker build: same-origin via nginx `/api` + `/health`.
 const API = import.meta.env.VITE_API_BASE ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000' : '')
+const ADMIN_TOKEN = String(import.meta.env.VITE_ADMIN_TOKEN || '')
+
+function apiHeaders(extra?: HeadersInit): HeadersInit {
+  const h: Record<string, string> = { ...(extra as Record<string, string> | undefined) }
+  if (ADMIN_TOKEN) h['X-Admin-Token'] = ADMIN_TOKEN
+  return h
+}
 const question = ref('我的 Outlook 一直登录不上，邮箱是 wei.zhang@contoso.com')
 const loading = ref(false)
 const useStream = ref(true)
@@ -179,7 +186,19 @@ async function checkHealth() {
     const data = await res.json()
     health.value = data.status === 'ok' ? '后端正常' : '后端异常'
     llmConfigured.value = Boolean(data.llm_configured)
+  } catch {
+    health.value = '无法连接后端'
+    llmConfigured.value = null
+    raglabOk.value = null
+    sandboxOk.value = null
+    raglabLabel.value = 'RAGLab 未检查'
+    sandboxLabel.value = 'Sandbox 未检查'
+    return
+  }
 
+  try {
+    const res = await fetch(`${API}/api/health/deps`)
+    const data = await res.json()
     const rag = data.raglab || {}
     raglabOk.value = Boolean(rag.ok)
     raglabLabel.value = rag.ok
@@ -202,12 +221,10 @@ async function checkHealth() {
       sandboxLabel.value = `Sandbox 不可用${detail}`
     }
   } catch {
-    health.value = '无法连接后端'
-    llmConfigured.value = null
-    raglabOk.value = null
-    sandboxOk.value = null
-    raglabLabel.value = 'RAGLab 未检查'
-    sandboxLabel.value = 'Sandbox 未检查'
+    raglabOk.value = false
+    sandboxOk.value = false
+    raglabLabel.value = 'RAGLab 探测失败'
+    sandboxLabel.value = 'Sandbox 探测失败'
   }
 }
 
@@ -329,7 +346,7 @@ async function toggleSkill(item: SkillItem, enabled: boolean) {
   try {
     const res = await fetch(`${API}/api/meta/skills/${encodeURIComponent(item.dir_name)}/toggle`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ enabled }),
     })
     if (!res.ok) {
@@ -350,7 +367,7 @@ async function setImportedLayer(enabled: boolean) {
   try {
     const res = await fetch(`${API}/api/meta/skills/settings`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ skills_imported_enabled: enabled }),
     })
     if (!res.ok) throw new Error('update failed')
@@ -374,7 +391,7 @@ async function importCatalogSkill(entry: CatalogEntry) {
   try {
     const res = await fetch(`${API}/api/meta/skills/import`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         catalog_id: entry.id,
         accept_license: needLicense,
@@ -412,7 +429,7 @@ async function patchMcpSettings(patch: { mcp_local_tools?: boolean; mcp_remote_e
   try {
     const res = await fetch(`${API}/api/meta/mcp/settings`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(patch),
     })
     if (!res.ok) throw new Error('update failed')
@@ -430,7 +447,7 @@ async function toggleMcpServer(name: string, enabled: boolean) {
   try {
     const res = await fetch(`${API}/api/meta/mcp/servers/${encodeURIComponent(name)}/toggle`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ enabled }),
     })
     if (!res.ok) {
@@ -454,7 +471,7 @@ async function addMcpServer() {
   try {
     const res = await fetch(`${API}/api/meta/mcp/servers`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         name: newMcpName.value.trim(),
         transport: newMcpTransport.value,
@@ -481,9 +498,7 @@ async function addMcpServer() {
 async function removeMcpServer(name: string) {
   mcpBusy.value = true
   try {
-    const res = await fetch(`${API}/api/meta/mcp/servers/${encodeURIComponent(name)}`, {
-      method: 'DELETE',
-    })
+    const res = await fetch(`${API}/api/meta/mcp/servers/${encodeURIComponent(name)}`, { method: 'DELETE', headers: apiHeaders() })
     if (!res.ok) throw new Error('delete failed')
     ElMessage.success(`已删除 ${name}`)
     await refreshMcp()
@@ -497,7 +512,7 @@ async function removeMcpServer(name: string) {
 async function reloadMcp() {
   mcpBusy.value = true
   try {
-    const res = await fetch(`${API}/api/meta/mcp/reload`, { method: 'POST' })
+    const res = await fetch(`${API}/api/meta/mcp/reload`, { method: 'POST', headers: apiHeaders() })
     const data = await res.json().catch(() => ({}))
     if (!res.ok) throw new Error(data.detail || 'reload failed')
     ElMessage.success(`已重载，工具数 ${data.tool_count ?? 0}`)
@@ -520,7 +535,7 @@ function formatArgs(args: unknown) {
 async function submitSync() {
   const res = await fetch(`${API}/api/tasks`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: apiHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       message: question.value,
       thread_id: threadId.value,
@@ -651,7 +666,7 @@ async function resume(approved: boolean) {
   try {
     const res = await fetch(`${API}/api/tasks/resume`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: apiHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
         thread_id: threadId.value,
         task_id: taskId.value,

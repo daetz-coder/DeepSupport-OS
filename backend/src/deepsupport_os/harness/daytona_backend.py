@@ -236,7 +236,12 @@ def probe_sandbox_status() -> dict[str, Any]:
 
     try:
         client = Daytona()
-        sandbox = client.get(base["name"])
+        # Bound cloud lookup so /api/health/deps cannot hang forever.
+        import concurrent.futures
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            fut = pool.submit(client.get, base["name"])
+            sandbox = fut.result(timeout=8)
         state = _sandbox_state(sandbox)
         ok = state in {"started", "running", "ready"}
         return {

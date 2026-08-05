@@ -45,18 +45,20 @@ class Settings(BaseSettings):
     ollama_model: str = "qwen3:4b"
     ollama_api_key: str = "ollama"
 
-    # RAGLab HTTP client (do not copy RAGLab code — call its API)
+    # RAGLab HTTP client (do not copy RAGLab source / local model paths)
     raglab_base_url: str = "http://127.0.0.1:8001"
-    raglab_root: str = r"D:\2026AppDev\RAGLab"
-    # Local models live under RAGLab; we only reference paths
-    embedding_model_path: str = r"D:\2026AppDev\RAGLab\models\bge-small-zh-v1.5"
-    reranker_model_path: str = r"D:\2026AppDev\RAGLab\models\bge-reranker-v2-m3"
 
     # Mock enterprise DB
     database_url: str = "sqlite:///data/deepsupport.db"
 
     # Agent workspace (filesystem context / offloading; local fallback)
     workspace_dir: str = "workspace"
+
+    # HTTP bind — default loopback for local demo; Docker sets API_HOST=0.0.0.0
+    api_host: str = "127.0.0.1"
+    api_port: int = 8000
+    # When set, mutating /api/meta/* and /admin/seed require header X-Admin-Token
+    admin_token: str = ""
 
     # Daytona: keep as lightweight sidecar (local Skills/workspace are primary)
     daytona_enabled: bool = True

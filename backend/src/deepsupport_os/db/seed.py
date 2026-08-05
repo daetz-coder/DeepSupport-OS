@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from faker import Faker
 from sqlalchemy import select
@@ -154,7 +154,7 @@ def seed_database(*, force: bool = False, extra_employees: int = 20) -> dict:
             )
             session.add(acct)
             license_status = "expired" if demo["issue"] == "office_activation" else "active"
-            expire = (datetime.utcnow() + timedelta(days=30 if license_status == "active" else -10)).date().isoformat()
+            expire = (datetime.now(UTC) + timedelta(days=30 if license_status == "active" else -10)).date().isoformat()
             session.add(
                 License(
                     license_id=f"LIC{demo['employee_id'][1:]}",
@@ -206,7 +206,7 @@ def seed_database(*, force: bool = False, extra_employees: int = 20) -> dict:
                     account_id=f"ACC1{i:02d}",
                     product="Microsoft 365 Apps for enterprise",
                     status="active",
-                    expire_at=(datetime.utcnow() + timedelta(days=180)).date().isoformat(),
+                    expire_at=(datetime.now(UTC) + timedelta(days=180)).date().isoformat(),
                 )
             )
 

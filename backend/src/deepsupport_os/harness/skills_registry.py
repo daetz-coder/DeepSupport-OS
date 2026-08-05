@@ -7,12 +7,14 @@ import shutil
 import urllib.request
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from deepsupport_os.core.config import get_settings
 from deepsupport_os.core.extensions import ext_bool
 
 _SKIP_DIR_NAMES = frozenset({"imported", "references", "__pycache__"})
 _RAW = "https://raw.githubusercontent.com/{repo}/main/{path}/{file}"
+_ALLOWED_SKILL_HOSTS = frozenset({"raw.githubusercontent.com"})
 
 
 def skills_root() -> Path:
@@ -179,9 +181,16 @@ def import_catalog_skill(catalog_id: str, *, accept_license: bool = False) -> di
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
 
-    repo = entry["repo"]
-    base_path = str(entry.get("path") or "").rstrip("/")
+    repo = str(entry["repo"]).strip()
+    if not repo or "/" not in repo or ".." in repo or repo.startswith("/"):
+        raise ValueError(f"invalid catalog repo: {repo!r}")
+    base_path = str(entry.get("path") or "").strip().strip("/")
+    if ".." in base_path.split("/"):
+        raise ValueError(f"invalid catalog path: {base_path!r}")
     url = _RAW.format(repo=repo, path=base_path, file="SKILL.md")
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.hostname not in _ALLOWED_SKILL_HOSTS:
+        raise ValueError(f"refusing skill download from untrusted URL host: {parsed.hostname}")
     with urllib.request.urlopen(url, timeout=30) as resp:  # noqa: S310
         skill_md = resp.read().decode("utf-8", errors="replace")
     (dest / "SKILL.md").write_text(skill_md, encoding="utf-8")

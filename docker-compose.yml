@@ -16,6 +16,7 @@ services:
       - DATABASE_URL=sqlite:///data/deepsupport.db
       - WORKSPACE_DIR=workspace
       - MCP_SERVERS_CONFIG=config/mcp_servers.json
+      - API_HOST=0.0.0.0
       # Reach host-side RAGLab / Ollama from the container (Docker Desktop)
       - RAGLAB_BASE_URL=http://host.docker.internal:8001
       - OLLAMA_BASE_URL=http://host.docker.internal:11434/v1

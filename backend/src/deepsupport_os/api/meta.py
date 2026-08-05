@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from deepsupport_os.api.auth import require_admin
 from deepsupport_os.core.extensions import load_extensions, save_extensions
 from deepsupport_os.harness.skills_registry import (
     import_catalog_skill,
@@ -31,7 +32,7 @@ router = APIRouter(prefix="/meta", tags=["meta"])
 def _reset_agent() -> None:
     from deepsupport_os.api import tasks as tasks_api
 
-    tasks_api._agent = None  # noqa: SLF001
+    tasks_api.reset_agents()
 
 
 @router.get("/skills")
@@ -51,7 +52,7 @@ class SkillToggle(BaseModel):
     enabled: bool
 
 
-@router.post("/skills/{name}/toggle")
+@router.post("/skills/{name}/toggle", dependencies=[Depends(require_admin)])
 def toggle_skill(name: str, body: SkillToggle):
     try:
         item = set_skill_enabled(name, body.enabled)
@@ -66,7 +67,7 @@ class SkillImportBody(BaseModel):
     accept_license: bool = False
 
 
-@router.post("/skills/import")
+@router.post("/skills/import", dependencies=[Depends(require_admin)])
 def import_skill(body: SkillImportBody):
     try:
         result = import_catalog_skill(body.catalog_id, accept_license=body.accept_license)
@@ -84,7 +85,7 @@ class SkillsSettingsBody(BaseModel):
     skills_imported_enabled: bool | None = None
 
 
-@router.patch("/skills/settings")
+@router.patch("/skills/settings", dependencies=[Depends(require_admin)])
 def patch_skills_settings(body: SkillsSettingsBody):
     patch = body.model_dump(exclude_none=True)
     data = save_extensions(patch)
@@ -124,7 +125,7 @@ class McpSettingsBody(BaseModel):
     mcp_remote_enabled: bool | None = None
 
 
-@router.patch("/mcp/settings")
+@router.patch("/mcp/settings", dependencies=[Depends(require_admin)])
 def patch_mcp_settings(body: McpSettingsBody):
     patch = body.model_dump(exclude_none=True)
     data = save_extensions(patch)
@@ -137,7 +138,7 @@ class McpServerToggle(BaseModel):
     enabled: bool
 
 
-@router.post("/mcp/servers/{name}/toggle")
+@router.post("/mcp/servers/{name}/toggle", dependencies=[Depends(require_admin)])
 def toggle_mcp_server(name: str, body: McpServerToggle):
     try:
         spec = set_server_enabled(name, body.enabled)
@@ -157,7 +158,7 @@ class McpServerUpsert(BaseModel):
     enabled: bool = True
 
 
-@router.post("/mcp/servers")
+@router.post("/mcp/servers", dependencies=[Depends(require_admin)])
 def add_or_update_mcp_server(body: McpServerUpsert):
     spec: dict[str, Any] = {
         "transport": body.transport,
@@ -178,7 +179,7 @@ def add_or_update_mcp_server(body: McpServerUpsert):
     return {"ok": True, "server": body.name, "spec": saved}
 
 
-@router.delete("/mcp/servers/{name}")
+@router.delete("/mcp/servers/{name}", dependencies=[Depends(require_admin)])
 def remove_mcp_server(name: str):
     try:
         delete_server(name)
@@ -188,7 +189,7 @@ def remove_mcp_server(name: str):
     return {"ok": True, "deleted": name}
 
 
-@router.post("/mcp/reload")
+@router.post("/mcp/reload", dependencies=[Depends(require_admin)])
 def reload_mcp():
     reset_mcp_cache()
     tools = load_remote_mcp_tools(force=True)

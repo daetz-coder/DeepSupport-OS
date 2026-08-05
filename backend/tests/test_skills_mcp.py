@@ -26,6 +26,9 @@ def test_mcp_config_example_loads():
     cfg = load_mcp_config()
     assert "servers" in cfg
     assert "employee-remote-http" in cfg["servers"]
+    assert cfg["servers"]["employee-remote-http"].get("enabled") is False
+    # Disabled by default — enable for connection map smoke
+    cfg["servers"]["employee-remote-http"]["enabled"] = True
     conns = build_client_connections(cfg)
     assert "employee-remote-http" in conns
     assert conns["employee-remote-http"]["transport"] in {"streamable_http", "sse", "http"}

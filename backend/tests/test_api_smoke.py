@@ -5,8 +5,21 @@ from deepsupport_os.db.models import reset_engine
 from deepsupport_os.main import create_app
 
 
-def test_health_and_root(fresh_db, monkeypatch):
-    # Ensure app uses the temp DB from fresh_db fixture env
+def test_health_and_root(fresh_db):
+    get_settings.cache_clear()
+    reset_engine()
+    client = TestClient(create_app())
+    health = client.get("/health").json()
+    assert health["status"] == "ok"
+    assert "llm_configured" in health
+    assert "raglab" not in health  # liveness only
+    assert "sandbox" not in health
+    root = client.get("/").json()
+    assert root["project"] == "DeepSupport OS"
+    assert "llm_configured" in root
+
+
+def test_health_deps(fresh_db, monkeypatch):
     get_settings.cache_clear()
     reset_engine()
 
@@ -27,16 +40,10 @@ def test_health_and_root(fresh_db, monkeypatch):
             "api_key_configured": False,
         },
     )
-
     client = TestClient(create_app())
-    health = client.get("/health").json()
-    assert health["status"] == "ok"
-    assert "llm_configured" in health
-    assert health["raglab"]["ok"] is False
-    assert health["sandbox"]["ok"] is False
-    root = client.get("/").json()
-    assert root["project"] == "DeepSupport OS"
-    assert "llm_configured" in root
+    deps = client.get("/api/health/deps").json()
+    assert deps["raglab"]["ok"] is False
+    assert deps["sandbox"]["ok"] is False
 
 
 def test_list_tasks_emptyish(fresh_db):
@@ -107,3 +114,15 @@ def test_meta_skills_and_mcp(fresh_db):
     assert mcp.status_code == 200
     assert "settings" in mcp.json()
     assert "config_servers" in mcp.json()
+
+
+def test_admin_token_guards_meta_mutation(fresh_db, monkeypatch):
+    monkeypatch.setenv("ADMIN_TOKEN", "secret-demo")
+    get_settings.cache_clear()
+    reset_engine()
+    client = TestClient(create_app())
+    denied = client.post("/api/meta/mcp/reload")
+    assert denied.status_code == 401
+    ok = client.post("/api/meta/mcp/reload", headers={"X-Admin-Token": "secret-demo"})
+    assert ok.status_code == 200
+    get_settings.cache_clear()

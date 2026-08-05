@@ -48,6 +48,7 @@ Deep Agents Harness
 cp .env.example .env
 cp config/mcp_servers.example.json config/mcp_servers.json   # 若尚无
 # 编辑 .env：DEEPSEEK_API_KEY、可选 DAYTONA_API_KEY、RAGLAB_BASE_URL=http://127.0.0.1:8001
+# 可选 ADMIN_TOKEN（非空时管理接口需 Header X-Admin-Token；前端可设 VITE_ADMIN_TOKEN）
 ```
 
 ### 2. 本地三进程启动（推荐）
@@ -79,7 +80,9 @@ npm run dev
 | DeepSupport API | http://localhost:8000/docs |
 | RAGLab API | http://localhost:8001/docs |
 
-打开 UI 后顶部会显示 **后端 / LLM / RAGLab / Sandbox** 状态；可点「检查依赖」刷新。未启 RAGLab 时 Knowledge 回退本地 Markdown；Sandbox 未配置时本地 Skills/工作区仍可用。
+打开 UI 后顶部会显示 **后端 / LLM**（`/health` 秒回）以及 **RAGLab / Sandbox**（`/api/health/deps`）；可点「检查依赖」刷新。未启 RAGLab 时 Knowledge 回退本地 Markdown；Sandbox 未配置时本地 Skills/工作区仍可用。
+
+默认 API 绑定 `127.0.0.1`（不暴露局域网）。Docker 通过 `API_HOST=0.0.0.0` 对外映射。
 
 ### 3. Docker Compose（可选）
 
@@ -112,7 +115,7 @@ docker compose up --build
 ### MCP（本地 + 远程）
 
 - 默认：进程内 Mock LangChain 工具（`config/extensions.json` → `mcp_local_tools`）
-- 远程：编辑 `config/mcp_servers.json`，并将 `extensions.json` 中 `mcp_remote_enabled` 设为 `true`（或 UI「MCP」）
+- 远程：编辑 `config/mcp_servers.json`（默认远程 server 为 `enabled: false`），并将 `extensions.json` 中 `mcp_remote_enabled` 设为 `true`（或 UI「MCP」）
 
 ```bash
 # 终端 A — 远程风格 HTTP Employee MCP

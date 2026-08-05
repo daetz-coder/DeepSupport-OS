@@ -19,15 +19,28 @@ from deepsupport_os.harness.workspace import ensure_thread_workspace
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
-_agent = None
+# One compiled agent per thread so system prompt workspace path stays correct.
+_agents: dict[str, Any] = {}
+_MAX_CACHED_AGENTS = 48
 
 
 def get_agent(thread_id: str | None = None):
-    """Shared hybrid agent: local Skills/workspace + optional Daytona /sandbox/ sidecar."""
-    global _agent
-    if _agent is None:
-        _agent = build_support_agent(thread_id=thread_id, use_daytona=True)
-    return _agent
+    """Per-thread agent: prompt embeds `/workspace/<thread_id>/` for that session."""
+    tid = (thread_id or "").strip() or "default"
+    agent = _agents.get(tid)
+    if agent is not None:
+        return agent
+    if len(_agents) >= _MAX_CACHED_AGENTS:
+        # Drop an arbitrary oldest entry (dict preserves insertion order).
+        _agents.pop(next(iter(_agents)), None)
+    agent = build_support_agent(thread_id=tid, use_daytona=True)
+    _agents[tid] = agent
+    return agent
+
+
+def reset_agents() -> None:
+    """Drop cached agents (e.g. after Skills/MCP config changes)."""
+    _agents.clear()
 
 
 def _recent_audit(limit: int = 30) -> list[dict[str, Any]]:

@@ -8,7 +8,7 @@
       "description": "Local stdio Employee FastMCP (same process machine)"
     },
     "employee-remote-http": {
-      "enabled": true,
+      "enabled": false,
       "transport": "streamable_http",
       "url": "http://127.0.0.1:8100/mcp",
       "description": "Remote-style HTTP MCP — start: uv run python -m deepsupport_os.mcp.servers.employee --http"
