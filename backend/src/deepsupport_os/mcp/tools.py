@@ -236,8 +236,9 @@ def notify_user(email: str, message: str) -> dict:
 def ask_user(question: str, context: str = "") -> str:
     """向用户提问并等待回答。
 
-    缺少邮箱、设备、症状细节等关键上下文时必须调用此工具，禁止臆造。
-    调用后图会中断；用户回答经 resume 注入后作为返回值继续执行。
+    仅当对话里确实缺少邮箱、设备或症状细节时调用；禁止臆造。
+    若用户已在消息或上一次 ask_user 回答中提供了对应信息，不要再次调用。
+    调用后图会中断；用户回答经 resume 注入后作为本工具返回值，必须当作上下文继续执行。
     """
     from langgraph.types import interrupt
 
