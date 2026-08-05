@@ -178,26 +178,13 @@ def aggregate_summary(
             return None
         return _rate(sum(1 for r in vals if r.get(key) is True), len(vals))
 
-    long_cases = [r for r in results if "long-task" in set(r.get("tags") or [])]
-    # tags may only be on detail; also accept from nested
-    if not long_cases:
-        long_cases = [
-            r
-            for r in results
-            if "long-task" in set((r.get("tags") or []))
-            or "long-task" in str(r.get("id") or "")
-        ]
-
-    hitl_cases = [
+    # Cases tagged long-task (id fallback for detail rows that drop tags)
+    long_cases = [
         r
         for r in results
-        if r.get("hitl_hit") is not None
-        and (
-            r.get("expect_hitl")
-            or (isinstance(r.get("pending_writes"), list) and r.get("hitl_hit") is not None)
-        )
+        if "long-task" in set((r.get("tags") or [])) or "long-task" in str(r.get("id") or "")
     ]
-    # Prefer cases that declared hitl expectation via flag we set in score_online
+    # Cases that declared a hitl expectation (flag set by score_online)
     hitl_cases = [r for r in results if r.get("expect_hitl")]
     grounding_cases = [r for r in results if r.get("expect_grounding")]
     planning_cases = [r for r in results if r.get("needs_planning")]

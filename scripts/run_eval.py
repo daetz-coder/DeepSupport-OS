@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import time
 from pathlib import Path
 from typing import Any
@@ -55,6 +56,8 @@ def score_online(case: dict[str, Any], *, use_daytona: bool = False) -> dict[str
     from deepsupport_os.harness.workspace import ensure_thread_workspace
     import uuid
 
+    from langgraph.checkpoint.memory import MemorySaver
+
     settings = get_settings()
     if not settings.llm_configured:
         return {"id": case.get("id"), "ok": False, "error": "llm_not_configured", "mode": "online"}
@@ -64,7 +67,13 @@ def score_online(case: dict[str, Any], *, use_daytona: bool = False) -> dict[str
     thread_id = str(uuid.uuid4())
     ws = ensure_thread_workspace(thread_id)
     # Local-first hybrid (skills on disk). --daytona only attaches /sandbox/ sidecar.
-    agent = build_support_agent(thread_id=thread_id, use_daytona=use_daytona)
+    # Eval threads use an in-memory checkpointer so benchmark runs do not grow
+    # checkpoints.sqlite; the per-case workspace is removed after scoring.
+    agent = build_support_agent(
+        thread_id=thread_id,
+        use_daytona=use_daytona,
+        checkpointer=MemorySaver(),
+    )
     config = {"configurable": {"thread_id": thread_id}}
     t0 = time.perf_counter()
     try:
@@ -73,6 +82,7 @@ def score_online(case: dict[str, Any], *, use_daytona: bool = False) -> dict[str
             config=config,
         )
     except Exception as exc:  # noqa: BLE001
+        shutil.rmtree(ws, ignore_errors=True)
         return {
             "id": case.get("id"),
             "ok": False,
@@ -83,6 +93,9 @@ def score_online(case: dict[str, Any], *, use_daytona: bool = False) -> dict[str
             "tags": list(case.get("tags") or []),
         }
     elapsed_ms = (time.perf_counter() - t0) * 1000
+    # Capture artifact list before cleaning up the thread workspace.
+    workspace_files = sorted(p.name for p in ws.rglob("*") if p.is_file()) if ws.exists() else []
+    shutil.rmtree(ws, ignore_errors=True)
     msgs = result.get("messages", [])
     trace = build_trace(msgs)
     steps = list(trace.get("steps") or [])
@@ -117,7 +130,6 @@ def score_online(case: dict[str, Any], *, use_daytona: bool = False) -> dict[str
     expect_offload = bool(expect.get("workspace_files")) or (
         "context-offload" in tags or "long-task" in tags
     )
-    workspace_files = sorted(p.name for p in ws.rglob("*") if p.is_file()) if ws.exists() else []
     offload_hit = True
     if expect_offload:
         required_files = set(expect.get("workspace_files") or [])
@@ -165,8 +177,9 @@ def score_online(case: dict[str, Any], *, use_daytona: bool = False) -> dict[str
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--cases", type=Path, default=CASES)
-    parser.add_argument("--offline", action="store_true", default=True)
-    parser.add_argument("--online", action="store_true")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--offline", action="store_true", help="Offline schema check (default)")
+    mode.add_argument("--online", action="store_true", help="Online LLM eval + DB persist")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument(
         "--from-db",

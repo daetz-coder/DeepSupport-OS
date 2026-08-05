@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
+from deepsupport_os.api.auth import require_admin
 from deepsupport_os.db import eval_store
 
 router = APIRouter(prefix="/eval", tags=["eval"])
@@ -30,7 +31,7 @@ def get_eval_cases(
     return {"items": eval_store.list_eval_cases(enabled_only=enabled_only, limit=limit)}
 
 
-@router.post("/cases/sync")
+@router.post("/cases/sync", dependencies=[Depends(require_admin)])
 def sync_cases(body: SyncCasesBody | None = None):
     """Upsert benchmark cases from jsonl into eval_cases."""
     from pathlib import Path
@@ -83,7 +84,7 @@ def _score_offline(case: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-@router.post("/run")
+@router.post("/run", dependencies=[Depends(require_admin)])
 def trigger_offline_eval(body: RunEvalBody | None = None) -> dict[str, Any]:
     """Run offline schema eval, sync cases, and persist metrics to SQLite.
 
