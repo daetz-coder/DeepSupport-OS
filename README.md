@@ -71,7 +71,19 @@ npm run dev
 
 ### 4. RAGLab（知识检索，可选）
 
-DeepSupport OS **不内嵌** RAG。另启 RAGLab（默认 `8001`）；未启动时 Knowledge 工具回退本地 Markdown。
+DeepSupport OS **不内嵌** RAG。另用 [uv](https://github.com/astral-sh/uv) 启动 RAGLab（**8001**，避免与本仓库 API 的 8000 冲突）；未启动时 Knowledge 工具回退本地 Markdown。
+
+```bash
+# 可选：Qdrant（RAGLab 推荐）
+cd ../RAGLab
+docker compose up -d qdrant
+
+# RAGLab API — 勿 activate .venv，用 uv run
+cd ../RAGLab/backend
+uv run --python .venv uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+```
+
+确认本仓库 `.env`：`RAGLAB_BASE_URL=http://127.0.0.1:8001`。
 
 ### 5. Docker Compose（可选）
 
