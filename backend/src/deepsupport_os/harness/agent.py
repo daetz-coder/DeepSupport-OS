@@ -41,6 +41,7 @@ def build_model() -> ChatOpenAI:
         api_key=api_key or "EMPTY",
         base_url=base_url,
         temperature=0,
+        streaming=True,
     )
 
 
