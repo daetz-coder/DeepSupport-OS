@@ -80,3 +80,10 @@ body {
   background-color: var(--ds-accent) !important;
   border-color: var(--ds-accent) !important;
 }
+
+/* Sidebar column resize drag */
+body.is-col-resizing,
+body.is-col-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
+}

@@ -10,6 +10,7 @@ import {
 } from './composables/liveOverview'
 import { useHealth } from './composables/useHealth'
 import { useMcp } from './composables/useMcp'
+import { useSidebarLayout } from './composables/useSidebarLayout'
 import { useSkills } from './composables/useSkills'
 import type {
   ArtifactItem,
@@ -67,6 +68,8 @@ const openStages = ref<Record<string, boolean>>({})
 const metrics = ref<Record<string, unknown> | null>(null)
 const streamingText = ref('')
 const chatScrollEl = ref<HTMLElement | null>(null)
+
+const { layoutStyle, layoutNarrow, resizing, startResize } = useSidebarLayout()
 
 const {
   skillsInstalled,
@@ -917,7 +920,11 @@ onMounted(async () => {
       :closable="true"
     />
 
-    <main class="layout" :class="[`mode-${viewMode}`]">
+    <main
+      class="layout"
+      :class="[`mode-${viewMode}`, { 'is-resizing': !!resizing }]"
+      :style="viewMode === 'chat' ? layoutStyle : undefined"
+    >
       <aside v-show="viewMode === 'chat'" class="side">
         <div class="side-head">
           <h3>会话</h3>
@@ -951,6 +958,13 @@ onMounted(async () => {
           <div class="task-meta muted">{{ item.updated_at?.slice(0, 19) || '' }}</div>
         </button>
       </aside>
+
+      <div
+        v-show="viewMode === 'chat' && !layoutNarrow"
+        class="col-resizer"
+        title="拖拽调整左侧宽度"
+        @mousedown="startResize('left', $event)"
+      />
 
       <section v-show="viewMode === 'chat'" class="main">
         <div class="chat-panel">
@@ -1128,6 +1142,13 @@ onMounted(async () => {
           <button type="button" class="linkish" @click="viewMode = 'workspace'">打开工作区 →</button>
         </div>
       </section>
+
+      <div
+        v-show="viewMode === 'chat' && !layoutNarrow"
+        class="col-resizer"
+        title="拖拽调整右侧宽度"
+        @mousedown="startResize('right', $event)"
+      />
 
       <aside v-show="viewMode === 'chat'" class="overview" :class="{ collapsed: !overviewOpen }">
         <div class="overview-head">
@@ -1702,8 +1723,8 @@ button.status-chip:disabled {
 
 .layout {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr) 220px;
-  gap: 10px;
+  grid-template-columns: 248px 6px minmax(0, 1fr) 6px 288px;
+  gap: 0 4px;
   margin-top: 10px;
   align-items: stretch;
   min-height: calc(100vh - 168px);
@@ -1712,11 +1733,45 @@ button.status-chip:disabled {
 .layout.mode-workspace {
   grid-template-columns: 1fr;
   min-height: calc(100vh - 168px);
+  gap: 10px;
+}
+
+.col-resizer {
+  width: 6px;
+  margin: 0 -1px;
+  cursor: col-resize;
+  border-radius: 4px;
+  background: transparent;
+  position: relative;
+  z-index: 2;
+  align-self: stretch;
+  touch-action: none;
+}
+
+.col-resizer::after {
+  content: '';
+  position: absolute;
+  top: 12%;
+  bottom: 12%;
+  left: 50%;
+  width: 3px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: #c5d4ce;
+  opacity: 0.55;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.col-resizer:hover::after,
+.layout.is-resizing .col-resizer::after {
+  opacity: 1;
+  background: var(--ds-accent, #0f766e);
 }
 
 @media (max-width: 1280px) {
   .layout.mode-chat {
-    grid-template-columns: 180px minmax(0, 1fr);
+    grid-template-columns: 220px minmax(0, 1fr);
+    gap: 10px;
   }
   .layout.mode-chat .overview {
     grid-column: 1 / -1;
