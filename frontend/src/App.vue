@@ -15,7 +15,6 @@ import type {
   RunOverview,
   StageBucket,
   ThreadItem,
-  ThreadNotice,
   TodoItem,
   Trace,
   TraceStep,
@@ -60,8 +59,6 @@ const openStages = ref<Record<string, boolean>>({})
 const metrics = ref<Record<string, unknown> | null>(null)
 const streamingText = ref('')
 const chatScrollEl = ref<HTMLElement | null>(null)
-/** Local system notices (HITL decisions etc.), anchored to the transcript position where they happened. */
-const threadNotices = ref<ThreadNotice[]>([])
 
 const {
   skillsInstalled,
@@ -98,7 +95,7 @@ const isHitlInterrupt = computed(
   () => hasInterrupt.value && interrupt.value?.type !== 'ask',
 )
 const chatBubbles = computed(() =>
-  buildChatBubbles(messages.value, interrupt.value, threadNotices.value),
+  buildChatBubbles(messages.value, interrupt.value),
 )
 const composerPlaceholder = computed(() =>
   isAskInterrupt.value
@@ -134,13 +131,6 @@ const pendingPreview = computed<HitlPreview[]>(() => {
 const stageBuckets = computed<StageBucket[]>(() => {
   if (overview.value?.stages?.length) return overview.value.stages
   return []
-})
-
-const durationLabel = computed(() => {
-  const ms = overview.value?.duration_ms ?? (metrics.value?.duration_ms as number | undefined)
-  if (ms == null) return '—'
-  if (ms < 1000) return `${Math.round(ms)} ms`
-  return `${(ms / 1000).toFixed(1)} s`
 })
 
 const threadDurationLabel = computed(() => {
@@ -232,7 +222,6 @@ function newThread() {
   metrics.value = null
   openStages.value = {}
   stagesPanelOpen.value = false
-  threadNotices.value = []
   viewMode.value = 'chat'
   lastError.value = null
   question.value = ''
@@ -247,7 +236,6 @@ async function openThread(item: ThreadItem) {
     applyRecord(data)
     lastError.value = null
     stagesPanelOpen.value = false
-    threadNotices.value = []
     viewMode.value = 'chat'
     activeTab.value = 'trace'
     await refreshArtifacts()
@@ -699,16 +687,15 @@ async function resume(approved: boolean) {
   lastError.value = null
   viewMode.value = 'chat'
   const labels = pendingPreview.value.map((p) => p.label || p.name).filter(Boolean).join('、')
-  // Anchor the decision notice at the transcript seam where the HITL pause happened,
-  // so it renders right after the approval request and before the resumed run output.
-  threadNotices.value = [
-    ...threadNotices.value,
+  // Show the decision immediately; the backend also persists it as a SystemMessage in the
+  // checkpoint transcript (survives refresh), and the final SSE `done` replaces this local copy.
+  messages.value = [
+    ...messages.value,
     {
       role: 'system',
       content: approved
         ? `已批准写操作${labels ? `：${labels}` : ''}`
         : `已拒绝写操作${labels ? `：${labels}` : ''}`,
-      afterIndex: messages.value.length,
     },
   ]
   try {
@@ -1118,11 +1105,9 @@ onMounted(async () => {
               <p><span class="meta-k">状态</span> {{ overview?.status || status || '—' }}</p>
               <p><span class="meta-k">运行</span> {{ threadRunCount }} 次</p>
               <p><span class="meta-k">会话耗时</span> {{ threadDurationLabel }}</p>
-              <p><span class="meta-k">本轮耗时</span> {{ durationLabel }}</p>
               <p>
                 <span class="meta-k">步骤</span>
                 {{ overview?.step_count ?? steps.length }}
-                <span class="muted">（本轮 {{ overview?.run_step_count ?? '—' }}）</span>
               </p>
             </div>
             <div class="ov-block">
