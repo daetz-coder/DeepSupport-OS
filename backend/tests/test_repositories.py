@@ -32,6 +32,42 @@ def test_hitl_password_reset_apply(fresh_db):
     assert AccountRepo().get_account_status("wei.zhang@contoso.com")["status"] == "active"
 
 
+def test_hitl_resume_apply_license_and_close(fresh_db):
+    """Smoke: approved writes apply without needing a live LLM resume."""
+    from deepsupport_os.db.repositories import AccountRepo, TicketRepo
+    from deepsupport_os.harness.hitl_apply import apply_approved_writes
+
+    pending = [
+        {
+            "name": "request_license_change",
+            "args": {
+                "email": "wei.zhang@contoso.com",
+                "new_license_type": "Microsoft 365 E5",
+            },
+        }
+    ]
+    # license change is intent-only in tools; apply path must still be safe
+    results = apply_approved_writes(pending, task_id="hitl-lic")
+    assert results[0]["result"]["ok"] is True
+    assert (
+        AccountRepo().get_account_status("wei.zhang@contoso.com")["license_type"]
+        == "Microsoft 365 E5"
+    )
+
+    t = TicketRepo().create_ticket(title="x", description="y", category="Account")
+    closed = apply_approved_writes(
+        [
+            {
+                "name": "close_ticket",
+                "args": {"ticket_id": t["ticket_id"], "resolution": "fixed"},
+            }
+        ],
+        task_id="hitl-close",
+    )
+    assert closed[0]["result"]["ok"] is True
+    assert TicketRepo().get_ticket(t["ticket_id"])["status"] == "closed"
+
+
 def test_update_ticket_blocks_terminal_without_hitl(fresh_db):
     t = TicketRepo().create_ticket(title="t", description="d", category="Account")
     blocked = TicketRepo().update_ticket(t["ticket_id"], status="closed")

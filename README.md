@@ -2,7 +2,7 @@
 
 **DeepSupport OS is an open-source enterprise IT support agent harness powered by Deep Agents.**
 
-DeepSupport OS 是一个基于 Deep Agents Harness 的开源企业 IT 技术支持智能体。面向 Microsoft 365 企业 IT Help Desk，用 Mock 数据与 Mock MCP 模拟企业系统，突出长任务规划、文件工作区、Skills、Subagents、Memory、Checkpoint 与人工审批。
+DeepSupport OS 是一个基于 Deep Agents Harness 的开源企业 IT 技术支持智能体。面向 Microsoft 365 企业 IT Help Desk，用 **Local Tool Adapter（Mock 企业数据）** 与可选 **Remote MCP** 模拟企业系统，突出长任务规划、文件工作区、Skills、Subagents、Memory、Checkpoint 与人工审批。
 
 > 详细实施清单见 [plan.md](./plan.md)。
 
@@ -18,9 +18,9 @@ Deep Agents Harness
    ├── Memory / Checkpoint / Human-in-the-loop
    └── Tool Orchestration
          ↓
-   Mock MCP Services  ←→  SQLite Mock 企业数据
+   Local Tool Adapter  ←→  SQLite Mock 企业数据
          ↓
-   Knowledge MCP → RAGLab HTTP API（封装调用，不复制代码）
+   Knowledge → RAGLab HTTP API（可选 Remote MCP）
 ```
 
 ## 技术栈
@@ -31,7 +31,7 @@ Deep Agents Harness
 | 后端 | uv + FastAPI |
 | Agent | Deep Agents + LangGraph + LangChain |
 | RAG | 调用本地 [RAGLab](../RAGLab) HTTP API |
-| 企业系统 | Mock MCP + SQLite + Faker |
+| 企业系统 | Local Tool Adapter（SQLite Mock）+ 可选 Remote MCP |
 | 默认 LLM | DeepSeek（可切换 Ollama） |
 
 ## 快速开始
@@ -138,9 +138,10 @@ DeepSupport-OS/
 ├── config/           # mcp_servers.json（远程 MCP）
 ├── data/             # SQLite 与语料
 ├── workspace/        # 任务文件工作区
-├── docs/             # 设计与评测；demo-screenshots/
+├── docs/             # 设计与评测；adr/；demo-screenshots/
 ├── scripts/          # import_skill / eval / remote MCP 冒烟
-├── plan.md           # 精简待办
+├── plan.md           # 精简产品待办
+├── fix.md            # 架构债 backlog
 ├── CONTRIBUTING.md
 ├── SECURITY.md
 └── README.md
@@ -148,7 +149,7 @@ DeepSupport-OS/
 
 ## 当前状态
 
-Phase 0–11 主链路已可运行（Harness、HITL、Memory/Todo/Artifacts、Daytona sidecar）。Skills SOP + 公开导入 + 远程 MCP 客户端已接入。详见 [plan.md](./plan.md)、[CONTRIBUTING.md](./CONTRIBUTING.md)。
+Phase 0–11 主链路已可运行（Harness、HITL、Memory/Todo、Artifacts+manifest/metrics、Daytona sidecar）。Skills SOP + 公开导入 + 远程 MCP 客户端已接入。架构债跟踪见 [fix.md](./fix.md)；产品待办见 [plan.md](./plan.md)。
 
 ## License
 

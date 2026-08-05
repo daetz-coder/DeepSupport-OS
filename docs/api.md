@@ -1,18 +1,62 @@
 # API Overview
 
-Base URL: `http://127.0.0.1:8000`
+Base URL: `http://127.0.0.1:8000`（默认绑定 loopback；Docker 为 `0.0.0.0`）
+
+OpenAPI：[/docs](http://127.0.0.1:8000/docs)
+
+## System
 
 | Method | Path | Description |
 |---|---|---|
-| GET | `/` | Project info, `llm_configured` |
-| GET | `/health` | Liveness |
-| POST | `/admin/seed?force=` | Reseed mock DB |
-| GET | `/api/tasks` | List recent tasks |
-| POST | `/api/tasks` | Run one harness turn (sync) |
-| POST | `/api/tasks/stream` | SSE: `status` / `tool_start` / `tool_end` / `message` / `interrupt` / `done` |
-| POST | `/api/tasks/resume` | HITL approve/reject + apply writes |
-| GET | `/api/tasks/{task_id}` | Task snapshot (SQLite persisted) |
-| GET | `/api/tasks/{task_id}/trace` | Structured execution trace |
-| GET | `/api/tasks/meta/audit` | Recent audit log |
+| GET | `/` | Project info + `llm_configured` |
+| GET | `/health` | **Liveness only**（compose healthcheck 用） |
+| GET | `/api/health/deps` | RAGLab + Daytona Sandbox 探测 |
+| POST | `/admin/seed?force=` | Reseed mock DB（可选 `X-Admin-Token`） |
 
-OpenAPI: `/docs`.
+## Tasks
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/tasks` | List recent tasks |
+| POST | `/api/tasks` | Sync harness turn |
+| POST | `/api/tasks/stream` | SSE turn |
+| POST | `/api/tasks/resume` | HITL approve/reject + apply writes |
+| GET | `/api/tasks/{task_id}` | Task snapshot（含 `trace` / `manifest` / `metrics`） |
+| GET | `/api/tasks/{task_id}/trace` | Structured execution trace |
+| GET | `/api/tasks/{task_id}/artifacts` | Workspace file list |
+| GET | `/api/tasks/{task_id}/artifacts/{path}` | Artifact content |
+| GET | `/api/tasks/meta/audit` | Recent tool audit log |
+
+### SSE events (`POST /api/tasks/stream`)
+
+`status` · `tool_start` · `tool_end` · `subagent` · `context_offload` · `message` · `todos` · `interrupt` · `error` · `done`
+
+`done` payload includes `manifest`（`workspace/{tid}/manifest.json`）与 `metrics`（`metrics.json`）。
+
+## Meta — Skills
+
+| Method | Path | Auth |
+|---|---|---|
+| GET | `/api/meta/skills` | — |
+| POST | `/api/meta/skills/{name}/toggle` | `X-Admin-Token` if `ADMIN_TOKEN` set |
+| POST | `/api/meta/skills/import` | same |
+| PATCH | `/api/meta/skills/settings` | same |
+
+## Meta — MCP
+
+| Method | Path | Auth |
+|---|---|---|
+| GET | `/api/meta/mcp` | — |
+| PATCH | `/api/meta/mcp/settings` | admin token if set |
+| POST | `/api/meta/mcp/servers` | admin token if set |
+| POST | `/api/meta/mcp/servers/{name}/toggle` | admin token if set |
+| DELETE | `/api/meta/mcp/servers/{name}` | admin token if set |
+| POST | `/api/meta/mcp/reload` | admin token if set |
+
+## Workspace side files
+
+每线程目录 `workspace/{thread_id}/`：
+
+- `manifest.json` — 产物清单 + canonical 校验
+- `metrics.json` — 本回合 step/tool/subagent/duration 摘要
+- canonical：`diagnosis.md` · `retrieved_docs.md` · `final_resolution.md` · `ticket_draft.md`（可选）

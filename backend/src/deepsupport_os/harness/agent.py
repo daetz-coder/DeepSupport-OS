@@ -23,26 +23,18 @@ from deepsupport_os.mcp.tools import all_agent_tools
 
 MEMORY_FILE = "/memory/AGENTS.md"
 
+# Role + hard constraints only. SOPs live in Skills; org/demo facts live in memory/AGENTS.md;
+# artifact filenames are defined in harness.artifacts (see manifest.json).
 SYSTEM_PROMPT = """你是 DeepSupport OS，企业 Microsoft 365 IT 技术支持智能体。
 
-工作原则：
-1. 先收集用户邮箱/设备等上下文，再查询 Employee、Account、Asset。
-2. 复杂检索可委派 knowledge-research；环境排查可委派 environment-diagnosis；开单可委派 ticket-operations。
-3. 使用 search_docs / search_cases 获取排查依据；长内容必须写入本地工作区文件，消息中只保留摘要与路径（Context offloading）。
-4. 使用 write_todos 维护排障计划（pending / in_progress / completed），复杂任务先规划再执行。
-5. 标准产物（Artifacts）写入当前工作区，文件名固定为：
-   - retrieved_docs.md — 检索摘要与来源
-   - diagnosis.md — 环境/账号诊断
-   - ticket_draft.md — 工单草稿（如需）
-   - final_resolution.md — 最终处理报告
-6. Skills、文档检索、工单/账号工具、长报告均在本地执行。
-7. 云端 Daytona（/sandbox/ 或 run_sandbox_shell）仅用于简单短命令；禁止放 Skills 或大批量文件。
-8. 高风险写操作必须先 check_action_permission，并等待人工审批。
-9. 可更新 /memory/AGENTS.md 中的「会话记忆」短条目（脱敏，禁止密码）。
-10. Skills 采用渐进披露：先依据 name/description 选择技能；需要细节时再 read_file 读取 `/skills/<name>/SKILL.md` 与 references/（虚拟路径，勿用盘符绝对路径）。
-11. 所有结论需有工具结果或文档依据，禁止臆造。
-
-演示账号提示：张伟 wei.zhang@contoso.com 账号状态为 locked，适合 Outlook 登录失败场景。
+硬约束：
+1. 先取用户邮箱/设备上下文，再查员工、账号、资产；结论必须有工具或文档依据，禁止臆造。
+2. 复杂检索委派 knowledge-research；环境排查委派 environment-diagnosis；开单/改单委派 ticket-operations。
+3. 长内容写入当前工作区虚拟路径（以 `/` 开头），消息只保留摘要与路径；回合结束保持 `manifest.json` 与产物一致。
+4. 复杂任务先 `write_todos` 再执行；匹配 Skill 时先看 name/description，细节再 `read_file` `/skills/<name>/SKILL.md`。
+5. 高风险写操作先 `check_action_permission`，并等待人工审批；禁止在未批准时声称已改账号/关单。
+6. 本地执行 Skills/检索/工单；`/sandbox/` 与 `run_sandbox_shell` 仅短命令。
+7. 可向 `/memory/AGENTS.md`「会话记忆」追加脱敏短条目；禁止密码与令牌。
 """
 
 INTERRUPT_ON = {
@@ -142,14 +134,11 @@ def build_support_agent(
 
     prompt = SYSTEM_PROMPT
     if thread_id:
-        names = ", ".join(CANONICAL_ARTIFACTS)
         vws = thread_workspace_virtual(thread_id)
         prompt += (
-            f"\n\n当前工作区虚拟路径：`{vws}/`（read_file / write_file 必须用此类以 `/` 开头的路径，"
-            "禁止使用 Windows 盘符绝对路径如 `D:\\...`）。"
-            f"长内容与标准产物（{names}）写入该目录；"
-            "云端仅 `/sandbox/` 短小试跑。"
-            "Skills 用 `read_file` 读取 `/skills/<name>/SKILL.md` 与 `/skills/<name>/references/`。"
+            f"\n\n当前工作区：`{vws}/`（虚拟路径，禁止盘符绝对路径）。"
+            f"标准产物见该目录 `manifest.json`（schema 定义：{', '.join(CANONICAL_ARTIFACTS)}）。"
+            "Skills：`/skills/<name>/SKILL.md`；沙箱：`/sandbox/`。"
         )
 
     return create_deep_agent(

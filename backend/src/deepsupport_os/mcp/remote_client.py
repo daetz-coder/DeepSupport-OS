@@ -111,24 +111,39 @@ def load_remote_mcp_tools(*, force: bool = False) -> list[Any]:
         return []
 
     status: dict[str, Any] = {"enabled": True, "servers": {}, "tool_count": 0}
-    try:
-        tools = _run_coro(_fetch_tools_async(connections))
-        _cached_tools = tools
-        status["tool_count"] = len(tools)
-        status["tool_names"] = [getattr(t, "name", str(t)) for t in tools]
-        for name in connections:
-            status["servers"][name] = {"ok": True, "transport": connections[name]["transport"]}
-        _cached_status = status
-        logger.info("Loaded %s remote MCP tools from %s", len(tools), list(connections))
-        return tools
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Remote MCP load failed: %s", exc)
-        _cached_tools = []
-        status["error"] = str(exc)
-        for name, conn in connections.items():
-            status["servers"][name] = {"ok": False, "transport": conn.get("transport"), "error": str(exc)}
-        _cached_status = status
-        return []
+    last_exc: Exception | None = None
+    for attempt in range(2):
+        try:
+            tools = _run_coro(_fetch_tools_async(connections))
+            _cached_tools = tools
+            status["tool_count"] = len(tools)
+            status["tool_names"] = [getattr(t, "name", str(t)) for t in tools]
+            for name in connections:
+                status["servers"][name] = {
+                    "ok": True,
+                    "transport": connections[name]["transport"],
+                }
+            _cached_status = status
+            logger.info("Loaded %s remote MCP tools from %s", len(tools), list(connections))
+            return tools
+        except Exception as exc:  # noqa: BLE001
+            last_exc = exc
+            logger.warning("Remote MCP load failed (attempt %s): %s", attempt + 1, exc)
+            if attempt == 0:
+                import time
+
+                time.sleep(0.5)
+                continue
+    _cached_tools = []
+    status["error"] = str(last_exc) if last_exc else "unknown"
+    for name, conn in connections.items():
+        status["servers"][name] = {
+            "ok": False,
+            "transport": conn.get("transport"),
+            "error": str(last_exc) if last_exc else "unknown",
+        }
+    _cached_status = status
+    return []
 
 
 def mcp_status() -> dict[str, Any]:

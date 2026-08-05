@@ -12,8 +12,9 @@ from deepsupport_os.api.trace import build_trace, extract_interrupt_info, serial
 from deepsupport_os.db import task_store
 from deepsupport_os.db.repositories import list_audit
 from deepsupport_os.harness.agent import MEMORY_FILE, build_support_agent
-from deepsupport_os.harness.artifacts import list_artifacts, read_artifact
+from deepsupport_os.harness.artifacts import list_artifacts, read_artifact, write_manifest
 from deepsupport_os.harness.hitl_apply import apply_approved_writes, collect_pending_writes
+from deepsupport_os.harness.metrics import TurnTimer, write_turn_metrics
 from deepsupport_os.harness.state_extract import extract_todos
 from deepsupport_os.harness.workspace import ensure_thread_workspace
 
@@ -60,12 +61,21 @@ def _build_record(
     agent: Any = None,
     config: dict | None = None,
     result: dict | None = None,
+    duration_ms: float | None = None,
 ) -> dict[str, Any]:
     trace = build_trace(messages, interrupt=interrupt, audit=_recent_audit(20))
     ws = workspace_path or str(ensure_thread_workspace(thread_id))
     if todos is None and agent is not None and config is not None:
         todos = extract_todos(agent, config, result=result)
     todos = todos or []
+    manifest = write_manifest(thread_id, task_id=task_id, status=status)
+    metrics = write_turn_metrics(
+        thread_id,
+        task_id=task_id,
+        status=status,
+        trace=trace,
+        duration_ms=duration_ms,
+    )
     artifacts = list_artifacts(thread_id)
     return {
         "task_id": task_id,
@@ -78,6 +88,8 @@ def _build_record(
         "applied_writes": applied or [],
         "todos": todos,
         "artifacts": artifacts,
+        "manifest": manifest,
+        "metrics": metrics,
         "memory_paths": [MEMORY_FILE],
     }
 
@@ -102,6 +114,8 @@ class TaskCreateResponse(BaseModel):
     applied_writes: list[dict[str, Any]] = []
     todos: list[dict[str, Any]] = []
     artifacts: list[dict[str, Any]] = []
+    manifest: dict[str, Any] = {}
+    metrics: dict[str, Any] = {}
     memory_paths: list[str] = []
 
 
@@ -118,6 +132,7 @@ def create_task(body: TaskCreateRequest):
     ws = ensure_thread_workspace(thread_id)
     agent = get_agent(thread_id)
     config = {"configurable": {"thread_id": thread_id}}
+    timer = TurnTimer()
 
     try:
         result = agent.invoke(
@@ -140,6 +155,7 @@ def create_task(body: TaskCreateRequest):
         agent=agent,
         config=config,
         result=result if isinstance(result, dict) else None,
+        duration_ms=timer.ms(),
     )
     _persist(record)
     return TaskCreateResponse(**record)
@@ -194,6 +210,7 @@ def resume_task(body: ResumeRequest):
     agent = get_agent(body.thread_id)
     config = {"configurable": {"thread_id": body.thread_id}}
     ws = ensure_thread_workspace(body.thread_id)
+    timer = TurnTimer()
 
     pre_state = agent.get_state(config)
     pre_messages = (getattr(pre_state, "values", None) or {}).get("messages") or []
@@ -230,6 +247,7 @@ def resume_task(body: ResumeRequest):
         agent=agent,
         config=config,
         result=result if isinstance(result, dict) else None,
+        duration_ms=timer.ms(),
     )
     _persist(record)
     return {
@@ -252,6 +270,7 @@ async def stream_task(body: TaskCreateRequest):
     ws = ensure_thread_workspace(thread_id)
     agent = get_agent(thread_id)
     config = {"configurable": {"thread_id": thread_id}}
+    timer = TurnTimer()
 
     def event_gen() -> Iterator[dict[str, str]]:
         yield {
@@ -368,6 +387,7 @@ async def stream_task(body: TaskCreateRequest):
             workspace_path=str(ws),
             agent=agent,
             config=config,
+            duration_ms=timer.ms(),
         )
         if record.get("todos") and record["todos"] != last_todos:
             yield {
