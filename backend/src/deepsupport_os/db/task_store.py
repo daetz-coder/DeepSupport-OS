@@ -79,6 +79,26 @@ def get_by_thread(thread_id: str) -> dict[str, Any] | None:
                 }
 
 
+def _preview_from_messages(messages: list[Any] | None) -> str:
+    """Prefer first user utterance so sidebar titles stay stable across runs."""
+    for m in messages or []:
+        if not isinstance(m, dict):
+            continue
+        role = str(m.get("role") or "").lower()
+        if role in {"user", "human"}:
+            content = str(m.get("content") or "").strip()
+            if content:
+                return content[:120]
+    # Fallback: last non-empty content
+    for m in reversed(messages or []):
+        if not isinstance(m, dict):
+            continue
+        content = str(m.get("content") or "").strip()
+        if content:
+            return content[:120]
+    return ""
+
+
 def list_tasks(limit: int = 50) -> list[dict[str, Any]]:
     init_db()
     with _lock:
@@ -93,22 +113,21 @@ def list_tasks(limit: int = 50) -> list[dict[str, Any]]:
                     payload = json.loads(row.payload_json)
                 except json.JSONDecodeError:
                     payload = {}
+                msgs = payload.get("messages") if isinstance(payload, dict) else None
                 out.append(
                     {
                         "task_id": row.task_id,
                         "thread_id": row.thread_id,
                         "status": row.status,
                         "updated_at": row.updated_at.isoformat() if row.updated_at else None,
-                        "preview": (payload.get("messages") or [{}])[-1].get("content", "")[:120]
-                        if payload.get("messages")
-                        else "",
+                        "preview": _preview_from_messages(msgs if isinstance(msgs, list) else None),
                     }
                 )
             return out
 
 
 def list_threads(limit: int = 40) -> list[dict[str, Any]]:
-    """Aggregate runs by thread_id for conversation sidebar."""
+    """Aggregate runs by thread_id for conversation sidebar (one row per thread)."""
     tasks = list_tasks(limit=max(limit * 4, 80))
     by_thread: dict[str, dict[str, Any]] = {}
     order: list[str] = []
@@ -127,6 +146,9 @@ def list_threads(limit: int = 40) -> list[dict[str, Any]]:
             order.append(tid)
         bucket = by_thread[tid]
         bucket["run_count"] += 1
+        # tasks are newest-first; keep first-seen as latest, but prefer a user preview if missing
+        if not bucket["preview"] and t.get("preview"):
+            bucket["preview"] = t["preview"]
         bucket["runs"].append(
             {
                 "task_id": t["task_id"],
