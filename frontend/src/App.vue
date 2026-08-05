@@ -385,35 +385,43 @@ onMounted(async () => {
 <template>
   <div class="page">
     <header class="header">
-      <h1>DeepSupport OS</h1>
-      <p class="tagline">基于 Deep Agents Harness 的企业 IT 技术支持智能体</p>
-      <div class="tags">
-        <el-tag :type="health.includes('正常') ? 'success' : 'info'" size="small">
-          {{ health }}
-        </el-tag>
-        <el-tag
-          v-if="llmConfigured !== null"
-          :type="llmConfigured ? 'success' : 'danger'"
-          size="small"
+      <div class="brand-row">
+        <div class="brand-mark" aria-hidden="true">DS</div>
+        <div class="brand-text">
+          <h1>DeepSupport OS</h1>
+          <p class="tagline">企业 IT 支持智能体控制台 · Deep Agents Harness</p>
+        </div>
+      </div>
+      <div class="status-rail">
+        <span
+          class="status-chip"
+          :class="health.includes('正常') ? 'is-ok' : 'is-idle'"
         >
-          {{ llmConfigured ? 'LLM 已配置' : 'LLM 未配置' }}
-        </el-tag>
-        <el-tag
-          :type="raglabOk === true ? 'success' : raglabOk === false ? 'warning' : 'info'"
-          size="small"
+          <i class="dot" />{{ health }}
+        </span>
+        <span
+          v-if="llmConfigured !== null"
+          class="status-chip"
+          :class="llmConfigured ? 'is-ok' : 'is-bad'"
+        >
+          <i class="dot" />{{ llmConfigured ? 'LLM 就绪' : 'LLM 未配置' }}
+        </span>
+        <span
+          class="status-chip"
+          :class="raglabOk === true ? 'is-ok' : raglabOk === false ? 'is-warn' : 'is-idle'"
           :title="raglabLabel"
         >
-          {{ raglabLabel }}
-        </el-tag>
-        <el-tag
-          :type="sandboxOk === true ? 'success' : sandboxOk === false ? 'warning' : 'info'"
-          size="small"
+          <i class="dot" />{{ raglabLabel }}
+        </span>
+        <span
+          class="status-chip"
+          :class="sandboxOk === true ? 'is-ok' : sandboxOk === false ? 'is-warn' : 'is-idle'"
           :title="sandboxLabel"
         >
-          {{ sandboxLabel }}
-        </el-tag>
-        <el-tag v-if="status" size="small">{{ status }}</el-tag>
-        <el-tag v-if="useStream" type="warning" size="small">SSE</el-tag>
+          <i class="dot" />{{ sandboxLabel }}
+        </span>
+        <span v-if="status" class="status-chip is-run"><i class="dot" />{{ status }}</span>
+        <span v-if="useStream" class="status-chip is-stream"><i class="dot" />SSE</span>
       </div>
     </header>
 
@@ -449,21 +457,24 @@ onMounted(async () => {
 
     <main class="layout">
       <aside class="side">
-        <div class="side-actions">
-          <el-button size="small" type="primary" @click="newThread">新建线程</el-button>
-          <el-button size="small" @click="refreshTasks">刷新</el-button>
+        <div class="side-head">
+          <h3>会话</h3>
+          <div class="side-actions">
+            <el-button size="small" type="primary" @click="newThread">新建</el-button>
+            <el-button size="small" plain @click="refreshTasks">刷新</el-button>
+          </div>
         </div>
-        <h3>会话 / 任务</h3>
-        <div v-if="!taskList.length" class="muted">暂无历史任务</div>
+        <div v-if="!taskList.length" class="empty-hint">暂无历史任务</div>
         <button
           v-for="item in taskList"
           :key="item.task_id"
           class="task-item"
+          :class="{ active: item.task_id === taskId }"
           type="button"
           @click="openTask(item)"
         >
           <div class="task-meta">
-            <el-tag size="small">{{ item.status }}</el-tag>
+            <el-tag size="small" effect="plain">{{ item.status }}</el-tag>
             <span>{{ item.updated_at?.slice(0, 19) || '' }}</span>
           </div>
           <div class="task-preview">{{ item.preview || item.task_id }}</div>
@@ -471,46 +482,52 @@ onMounted(async () => {
       </aside>
 
       <section class="main">
-        <el-input
-          v-model="question"
-          type="textarea"
-          :rows="3"
-          placeholder="例如：我的 Outlook 一直登录不上。"
-        />
-        <div class="actions">
-          <el-checkbox v-model="useStream">流式进度 (SSE)</el-checkbox>
-          <el-button type="primary" :loading="loading" @click="submit">
-            提交支持任务
-          </el-button>
-          <el-button
-            v-if="lastError"
-            type="warning"
-            :loading="loading"
-            @click="retryLast"
-          >
-            重试
-          </el-button>
-          <el-button @click="checkHealth">检查依赖</el-button>
-          <el-button
-            v-if="hasInterrupt"
-            type="success"
-            :loading="loading"
-            @click="resume(true)"
-          >
-            批准继续
-          </el-button>
-          <el-button
-            v-if="hasInterrupt"
-            type="danger"
-            :loading="loading"
-            @click="resume(false)"
-          >
-            拒绝
-          </el-button>
+        <div class="composer">
+          <label class="composer-label">支持请求</label>
+          <el-input
+            v-model="question"
+            type="textarea"
+            :rows="3"
+            placeholder="例如：我的 Outlook 一直登录不上，邮箱是 wei.zhang@contoso.com"
+          />
+          <div class="actions">
+            <el-checkbox v-model="useStream">流式进度 (SSE)</el-checkbox>
+            <div class="actions-right">
+              <el-button plain @click="checkHealth">检查依赖</el-button>
+              <el-button
+                v-if="lastError"
+                type="warning"
+                :loading="loading"
+                @click="retryLast"
+              >
+                重试
+              </el-button>
+              <el-button
+                v-if="hasInterrupt"
+                type="success"
+                :loading="loading"
+                @click="resume(true)"
+              >
+                批准继续
+              </el-button>
+              <el-button
+                v-if="hasInterrupt"
+                type="danger"
+                :loading="loading"
+                @click="resume(false)"
+              >
+                拒绝
+              </el-button>
+              <el-button type="primary" :loading="loading" @click="submit">
+                提交支持任务
+              </el-button>
+            </div>
+          </div>
         </div>
 
         <el-alert
           v-if="lastError"
+          class="panel-alert"
           title="任务执行失败"
           type="error"
           :description="lastError"
@@ -521,6 +538,7 @@ onMounted(async () => {
 
         <el-alert
           v-if="hasInterrupt"
+          class="panel-alert"
           title="需要人工审批"
           type="warning"
           description="高风险写操作待确认。请核对下方参数后批准或拒绝；批准后将写入 Mock 数据库。"
@@ -549,17 +567,21 @@ onMounted(async () => {
           </div>
         </section>
 
-        <el-alert
-          v-if="taskId"
-          :title="`Task ${taskId} / Thread ${threadId}${workspacePath ? ' / ' + workspacePath : ''}`"
-          type="info"
-          show-icon
-          :closable="false"
-        />
+        <div v-if="taskId" class="run-meta">
+          <span class="meta-k">Task</span>
+          <code>{{ taskId }}</code>
+          <span class="meta-k">Thread</span>
+          <code>{{ threadId }}</code>
+          <template v-if="workspacePath">
+            <span class="meta-k">Workspace</span>
+            <code class="ws">{{ workspacePath }}</code>
+          </template>
+        </div>
 
+        <div class="workspace-panel">
         <el-tabs v-model="activeTab">
           <el-tab-pane label="执行计划" name="plan">
-            <div v-if="!todos.length" class="muted">提交任务后将显示 Deep Agents 原生 todos（write_todos）</div>
+            <div v-if="!todos.length" class="empty-hint">提交任务后将显示 Deep Agents 原生 todos（write_todos）</div>
             <div v-for="(p, i) in todos" :key="i" class="plan-row">
               <el-tag :type="todoTagType(p.status)" size="small">{{ p.status }}</el-tag>
               <strong>{{ p.content }}</strong>
@@ -568,7 +590,7 @@ onMounted(async () => {
 
           <el-tab-pane label="产物" name="artifacts">
             <el-button size="small" :disabled="!taskId" @click="refreshArtifacts">刷新产物</el-button>
-            <div v-if="!artifacts.length" class="muted">工作区尚无文件；长任务应写出 diagnosis.md / final_resolution.md 等</div>
+            <div v-if="!artifacts.length" class="empty-hint">工作区尚无文件；长任务应写出 diagnosis.md / final_resolution.md 等</div>
             <div v-for="a in artifacts" :key="a.path" class="artifact-row" @click="openArtifact(a)">
               <div class="step-head">
                 <el-tag v-if="a.canonical" type="success" size="small">标准</el-tag>
@@ -586,9 +608,9 @@ onMounted(async () => {
           <el-tab-pane label="执行轨迹" name="trace">
             <section v-if="appliedWrites.length" class="applied">
               <h2>已落库写操作</h2>
-              <el-card v-for="(w, i) in appliedWrites" :key="i" shadow="never" class="card">
+              <div v-for="(w, i) in appliedWrites" :key="i" class="code-block">
                 <pre>{{ formatArgs(w) }}</pre>
-              </el-card>
+              </div>
             </section>
             <section v-if="steps.length" class="trace">
               <div v-for="(s, i) in steps" :key="i" class="step">
@@ -601,7 +623,7 @@ onMounted(async () => {
                 <pre v-if="s.content">{{ s.content }}</pre>
               </div>
             </section>
-            <div v-else class="muted">提交任务后将在此显示结构化轨迹</div>
+            <div v-else class="empty-hint">提交任务后将在此显示结构化轨迹</div>
             <section v-if="liveEvents.length" class="events">
               <h3>SSE 事件</h3>
               <el-tag v-for="(e, i) in liveEvents" :key="i" size="small" class="ev">{{ e }}</el-tag>
@@ -619,7 +641,7 @@ onMounted(async () => {
               />
             </div>
             <h3>已安装</h3>
-            <div v-if="!skillsInstalled.length" class="muted">暂无 Skills</div>
+            <div v-if="!skillsInstalled.length" class="empty-hint">暂无 Skills</div>
             <div v-for="s in skillsInstalled" :key="s.path" class="mgmt-row">
               <div class="step-head">
                 <el-tag :type="s.layer === 'imported' ? 'warning' : 'info'" size="small">{{ s.layer }}</el-tag>
@@ -679,7 +701,7 @@ onMounted(async () => {
               </span>
             </p>
             <h3>已配置 Servers</h3>
-            <div v-if="!Object.keys(mcpServers).length" class="muted">暂无 MCP server</div>
+            <div v-if="!Object.keys(mcpServers).length" class="empty-hint">暂无 MCP server</div>
             <div v-for="(spec, name) in mcpServers" :key="name" class="mgmt-row">
               <div class="step-head">
                 <strong>{{ name }}</strong>
@@ -711,7 +733,7 @@ onMounted(async () => {
 
           <el-tab-pane label="审计日志" name="audit">
             <el-button size="small" @click="refreshAudit">刷新审计</el-button>
-            <div v-if="!auditList.length" class="muted">暂无审计记录</div>
+            <div v-if="!auditList.length" class="empty-hint">暂无审计记录</div>
             <div v-for="a in auditList" :key="a.id" class="audit-row">
               <div class="step-head">
                 <el-tag size="small">{{ a.tool }}</el-tag>
@@ -721,6 +743,7 @@ onMounted(async () => {
             </div>
           </el-tab-pane>
         </el-tabs>
+        </div>
       </section>
     </main>
   </div>
@@ -728,111 +751,356 @@ onMounted(async () => {
 
 <style scoped>
 .page {
-  max-width: 1100px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 40px 24px;
+  padding: 32px 20px 56px;
+  animation: page-in 0.45s ease-out;
 }
-.header h1 {
-  margin: 0 0 8px;
-  font-size: 2rem;
-  letter-spacing: -0.02em;
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
-.tagline {
-  margin: 0 0 12px;
-  color: #606266;
-}
-.tags {
+
+.header {
   display: flex;
-  gap: 8px;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 8px;
+}
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.brand-mark {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.04em;
+  color: #ecfdf8;
+  background:
+    linear-gradient(145deg, #14b8a6 0%, #0f766e 55%, #115e59 100%);
+  box-shadow: 0 8px 20px rgba(15, 118, 110, 0.28);
+  animation: mark-glow 3.2s ease-in-out infinite;
+}
+
+@keyframes mark-glow {
+  0%,
+  100% {
+    box-shadow: 0 8px 20px rgba(15, 118, 110, 0.28);
+  }
+  50% {
+    box-shadow: 0 10px 28px rgba(20, 184, 166, 0.42);
+  }
+}
+
+.brand-text h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(1.55rem, 2.4vw, 1.9rem);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--ds-ink);
+}
+
+.tagline {
+  margin: 4px 0 0;
+  color: var(--ds-muted);
+  font-size: 0.92rem;
+}
+
+.status-rail {
+  display: flex;
   flex-wrap: wrap;
+  gap: 8px;
 }
-.banner {
-  margin-top: 16px;
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  border: 1px solid var(--ds-line);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ds-ink-soft);
+  backdrop-filter: blur(6px);
+  transition: border-color 0.2s ease, transform 0.2s ease;
 }
+
+.status-chip:hover {
+  transform: translateY(-1px);
+}
+
+.status-chip .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+.status-chip.is-ok {
+  color: var(--ds-ok);
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+
+.status-chip.is-ok .dot {
+  opacity: 1;
+  box-shadow: 0 0 0 3px rgba(4, 120, 87, 0.15);
+}
+
+.status-chip.is-warn {
+  color: var(--ds-warn);
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+
+.status-chip.is-bad {
+  color: var(--ds-danger);
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.status-chip.is-run {
+  color: var(--ds-accent-deep);
+  border-color: #99f6e4;
+  background: #f0fdfa;
+}
+
+.status-chip.is-stream {
+  color: #0e7490;
+  border-color: #a5f3fc;
+  background: #ecfeff;
+}
+
+.status-chip.is-idle .dot {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.9;
+  }
+}
+
+.banner,
+.panel-alert {
+  margin-top: 14px;
+  border-radius: 12px;
+}
+
 .layout {
   display: grid;
-  grid-template-columns: 260px 1fr;
-  gap: 20px;
-  margin-top: 24px;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 18px;
+  margin-top: 22px;
+  align-items: start;
 }
-@media (max-width: 900px) {
+
+@media (max-width: 960px) {
   .layout {
     grid-template-columns: 1fr;
   }
 }
+
+.side,
+.composer,
+.workspace-panel,
+.hitl-preview {
+  background: var(--ds-panel);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius);
+  box-shadow: var(--ds-shadow);
+}
+
 .side {
-  border-right: 1px solid #e5e7eb;
-  padding-right: 12px;
+  padding: 14px;
+  position: sticky;
+  top: 16px;
+  max-height: calc(100vh - 32px);
+  overflow: auto;
 }
-.side h3 {
-  margin: 12px 0 8px;
+
+.side-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.side-head h3,
+.workspace-panel h3,
+.mgmt-row + h3,
+.hitl-preview h2,
+.applied h2,
+.events h3 {
+  margin: 0;
+  font-family: var(--font-display);
   font-size: 0.95rem;
+  letter-spacing: -0.02em;
 }
+
 .side-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
 }
+
 .task-item {
   width: 100%;
   text-align: left;
-  border: 1px solid #e5e7eb;
-  background: #fff;
-  border-radius: 8px;
-  padding: 10px;
+  border: 1px solid transparent;
+  background: var(--ds-surface-solid);
+  border-radius: 10px;
+  padding: 10px 11px;
   margin-bottom: 8px;
   cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
 }
+
 .task-item:hover {
-  border-color: #93c5fd;
+  border-color: #99f6e4;
+  transform: translateX(2px);
 }
+
+.task-item.active {
+  border-color: var(--ds-accent);
+  background: #f0fdfa;
+}
+
 .task-meta {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  font-size: 0.75rem;
-  color: #6b7280;
+  font-size: 0.72rem;
+  color: var(--ds-muted);
   margin-bottom: 6px;
 }
+
 .task-preview {
-  font-size: 0.85rem;
-  color: #374151;
+  font-size: 0.86rem;
+  color: var(--ds-ink-soft);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
 .main {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
+  min-width: 0;
 }
+
+.composer {
+  padding: 16px;
+}
+
+.composer-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ds-muted);
+}
+
 .actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 10px;
   align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
 }
-.trace h2,
-.applied h2,
-.hitl-preview h2 {
-  font-size: 1.05rem;
-  margin: 8px 0;
+
+.actions-right {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
 }
+
+.run-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px dashed var(--ds-line-strong);
+  background: rgba(255, 255, 255, 0.55);
+  font-size: 0.82rem;
+}
+
+.meta-k {
+  color: var(--ds-muted);
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.run-meta code {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--ds-accent-deep);
+  background: #ecfdf5;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.run-meta code.ws {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.workspace-panel {
+  padding: 8px 16px 16px;
+}
+
 .hitl-preview {
-  border: 1px solid #fbbf24;
-  background: #fffbeb;
-  border-radius: 8px;
-  padding: 12px 14px;
+  padding: 14px 16px;
+  border-color: #fcd34d;
+  background: linear-gradient(180deg, #fffbeb 0%, #fff 70%);
 }
+
 .hitl-card + .hitl-card {
   margin-top: 12px;
   padding-top: 12px;
   border-top: 1px dashed #fcd34d;
 }
+
 .hitl-highlights {
   list-style: none;
   padding: 0;
   margin: 8px 0;
 }
+
 .hitl-highlights li {
   display: flex;
   gap: 10px;
@@ -840,38 +1108,58 @@ onMounted(async () => {
   margin: 4px 0;
   font-size: 0.9rem;
 }
+
 .hitl-key {
   min-width: 72px;
   color: #92400e;
   font-weight: 600;
 }
+
+.hitl-highlights code,
+.tool-name {
+  font-family: var(--font-mono);
+  font-size: 0.86rem;
+}
+
 .plan-row {
   display: flex;
   gap: 10px;
   align-items: center;
-  padding: 8px 0;
-  border-bottom: 1px solid #f3f4f6;
+  padding: 10px 0;
+  border-bottom: 1px solid #eef3f1;
 }
-.artifact-row {
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 10px;
+
+.artifact-row,
+.code-block {
+  border: 1px solid var(--ds-line);
+  border-radius: 10px;
+  padding: 10px 12px;
   margin: 8px 0;
+  background: var(--ds-surface-solid);
+}
+
+.artifact-row {
   cursor: pointer;
+  transition: border-color 0.18s ease, transform 0.18s ease;
 }
+
 .artifact-row:hover {
-  border-color: #93c5fd;
+  border-color: #5eead4;
+  transform: translateY(-1px);
 }
+
 .artifact-row .preview {
   max-height: 80px;
   overflow: hidden;
   opacity: 0.75;
 }
+
 .artifact-body {
   margin-top: 12px;
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid var(--ds-line);
   padding-top: 12px;
 }
+
 .mgmt-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -879,14 +1167,17 @@ onMounted(async () => {
   align-items: center;
   margin-bottom: 12px;
 }
+
 .mgmt-row {
-  border-bottom: 1px solid #f3f4f6;
-  padding: 10px 0;
+  border-bottom: 1px solid #eef3f1;
+  padding: 12px 0;
 }
+
 .mgmt-row .desc {
   margin: 6px 0 0;
   font-size: 0.85rem;
 }
+
 .mcp-form {
   display: flex;
   flex-wrap: wrap;
@@ -894,42 +1185,54 @@ onMounted(async () => {
   align-items: center;
   margin-top: 8px;
 }
+
 .mcp-form .el-input {
   width: min(280px, 100%);
 }
+
 .step,
-.card,
 .audit-row {
-  border-top: 1px solid #e5e7eb;
+  border-top: 1px solid #eef3f1;
   padding: 12px 0;
 }
+
 .step-head {
   display: flex;
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
 }
-.tool-name {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 0.9rem;
-}
+
 pre {
   white-space: pre-wrap;
   word-break: break-word;
   margin: 8px 0 0;
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 0.85rem;
-  color: #374151;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--ds-ink-soft);
 }
-.events h3 {
-  margin: 8px 0;
-  font-size: 0.95rem;
+
+.events {
+  margin-top: 12px;
 }
+
 .ev {
   margin: 0 6px 6px 0;
 }
+
 .muted {
-  color: #9ca3af;
+  color: var(--ds-muted);
   font-size: 0.85rem;
+}
+
+.empty-hint {
+  color: var(--ds-muted);
+  font-size: 0.88rem;
+  padding: 18px 4px;
+  border: 1px dashed var(--ds-line);
+  border-radius: 10px;
+  text-align: center;
+  background: rgba(244, 248, 246, 0.7);
+  margin: 8px 0;
 }
 </style>

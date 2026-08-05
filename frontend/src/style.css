@@ -1,11 +1,40 @@
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Sora:wght@600;700&display=swap");
+
 :root {
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
-  line-height: 1.5;
-  color: #1f2937;
-  background:
-    radial-gradient(ellipse at top left, #e8f1ff 0%, transparent 50%),
-    radial-gradient(ellipse at bottom right, #f0f7f4 0%, transparent 45%),
-    #f7f8fa;
+  --ds-ink: #0c1f1a;
+  --ds-ink-soft: #3d524c;
+  --ds-muted: #6b7f78;
+  --ds-line: #d5e0db;
+  --ds-line-strong: #b8c9c2;
+  --ds-surface: rgba(255, 255, 255, 0.78);
+  --ds-surface-solid: #f4f8f6;
+  --ds-panel: #ffffff;
+  --ds-accent: #0f766e;
+  --ds-accent-soft: #ccfbf1;
+  --ds-accent-deep: #115e59;
+  --ds-warn: #b45309;
+  --ds-danger: #b91c1c;
+  --ds-ok: #047857;
+  --ds-radius: 14px;
+  --ds-shadow: 0 1px 0 rgba(12, 31, 26, 0.04), 0 12px 32px rgba(12, 31, 26, 0.06);
+  --font-display: "Sora", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-body: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+
+  font-family: var(--font-body);
+  line-height: 1.55;
+  color: var(--ds-ink);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  background-color: #e8f0ed;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 0% -10%, rgba(45, 212, 191, 0.22), transparent 55%),
+    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(15, 118, 110, 0.12), transparent 50%),
+    linear-gradient(rgba(15, 118, 110, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 118, 110, 0.035) 1px, transparent 1px);
+  background-size: auto, auto, 28px 28px, 28px 28px;
+  background-attachment: fixed;
   min-height: 100vh;
 }
 
@@ -15,4 +44,39 @@
 
 body {
   margin: 0;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+::selection {
+  background: var(--ds-accent-soft);
+  color: var(--ds-accent-deep);
+}
+
+/* Element Plus soft overrides to match console palette */
+.el-button--primary {
+  --el-button-bg-color: var(--ds-accent);
+  --el-button-border-color: var(--ds-accent);
+  --el-button-hover-bg-color: var(--ds-accent-deep);
+  --el-button-hover-border-color: var(--ds-accent-deep);
+}
+
+.el-tabs__item.is-active {
+  color: var(--ds-accent-deep) !important;
+}
+
+.el-tabs__active-bar {
+  background-color: var(--ds-accent) !important;
+}
+
+.el-checkbox__input.is-checked .el-checkbox__inner {
+  background-color: var(--ds-accent);
+  border-color: var(--ds-accent);
+}
+
+.el-switch.is-checked .el-switch__core {
+  background-color: var(--ds-accent) !important;
+  border-color: var(--ds-accent) !important;
 }
