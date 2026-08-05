@@ -51,7 +51,10 @@ data/raw/microsoft/
 !data/knowledge/*.md
 !data/benchmark/**
 data/benchmark/last_eval.json
+data/benchmark/last_eval.*.json
 data/benchmark/last_baselines.json
+data/benchmark/online_eval*.txt
+data/benchmark/pytest_last.txt
 
 
 # IDE / OS
