@@ -51,6 +51,7 @@ def score_online(case: dict[str, Any], *, use_daytona: bool = False) -> dict[str
     from deepsupport_os.db import init_db
     from deepsupport_os.db.seed import seed_database
     from deepsupport_os.harness.agent import build_support_agent
+    from deepsupport_os.harness.eval_metrics import enrich_ok, score_trace_extras
     from deepsupport_os.harness.workspace import ensure_thread_workspace
     import uuid
 
@@ -79,16 +80,34 @@ def score_online(case: dict[str, Any], *, use_daytona: bool = False) -> dict[str
             "error": str(exc),
             "elapsed_ms": round((time.perf_counter() - t0) * 1000, 1),
             "use_daytona": use_daytona,
+            "tags": list(case.get("tags") or []),
         }
     elapsed_ms = (time.perf_counter() - t0) * 1000
     msgs = result.get("messages", [])
     trace = build_trace(msgs)
+    steps = list(trace.get("steps") or [])
     tool_names = {t.get("name") for t in trace.get("tool_calls") or []}
+    # Also count tool names from annotated steps (subagent_dispatch / offload keep name)
+    for s in steps:
+        if s.get("name") and s.get("kind") in {
+            "tool_call",
+            "subagent_dispatch",
+            "context_offload",
+        }:
+            tool_names.add(s.get("name"))
     expect = case.get("expect") or {}
     required_tools = set(expect.get("tools") or [])
     hitl_tools = set(expect.get("hitl") or [])
     pending = {p.get("name") for p in (trace.get("pending_writes") or [])}
-    subagents = [s.get("subagent") for s in (trace.get("subagent_dispatches") or [])]
+    subagents = [s.get("subagent") for s in (trace.get("subagent_dispatches") or []) if s.get("subagent")]
+    skills_seen = sorted(
+        {
+            str(s.get("skill_used"))
+            for s in steps
+            if s.get("skill_used")
+        }
+        | set(trace.get("skills_used") or [])
+    )
 
     tool_hit = required_tools.issubset(tool_names) if required_tools else True
     hitl_hit = hitl_tools.issubset(tool_names | pending) if hitl_tools else True
@@ -109,7 +128,17 @@ def score_online(case: dict[str, Any], *, use_daytona: bool = False) -> dict[str
             offloads = trace.get("context_offloads") or []
             offload_hit = bool(workspace_files) or bool(offloads)
 
-    ok = tool_hit and hitl_hit and offload_hit
+    extras = score_trace_extras(
+        case,
+        tools_seen={str(x) for x in tool_names if x},
+        pending={str(x) for x in pending if x},
+        subagents=[str(x) for x in subagents if x],
+        skills_seen=skills_seen,
+        steps=steps,
+        tool_hit=tool_hit,
+    )
+    base_ok = tool_hit and hitl_hit and offload_hit
+    ok = enrich_ok(base_ok, extras, case)
     return {
         "id": case.get("id"),
         "ok": ok,
@@ -125,6 +154,11 @@ def score_online(case: dict[str, Any], *, use_daytona: bool = False) -> dict[str
         "hitl_hit": hitl_hit,
         "offload_hit": offload_hit,
         "expect_offload": expect_offload,
+        "expect_hitl": bool(hitl_tools),
+        "expect_skills": bool(expect.get("skills")),
+        "expect_subagents": bool(expect.get("subagents")),
+        "expect_grounding": "grounding" in tags,
+        **extras,
     }
 
 
@@ -135,13 +169,24 @@ def main() -> None:
     parser.add_argument("--online", action="store_true")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument(
+        "--from-db",
+        action="store_true",
+        help="Load enabled cases from eval_cases table (sync from jsonl first if empty)",
+    )
+    parser.add_argument(
         "--daytona",
         action="store_true",
         help="Attach Daytona as /sandbox/ sidecar (Skills stay local; default offline path is local-only)",
     )
     args = parser.parse_args()
 
-    cases = load_cases(args.cases)
+    if args.from_db:
+        from deepsupport_os.db.eval_store import list_eval_cases, sync_eval_cases
+
+        sync_eval_cases(path=args.cases)
+        cases = list_eval_cases(enabled_only=True)
+    else:
+        cases = load_cases(args.cases)
     if args.limit:
         cases = cases[: args.limit]
 
@@ -159,30 +204,36 @@ def main() -> None:
                         "mode": "online",
                         "error": str(exc),
                         "use_daytona": args.daytona,
+                        "tags": list(case.get("tags") or []),
                     }
                 )
         else:
-            results.append(score_offline(case))
+            row = score_offline(case)
+            row["tags"] = list(case.get("tags") or [])
+            results.append(row)
 
-    passed = sum(1 for r in results if r.get("ok"))
-    elapsed = [r["elapsed_ms"] for r in results if isinstance(r.get("elapsed_ms"), (int, float))]
-    hitl_ok = sum(1 for r in results if r.get("hitl_hit") is True)
-    tool_ok = sum(1 for r in results if r.get("tool_hit") is True)
-    summary = {
-        "total": len(results),
-        "passed": passed,
-        "failed": len(results) - passed,
-        "pass_rate": round(passed / len(results), 3) if results else 0.0,
-        "mode": "online" if mode_online else "offline",
-        "use_daytona": bool(args.daytona) if mode_online else False,
-        "avg_elapsed_ms": round(sum(elapsed) / len(elapsed), 1) if elapsed else None,
-        "tool_hit_rate": round(tool_ok / len(results), 3) if mode_online and results else None,
-        "hitl_hit_rate": round(hitl_ok / len(results), 3) if mode_online and results else None,
-        "results": results,
-    }
+    from deepsupport_os.harness.eval_metrics import aggregate_summary
+
+    summary = aggregate_summary(
+        results,
+        mode="online" if mode_online else "offline",
+        use_daytona=bool(args.daytona) if mode_online else False,
+    )
     out = ROOT / "data" / "benchmark" / "last_eval.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # Persist cases + metrics into deepsupport.db
+    run_id = None
+    try:
+        from deepsupport_os.db.eval_store import save_eval_run, sync_eval_cases
+
+        synced = sync_eval_cases(path=args.cases)
+        run_id = save_eval_run(summary, cases_path=str(args.cases))
+        print(f"db: synced {synced['upserted']} cases, run_id={run_id}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"db persist skipped: {exc}")
+
     keys = (
         "total",
         "passed",
@@ -191,10 +242,30 @@ def main() -> None:
         "mode",
         "use_daytona",
         "avg_elapsed_ms",
+        "p50_elapsed_ms",
+        "p95_elapsed_ms",
         "tool_hit_rate",
         "hitl_hit_rate",
+        "offload_hit_rate",
+        "skill_hit_rate",
+        "subagent_hit_rate",
+        "planning_hit_rate",
+        "write_safety_rate",
+        "grounding_rate",
+        "long_task_pass_rate",
+        "hitl_case_pass_rate",
+        "interrupt_rate",
+        "error_rate",
+        "avg_tool_calls",
+        "avg_step_count",
+        "avg_subagent_dispatches",
     )
-    print(json.dumps({k: summary[k] for k in keys}, ensure_ascii=False, indent=2))
+    payload = {k: summary.get(k) for k in keys}
+    if summary.get("by_tag"):
+        payload["by_tag"] = summary["by_tag"]
+    if run_id:
+        payload["run_id"] = run_id
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
     print(f"wrote {out}")
 
 
