@@ -72,10 +72,14 @@ def skill_from_path(path: str) -> str | None:
     return m.group(1) if m else None
 
 
+_INVOCATION_KINDS = frozenset({"tool_call", "subagent_dispatch", "context_offload"})
+
+
 def classify_stage(step: dict[str, Any]) -> str:
     kind = step.get("kind")
     name = str(step.get("name") or "")
-    if kind == "subagent_dispatch":
+    # tool_result may inherit subagent from the matching task dispatch
+    if kind == "subagent_dispatch" or (kind == "tool_result" and step.get("subagent")):
         sub = str(step.get("subagent") or "")
         if sub == "environment-diagnosis":
             return "diagnose"
@@ -100,7 +104,11 @@ def classify_stage(step: dict[str, Any]) -> str:
 
 
 def annotate_steps(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Mutate/copy steps with skill_used, tool_source, stage."""
+    """Mutate/copy steps with skill_used, tool_source, stage.
+
+    tool_result inherits skill_used / subagent from the latest matching
+    invocation so stage badges stay aligned with the call (not orphaned in「其他」).
+    """
     out: list[dict[str, Any]] = []
     for raw in steps:
         step = dict(raw)
@@ -122,8 +130,29 @@ def annotate_steps(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
             step["tool_source"] = prov.get("source")
             if prov.get("server"):
                 step["mcp_server"] = prov["server"]
-        step["stage"] = classify_stage(step)
         out.append(step)
+
+    last_invocation: dict[str, dict[str, Any]] = {}
+    for step in out:
+        kind = step.get("kind")
+        name = str(step.get("name") or "")
+        if kind in _INVOCATION_KINDS and name:
+            last_invocation[name] = step
+        elif kind == "tool_result" and name:
+            parent = last_invocation.get(name)
+            if not parent:
+                continue
+            if parent.get("skill_used") and not step.get("skill_used"):
+                step["skill_used"] = parent["skill_used"]
+            if parent.get("subagent") and not step.get("subagent"):
+                step["subagent"] = parent["subagent"]
+            if parent.get("tool_source") and not step.get("tool_source"):
+                step["tool_source"] = parent["tool_source"]
+            if parent.get("mcp_server") and not step.get("mcp_server"):
+                step["mcp_server"] = parent["mcp_server"]
+
+    for step in out:
+        step["stage"] = classify_stage(step)
     return out
 
 
@@ -141,11 +170,8 @@ def group_stages(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
         items = buckets[key]
         if not items:
             continue
-        toolish = [
-            s
-            for s in items
-            if s.get("kind") in {"tool_call", "subagent_dispatch", "context_offload", "tool_result"}
-        ]
+        # Count / summarize invocations only — tool_result is the pair, not a second call
+        invocations = [s for s in items if s.get("kind") in _INVOCATION_KINDS]
         status = "done"
         if any(s.get("name") == "ask_user" for s in items):
             # ask without following tool_result still pending visually handled by interrupt
@@ -156,9 +182,9 @@ def group_stages(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 "label": label,
                 "status": status,
                 "step_count": len(items),
-                "tool_count": len([s for s in items if s.get("kind") == "tool_call"]),
+                "tool_count": len(invocations),
                 "steps": items,
-                "summary": _stage_summary(items, toolish),
+                "summary": _stage_summary(items, invocations),
             }
         )
     return stages
@@ -220,7 +246,7 @@ def build_run_overview(
             sk = str(s["skill_used"])
             if sk not in skills:
                 skills.append(sk)
-        if kind in {"tool_call", "subagent_dispatch", "context_offload"}:
+        if kind in _INVOCATION_KINDS:
             name = str(s.get("name") or "unknown")
             tool_counts[name] = tool_counts.get(name, 0) + 1
             src = str(s.get("tool_source") or "unknown")

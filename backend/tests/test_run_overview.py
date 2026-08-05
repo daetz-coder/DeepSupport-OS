@@ -98,3 +98,37 @@ def test_current_run_slice_ignores_prior_turn():
     full_names = [t["name"] for t in full["tools"]["items"]]
     assert "create_ticket" in full_names
     assert "ask_user" in full_names
+
+
+def test_tool_result_inherits_stage_not_orphaned_in_other():
+    """tool_result without args must follow its call — not inflate「其他」with 0 tools."""
+    clear_tool_provenance()
+    steps = [
+        {
+            "kind": "tool_call",
+            "name": "read_file",
+            "args": {"file_path": "/skills/outlook-troubleshooting/SKILL.md"},
+        },
+        {"kind": "tool_result", "name": "read_file", "content": "---\nname: outlook"},
+        {
+            "kind": "subagent_dispatch",
+            "name": "task",
+            "subagent": "knowledge-research",
+        },
+        {"kind": "tool_result", "name": "task", "content": "report"},
+    ]
+    annotated = annotate_steps(steps)
+    assert annotated[0]["stage"] == "research"
+    assert annotated[1]["skill_used"] == "outlook-troubleshooting"
+    assert annotated[1]["stage"] == "research"
+    assert annotated[2]["stage"] == "research"
+    assert annotated[3]["subagent"] == "knowledge-research"
+    assert annotated[3]["stage"] == "research"
+
+    overview = build_run_overview(steps, current_run_only=False)
+    by_id = {s["id"]: s for s in overview["stages"]}
+    assert "other" not in by_id
+    research = by_id["research"]
+    assert research["tool_count"] == 2  # read_file call + task dispatch
+    assert "outlook-troubleshooting" in research["summary"] or "read_file" in research["summary"]
+    assert "knowledge-research" in research["summary"]

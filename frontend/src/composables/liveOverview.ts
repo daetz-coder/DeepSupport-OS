@@ -49,6 +49,58 @@ function lookupSource(name: string): { source: string; server?: string } {
   return { source: 'local' }
 }
 
+const INVOCATION_KINDS = new Set(['tool_call', 'subagent_dispatch', 'context_offload'])
+
+const PLAN_TOOLS = new Set(['write_todos', 'read_todos'])
+const DIAGNOSE_TOOLS = new Set([
+  'get_employee',
+  'get_department',
+  'get_manager',
+  'get_device',
+  'list_user_devices',
+  'get_account_status',
+  'get_license',
+  'check_action_permission',
+])
+const RESEARCH_TOOLS = new Set([
+  'search_docs',
+  'search_cases',
+  'search_knowledge',
+  'search_similar_cases',
+])
+const ACTION_TOOLS = new Set([
+  'ask_user',
+  'request_password_reset',
+  'request_license_change',
+  'close_ticket',
+  'escalate_ticket',
+  'create_ticket',
+  'update_ticket',
+  'get_ticket',
+  'notify_user',
+  'run_sandbox_shell',
+])
+const WRITE_FILE_TOOLS = new Set(['write_file', 'edit_file'])
+
+function classifyStage(step: TraceStep): string {
+  const kind = step.kind
+  const name = String(step.name || '')
+  if (kind === 'subagent_dispatch' || (kind === 'tool_result' && step.subagent)) {
+    const sub = String(step.subagent || '')
+    if (sub === 'environment-diagnosis') return 'diagnose'
+    if (sub === 'knowledge-research') return 'research'
+    if (sub === 'ticket-operations') return 'action'
+    return 'plan'
+  }
+  if (kind === 'context_offload') return 'action'
+  if (PLAN_TOOLS.has(name) || (kind === 'assistant' && !name)) return 'plan'
+  if (DIAGNOSE_TOOLS.has(name)) return 'diagnose'
+  if (RESEARCH_TOOLS.has(name) || step.skill_used) return 'research'
+  if (ACTION_TOOLS.has(name) || WRITE_FILE_TOOLS.has(name)) return 'action'
+  if (kind === 'user' || kind === 'assistant') return 'plan'
+  return 'other'
+}
+
 /** Ensure SSE steps carry skill_used / tool_source even if a field was omitted. */
 export function enrichStep(raw: TraceStep): TraceStep {
   const step = { ...raw }
@@ -82,6 +134,32 @@ export function enrichStep(raw: TraceStep): TraceStep {
   return step
 }
 
+/** Annotate a step list: inherit call metadata onto tool_result, then set stage. */
+function enrichSteps(rawSteps: TraceStep[]): TraceStep[] {
+  const steps = rawSteps.map((s) => {
+    const copy = { ...s }
+    delete copy.stage
+    return enrichStep(copy)
+  })
+  const lastInv: Record<string, TraceStep> = {}
+  for (const step of steps) {
+    const name = String(step.name || '')
+    if (INVOCATION_KINDS.has(step.kind) && name) {
+      lastInv[name] = step
+    } else if (step.kind === 'tool_result' && name && lastInv[name]) {
+      const parent = lastInv[name]
+      if (parent.skill_used && !step.skill_used) step.skill_used = parent.skill_used
+      if (parent.subagent && !step.subagent) step.subagent = parent.subagent
+      if (parent.tool_source && !step.tool_source) step.tool_source = parent.tool_source
+      if (parent.mcp_server && !step.mcp_server) step.mcp_server = parent.mcp_server
+    }
+  }
+  for (const step of steps) {
+    step.stage = classifyStage(step)
+  }
+  return steps
+}
+
 function groupStages(steps: TraceStep[]): StageBucket[] {
   const order = [
     ['plan', '理解与规划'],
@@ -101,15 +179,20 @@ function groupStages(steps: TraceStep[]): StageBucket[] {
   for (const [id, label] of order) {
     const items = buckets.get(id)
     if (!items?.length) continue
-    const toolCount = items.filter((s) =>
-      ['tool_call', 'subagent_dispatch', 'context_offload', 'tool_result'].includes(s.kind),
-    ).length
+    const invocations = items.filter((s) => INVOCATION_KINDS.has(s.kind))
+    const names: string[] = []
+    for (const s of invocations) {
+      const n = String(s.subagent || s.skill_used || s.name || '')
+      if (n && !names.includes(n)) names.push(n)
+      if (names.length >= 4) break
+    }
     out.push({
       id,
       label,
       status: 'running',
       step_count: items.length,
-      tool_count: toolCount,
+      tool_count: invocations.length,
+      summary: names.length ? names.join(' · ') : `${items.length} 步`,
       steps: items,
     })
   }
@@ -122,7 +205,7 @@ export function buildLiveOverview(
   todos: TodoItem[],
   status?: string,
 ): RunOverview {
-  const scoped = steps.map(enrichStep)
+  const scoped = enrichSteps(steps)
   const agents: string[] = []
   const skills: string[] = []
   const toolCounts: Record<string, number> = {}
