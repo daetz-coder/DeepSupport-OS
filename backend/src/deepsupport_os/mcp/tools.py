@@ -371,6 +371,7 @@ ALL_MOCK_TOOLS = (
 def all_agent_tools():
     """Combine in-process mock tools + knowledge + optional remote MCP tools."""
     from deepsupport_os.core.extensions import ext_bool
+    from deepsupport_os.harness.capability_registry import filter_tools
     from deepsupport_os.harness.tool_provenance import clear_tool_provenance, tag_tool
     from deepsupport_os.rag.knowledge_tools import KNOWLEDGE_TOOLS
 
@@ -395,4 +396,4 @@ def all_agent_tools():
                     server = server.get("server") or server.get("mcp_server")
                 tools.append(tag_tool(t, source="remote", server=str(server) if server else "remote"))
                 existing.add(name)
-    return tools
+    return filter_tools(tools)

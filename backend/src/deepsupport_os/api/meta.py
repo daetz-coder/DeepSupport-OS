@@ -9,6 +9,13 @@ from pydantic import BaseModel, Field
 
 from deepsupport_os.api.auth import require_admin
 from deepsupport_os.core.extensions import load_extensions, save_extensions
+from deepsupport_os.harness.capability_registry import (
+    capabilities_snapshot,
+    set_subagent_enabled,
+    set_tool_enabled,
+    subagent_entry,
+    tool_entry,
+)
 from deepsupport_os.harness.skills_registry import (
     import_catalog_skill,
     load_catalog,
@@ -34,6 +41,46 @@ def _reset_agent() -> None:
 
     tasks_api.reset_agents()
 
+
+@router.get("/capabilities")
+def get_capabilities():
+    """Unified Tool / Skill / SubAgent registry snapshot (R3-4)."""
+    return capabilities_snapshot()
+
+
+class CapabilityToggle(BaseModel):
+    enabled: bool
+
+
+@router.post("/tools/{name}/toggle", dependencies=[Depends(require_admin)])
+def toggle_tool(name: str, body: CapabilityToggle):
+    item = set_tool_enabled(name, body.enabled)
+    _reset_agent()
+    return {"ok": True, "tool": item}
+
+
+@router.get("/tools/{name}")
+def get_tool(name: str):
+    return tool_entry(name)
+
+
+@router.post("/subagents/{name}/toggle", dependencies=[Depends(require_admin)])
+def toggle_subagent(name: str, body: CapabilityToggle):
+    try:
+        item = set_subagent_enabled(name, body.enabled)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"subagent not found: {name}") from exc
+    _reset_agent()
+    return {"ok": True, "subagent": item}
+
+
+@router.get("/subagents/{name}")
+def get_subagent(name: str):
+    from deepsupport_os.harness.capability_registry import SUBAGENT_CATALOG
+
+    if not any(s["name"] == name for s in SUBAGENT_CATALOG):
+        raise HTTPException(status_code=404, detail=f"subagent not found: {name}")
+    return subagent_entry(name)
 
 @router.get("/skills")
 def get_skills_index():

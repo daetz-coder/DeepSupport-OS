@@ -26,8 +26,14 @@ _TICKET_DRAFT_TOOLS = [create_ticket, get_ticket, update_ticket]
 
 
 def build_mvp_subagents() -> list[dict]:
-    """Three MVP subagents by responsibility (not by product)."""
-    return [
+    """Three MVP subagents by responsibility (not by product).
+
+    Catalog / enable flags live in capability_registry (R3-4); this builder
+    supplies callables + prompts, then filters disabled entries.
+    """
+    from deepsupport_os.harness.capability_registry import filter_subagents
+
+    specs = [
         {
             "name": "knowledge-research",
             "description": (
@@ -79,3 +85,4 @@ def build_mvp_subagents() -> list[dict]:
             "tools": _TICKET_DRAFT_TOOLS,
         },
     ]
+    return filter_subagents(specs)
