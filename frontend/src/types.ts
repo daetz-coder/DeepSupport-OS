@@ -120,6 +120,14 @@ export type ChatBubble = {
   pendingAsk?: boolean
 }
 
+/** A local system notice (e.g. HITL approval) anchored to a transcript position. */
+export type ThreadNotice = {
+  role: 'system'
+  content: string
+  /** Insert the notice right before this transcript message index. */
+  afterIndex: number
+}
+
 export type AuditItem = {
   id: number
   task_id: string

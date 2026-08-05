@@ -1,4 +1,4 @@
-import type { ChatBubble, ChatMessage, InterruptInfo } from '../types'
+import type { ChatBubble, ChatMessage, InterruptInfo, ThreadNotice } from '../types'
 
 function askQuestionFromToolCalls(toolCalls: unknown[] | undefined): string | null {
   for (const raw of toolCalls || []) {
@@ -44,16 +44,34 @@ function pushAssistant(out: ChatBubble[], content: string, pendingAsk: boolean, 
   out.push({ id, role: 'assistant', content: text, pendingAsk })
 }
 
-/** Build conversation bubbles from checkpoint messages (+ optional ask interrupt). */
+/** Build conversation bubbles from checkpoint messages (+ optional ask interrupt + anchored notices). */
 export function buildChatBubbles(
   messages: ChatMessage[] | undefined,
   interrupt?: InterruptInfo | null,
+  notices: ThreadNotice[] = [],
 ): ChatBubble[] {
   const out: ChatBubble[] = []
   let i = 0
   const pendingQ = interrupt?.type === 'ask' ? (interrupt.question || '').trim() : ''
 
+  // System notices anchored to a transcript index: flush them right before that message,
+  // so an approval lands at the moment it happened instead of pinning at the bottom.
+  const noticesByIndex = new Map<number, ThreadNotice[]>()
+  for (const n of notices || []) {
+    const list = noticesByIndex.get(n.afterIndex) || []
+    list.push(n)
+    noticesByIndex.set(n.afterIndex, list)
+  }
+  const flushNotices = (at: number) => {
+    for (const n of noticesByIndex.get(at) || []) {
+      out.push({ id: `notice-${n.afterIndex}-${i++}`, role: 'system', content: n.content })
+    }
+  }
+
+  let mi = 0
   for (const m of messages || []) {
+    flushNotices(mi)
+    mi += 1
     const role = String(m.role || '').toLowerCase()
     const content = String(m.content || '').trim()
     const name = String(m.name || '')
@@ -89,6 +107,7 @@ export function buildChatBubbles(
       }
     }
   }
+  flushNotices(mi) // tail: notices anchored at the very end of the transcript
 
   if (pendingQ) {
     pushAssistant(out, pendingQ, true, `ask-live-${i++}`)

@@ -15,6 +15,7 @@ import type {
   RunOverview,
   StageBucket,
   ThreadItem,
+  ThreadNotice,
   TodoItem,
   Trace,
   TraceStep,
@@ -59,8 +60,8 @@ const openStages = ref<Record<string, boolean>>({})
 const metrics = ref<Record<string, unknown> | null>(null)
 const streamingText = ref('')
 const chatScrollEl = ref<HTMLElement | null>(null)
-/** Local system notices (HITL decisions etc.) kept in the transcript for this thread. */
-const threadNotices = ref<ChatMessage[]>([])
+/** Local system notices (HITL decisions etc.), anchored to the transcript position where they happened. */
+const threadNotices = ref<ThreadNotice[]>([])
 
 const {
   skillsInstalled,
@@ -97,7 +98,7 @@ const isHitlInterrupt = computed(
   () => hasInterrupt.value && interrupt.value?.type !== 'ask',
 )
 const chatBubbles = computed(() =>
-  buildChatBubbles([...messages.value, ...threadNotices.value], interrupt.value),
+  buildChatBubbles(messages.value, interrupt.value, threadNotices.value),
 )
 const composerPlaceholder = computed(() =>
   isAskInterrupt.value
@@ -698,6 +699,8 @@ async function resume(approved: boolean) {
   lastError.value = null
   viewMode.value = 'chat'
   const labels = pendingPreview.value.map((p) => p.label || p.name).filter(Boolean).join('、')
+  // Anchor the decision notice at the transcript seam where the HITL pause happened,
+  // so it renders right after the approval request and before the resumed run output.
   threadNotices.value = [
     ...threadNotices.value,
     {
@@ -705,6 +708,7 @@ async function resume(approved: boolean) {
       content: approved
         ? `已批准写操作${labels ? `：${labels}` : ''}`
         : `已拒绝写操作${labels ? `：${labels}` : ''}`,
+      afterIndex: messages.value.length,
     },
   ]
   try {
