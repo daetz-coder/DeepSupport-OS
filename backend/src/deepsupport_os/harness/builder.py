@@ -25,7 +25,9 @@ WRITE_TOOL_NAMES = frozenset(
     {"request_password_reset", "request_license_change", "close_ticket", "escalate_ticket"}
 )
 
-# approve = run tool; reject = cancel; respond = side effect already applied by API
+# Human resume must use reject | respond only (API is Single Executor for writes).
+# `approve` remains allowed so interrupt `when=False` auto-approve can still run
+# already-applied tools (returns already_applied); API never sends approve.
 _HITL_DECISIONS = ["approve", "reject", "respond"]
 
 

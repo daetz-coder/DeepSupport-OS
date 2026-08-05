@@ -665,9 +665,9 @@ def _hitl_resume_decisions(
 ) -> list[dict[str, Any]]:
     """Build HITL resume decisions.
 
-    After a successful apply we use `respond` (synthetic ToolMessage) so the write
-    tool is not re-executed — re-running escalate/close invited the model to call
-    them again and re-open the approval UI.
+    Single Executor: business writes are applied only by ``apply_approved_writes``.
+    Resume must never use ``approve`` (that would re-run the write tool). Always
+    ``respond`` with the apply result (or an apply-failed payload) / ``reject``.
     """
     n = max(len(pending), 1)
     if not approved:
@@ -677,25 +677,47 @@ def _hitl_resume_decisions(
         )
         return [{"type": "reject", "message": msg} for _ in range(n)]
 
-    applied_ok = bool(applied) and all(
-        isinstance(a.get("result"), dict) and a["result"].get("ok") for a in applied
-    )
-    if applied_ok and len(applied) >= len(pending) and pending:
-        decisions: list[dict[str, Any]] = []
-        for i, _w in enumerate(pending):
-            result = dict(applied[i].get("result") or {})
-            result.setdefault("hitl", "approved_and_applied")
-            result.setdefault(
-                "message",
-                "人工已批准，写操作已落库。勿再次调用同一写工具；继续收尾并回复用户。",
-            )
-            decisions.append(
-                {"type": "respond", "message": json.dumps(result, ensure_ascii=False, default=str)}
-            )
-        return decisions
+    if not pending:
+        payload = {
+            "ok": False,
+            "error": "no_pending_writes",
+            "hitl": "apply_skipped",
+            "message": "人工已批准但无待写操作。请勿再次调用写工具；向用户说明并继续。",
+        }
+        return [{"type": "respond", "message": json.dumps(payload, ensure_ascii=False)}]
 
-    return [{"type": "approve"} for _ in range(n)]
-
+    decisions: list[dict[str, Any]] = []
+    for i, w in enumerate(pending):
+        if i < len(applied) and isinstance(applied[i].get("result"), dict):
+            result = dict(applied[i]["result"])
+            if result.get("ok"):
+                result.setdefault("hitl", "approved_and_applied")
+                result.setdefault(
+                    "message",
+                    "人工已批准，写操作已落库。勿再次调用同一写工具；继续收尾并回复用户。",
+                )
+            else:
+                result.setdefault("hitl", "approved_but_apply_failed")
+                result.setdefault(
+                    "message",
+                    "人工已批准但落库失败。请勿再次调用同一写工具；向用户说明错误并改用其它方案。",
+                )
+        else:
+            result = {
+                "ok": False,
+                "error": "apply_missing",
+                "hitl": "approved_but_apply_failed",
+                "tool": w.get("name"),
+                "args": w.get("args") or {},
+                "message": (
+                    "人工已批准但落库未执行。请勿再次调用同一写工具；"
+                    "向用户说明并改用其它方案。"
+                ),
+            }
+        decisions.append(
+            {"type": "respond", "message": json.dumps(result, ensure_ascii=False, default=str)}
+        )
+    return decisions
 
 def _prepare_resume(
     body: ResumeRequest,
