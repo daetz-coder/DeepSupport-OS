@@ -1,3 +1,38 @@
 # Demo screenshots
 
-Place PNG/GIF captures of Outlook HITL / Trace / Artifacts here.
+## 主图（README 封面）
+
+| 文件 | 说明 |
+|---|---|
+| `DeepSupport-OS.png` | 系统架构总览（本地原图，清晰）。嵌入 README 顶部。 |
+
+## README 已收录（Mock 演示，已筛敏感/误导）
+
+| 文件 | 内容 | 收录原因 |
+|---|---|---|
+| `01-chat-outlook.png` | 对话完成态 + 规划 / 子代理 / 工具侧栏 | 主链路能力一览；邮箱为 `contoso.com` Mock |
+| `07-ask-user.png` | `ask_user` 暂停待答 | 展示澄清式 HITL，无工单明文参数 |
+| `08-hitl-escalate.png` | `escalate_ticket` 人工审批 | 展示高风险写操作审批；工单为 Mock `T1009` |
+| `05-skills.png` | Skills 已安装 / Catalog | 能力面，无会话隐私 |
+| `06-mcp.png` | 本地 Mock + 远程 MCP 配置 | 工具编排面；URL 为本机示例 |
+
+## 未收录（已丢弃 / 不入库）
+
+| 原截图 | 原因 |
+|---|---|
+| 运行阶段窄条（含「其他 0 tools」） | 暴露计数 bug，且裁切过狠 |
+| 执行轨迹 / 产物全文展开 | 与完成态对话重叠；诊断正文员工细节过多 |
+| 侧栏「知识 0」诊断图 | 指标有误，易误导 |
+
+## 清晰度说明
+
+- **清晰：** 直接写入本目录的 PNG（如 `DeepSupport-OS.png` ≈ 1577×997）。
+- **发糊：** 经 Cursor 聊天附件上传的截图会被压到约 **1024px 宽**、体积常仅 35–90KB，放大必糊。
+- **替换建议：** 浏览器 100% 缩放 → 整窗或区域截图 → **直接**保存覆盖本目录同名文件，不要从聊天再拖一次。
+
+## 内容红线（再补图时自检）
+
+- 不要出现真实邮箱、工号、Token、`.env`、内网生产 URL
+- 演示统一用 Mock：`contoso.com` / `E001` / `T1009`
+- 不要收录带明显 UI/指标 bug 的画面
+- 优先整窗、可读字体；避免过度裁切与二次压缩
