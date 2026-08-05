@@ -46,7 +46,7 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     def health():
-        return {"status": "ok"}
+        return {"status": "ok", "llm_configured": settings.llm_configured}
 
     @app.post("/admin/seed")
     def admin_seed(force: bool = False):

@@ -59,8 +59,10 @@ def build_client_connections(cfg: dict[str, Any] | None = None) -> dict[str, dic
             entry["args"] = list(spec.get("args") or [])
             if spec.get("env"):
                 entry["env"] = spec["env"]
-            # cwd: run from repo root so uv module paths resolve
-            entry["cwd"] = str(get_settings().root_dir / "backend")
+            # Local: <repo>/backend; Docker image WORKDIR is already /app
+            root = get_settings().root_dir
+            backend_dir = root / "backend"
+            entry["cwd"] = str(backend_dir if backend_dir.is_dir() else root)
         out[name] = entry
     return out
 

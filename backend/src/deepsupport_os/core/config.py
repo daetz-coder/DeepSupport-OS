@@ -4,8 +4,25 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# backend/src/deepsupport_os/core/config.py → repo root
-ROOT_DIR = Path(__file__).resolve().parents[4]
+
+def _detect_root_dir() -> Path:
+    """Resolve project root for local (`…/backend/src/…`) and Docker (`/app/src/…`)."""
+    here = Path(__file__).resolve()
+    local_root = here.parents[4]  # <repo>/backend/src/deepsupport_os/core → <repo>
+    docker_root = here.parents[3]  # /app/src/deepsupport_os/core → /app
+    # Local checkout: repo has backend/ + skills/ (or compose)
+    if (local_root / "backend").is_dir() and (
+        (local_root / "skills").is_dir() or (local_root / "docker-compose.yml").is_file()
+    ):
+        return local_root
+    if (docker_root / "src" / "deepsupport_os").is_dir() and (
+        docker_root / "pyproject.toml"
+    ).is_file():
+        return docker_root
+    return local_root
+
+
+ROOT_DIR = _detect_root_dir()
 
 
 class Settings(BaseSettings):

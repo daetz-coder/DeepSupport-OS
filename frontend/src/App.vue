@@ -93,7 +93,8 @@ type McpServerSpec = {
   description?: string
 }
 
-const API = 'http://127.0.0.1:8000'
+// Dev: hit API directly. Production/Docker build: same-origin via nginx `/api` + `/health`.
+const API = import.meta.env.VITE_API_BASE ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000' : '')
 const question = ref('我的 Outlook 一直登录不上，邮箱是 wei.zhang@contoso.com')
 const loading = ref(false)
 const useStream = ref(true)
@@ -170,9 +171,9 @@ function applyRecord(data: Record<string, unknown>) {
 
 async function checkHealth() {
   try {
-    const res = await fetch(`${API}/`)
+    const res = await fetch(`${API}/health`)
     const data = await res.json()
-    health.value = '后端正常'
+    health.value = data.status === 'ok' ? '后端正常' : '后端异常'
     llmConfigured.value = Boolean(data.llm_configured)
   } catch {
     health.value = '无法连接后端'
