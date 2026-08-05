@@ -38,7 +38,19 @@ def _ensure_env() -> None:
 
 
 def _sandbox_state(sandbox: Any) -> str:
-    return str(getattr(sandbox, "state", "") or getattr(sandbox, "status", "") or "").lower()
+    """Normalize Daytona state enum/string to a short token (e.g. started)."""
+    raw = getattr(sandbox, "state", None)
+    if raw is None:
+        raw = getattr(sandbox, "status", None)
+    if raw is None:
+        return ""
+    if hasattr(raw, "value"):
+        raw = raw.value
+    text = str(raw).strip().lower()
+    # Enum repr like "SandboxState.STARTED" / "sandboxstate.started"
+    if "." in text:
+        text = text.rsplit(".", 1)[-1]
+    return text
 
 
 def get_or_create_daytona_backend() -> Any | None:
