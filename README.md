@@ -230,6 +230,30 @@ uv run python ../scripts/ingest_to_raglab.py
 uv run python ../scripts/migrate_ms_kb.py
 ```
 
+### 知识库规模（kb=deepsupport · 实时统计）
+
+> 统计来源：`GET /api/documents?kb=deepsupport`（RAGLab 在线查询，2026-08-05）。本地语料源 `data/knowledge/microsoft/*.md` 上传后由 RAGLab 切分为 chunk 并向量化，检索经 `/api/query?kb=deepsupport`。
+
+| 指标 | 值 |
+|---|---:|
+| 文档总数 | **92** |
+| Chunk 总数 | **868** |
+| 平均 chunk / 文档 | 9.4 |
+
+按产品分布：
+
+| 产品 | 文档数 | Chunks |
+|---|---:|---:|
+| Outlook | 16 | 150 |
+| PowerPoint | 14 | 143 |
+| Microsoft 365 | 14 | 104 |
+| Teams | 13 | 162 |
+| OneDrive | 13 | 89 |
+| Excel | 13 | 147 |
+| Word | 9 | 73 |
+
+> 覆盖 Microsoft 365 支持知识库的 7 大产品线；`kb` 隔离使同一 RAGLab 实例上的其它语料互不影响。
+
 ## 文档地图
 
 
