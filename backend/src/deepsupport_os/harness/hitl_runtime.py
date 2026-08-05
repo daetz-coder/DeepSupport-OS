@@ -8,8 +8,11 @@ from typing import Any, Callable
 
 from fastapi import HTTPException
 
-from deepsupport_os.harness.hitl_apply import apply_approved_writes, collect_pending_writes
+from deepsupport_os.harness.hitl_apply import collect_pending_writes
 from deepsupport_os.harness.runtime_context import run_context
+from deepsupport_os.harness.unit_of_work import WriteUnitOfWork
+from deepsupport_os.harness.tracing import span
+
 
 logger = logging.getLogger(__name__)
 
@@ -131,11 +134,13 @@ def prepare_resume(
         pending = collect_pending_writes(None, pending=interrupt_before.get("pending_writes"))
         if body.approved and pending:
             with run_context(thread_id=tid, task_id=body.task_id or tid):
-                applied = apply_approved_writes(
-                    pending,
-                    task_id=body.task_id or body.thread_id,
-                    thread_id=tid,
-                )
+                with span("hitl.prepare_resume", interrupt_type="hitl", approved=True):
+                    uow = WriteUnitOfWork(
+                        approval_id=str(body.task_id or tid),
+                        task_id=body.task_id or body.thread_id,
+                        thread_id=tid,
+                    )
+                    applied = uow.run(pending)
         resume_payload = {
             "decisions": hitl_resume_decisions(
                 approved=body.approved, pending=pending, applied=applied

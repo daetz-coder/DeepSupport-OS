@@ -697,7 +697,7 @@ Tool Registry + 按 Skill 动态挂载；SubAgent 目录化；Checkpoint 外置 
 | R3-2 | 抽出 `HitlRuntime` / `AgentSession`，瘦身 `tasks.py` | AR-19 | `[x]` |
 | R3-3 | SSE `seq` + interrupt 即时事件 | AR-13 | `[x]` |
 | R3-4 | Tool/Skill/SubAgent Registry | AR-20 | `[x]` |
-| R3-5 | OTel tracing + WriteUnitOfWork | AR-17 | `[ ]` |
+| R3-5 | OTel tracing + WriteUnitOfWork | AR-17 | `[x]` |
 
 ---
 
@@ -722,7 +722,7 @@ Tool Registry + 按 Skill 动态挂载；SubAgent 目录化；Checkpoint 外置 
 | 状态 / SoT | 4/10 | 多真相源 |
 | 多租户 / 隔离 | 3.5/10 | Memory/Sandbox/DB |
 | 可扩展性 | 4.5/10 | MVP 硬编码 |
-| 可观测 / 运营 | 4/10 | 有 JSON，无 Tracing/Rollback |
+| 可观测 / 运营 | 5/10 | JSON + Audit contextvars + OTel span 骨架；Rollback/补偿仍弱 |
 | **综合** | **5.5/10** | 优秀 Demo Harness；距生产 Agent Platform 仍有断层 |
 
 ---
