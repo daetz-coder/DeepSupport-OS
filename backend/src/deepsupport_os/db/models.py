@@ -257,3 +257,7 @@ def get_session_factory():
 def init_db() -> None:
     engine = get_engine()
     Base.metadata.create_all(engine)
+    # create_all never adds columns to existing tables; migrate additive drift.
+    from deepsupport_os.db.migrate import migrate_db
+
+    migrate_db()
