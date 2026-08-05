@@ -1,22 +1,26 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { API, apiHeaders } from './api/client'
+import { buildChatBubbles, shortThreadLabel } from './composables/chatBubbles'
 import { useHealth } from './composables/useHealth'
 import { useMcp } from './composables/useMcp'
 import { useSkills } from './composables/useSkills'
 import type {
   ArtifactItem,
   AuditItem,
+  ChatMessage,
   HitlPreview,
   InterruptInfo,
-  TaskItem,
+  RunOverview,
+  StageBucket,
+  ThreadItem,
   TodoItem,
   Trace,
   TraceStep,
 } from './types'
 
-const question = ref('我的 Outlook 一直登录不上，邮箱是 wei.zhang@contoso.com')
+const question = ref('我的 Outlook 一直登录不上')
 const loading = ref(false)
 const useStream = ref(true)
 const {
@@ -34,18 +38,27 @@ const taskId = ref<string | null>(null)
 const status = ref('')
 const workspacePath = ref<string | null>(null)
 const interrupt = ref<InterruptInfo | null>(null)
+const messages = ref<ChatMessage[]>([])
 const steps = ref<TraceStep[]>([])
 const appliedWrites = ref<unknown[]>([])
 const liveEvents = ref<string[]>([])
-const taskList = ref<TaskItem[]>([])
+const threadList = ref<ThreadItem[]>([])
 const auditList = ref<AuditItem[]>([])
 const todos = ref<TodoItem[]>([])
 const artifacts = ref<ArtifactItem[]>([])
 const artifactContent = ref<string | null>(null)
 const artifactFocus = ref<string | null>(null)
 const activeTab = ref('trace')
+const viewMode = ref<'chat' | 'workspace'>('chat')
 const lastError = ref<string | null>(null)
 const lastQuestion = ref('')
+const overview = ref<RunOverview | null>(null)
+const overviewOpen = ref(true)
+const stagesPanelOpen = ref(false)
+const openStages = ref<Record<string, boolean>>({})
+const metrics = ref<Record<string, unknown> | null>(null)
+const streamingText = ref('')
+const chatScrollEl = ref<HTMLElement | null>(null)
 
 const {
   skillsInstalled,
@@ -77,7 +90,27 @@ const {
 } = useMcp()
 
 const hasInterrupt = computed(() => Boolean(interrupt.value))
+const isAskInterrupt = computed(() => interrupt.value?.type === 'ask')
+const isHitlInterrupt = computed(
+  () => hasInterrupt.value && interrupt.value?.type !== 'ask',
+)
+const chatBubbles = computed(() => buildChatBubbles(messages.value, interrupt.value))
+const composerPlaceholder = computed(() =>
+  isAskInterrupt.value
+    ? '回复以继续（回答 Agent 的提问）'
+    : '输入支持请求，同一会话可多轮续聊…',
+)
+
+async function scrollChatToBottom() {
+  await nextTick()
+  const el = chatScrollEl.value
+  if (el) el.scrollTop = el.scrollHeight
+}
+const submitLabel = computed(() =>
+  isAskInterrupt.value ? '发送回复' : '发送 / 继续',
+)
 const pendingPreview = computed<HitlPreview[]>(() => {
+  if (isAskInterrupt.value) return []
   const fromInterrupt = interrupt.value?.pending_preview
   if (fromInterrupt?.length) return fromInterrupt
   const writes = interrupt.value?.pending_writes || []
@@ -93,6 +126,18 @@ const pendingPreview = computed<HitlPreview[]>(() => {
     }))
 })
 
+const stageBuckets = computed<StageBucket[]>(() => {
+  if (overview.value?.stages?.length) return overview.value.stages
+  return []
+})
+
+const durationLabel = computed(() => {
+  const ms = overview.value?.duration_ms ?? (metrics.value?.duration_ms as number | undefined)
+  if (ms == null) return '—'
+  if (ms < 1000) return `${Math.round(ms)} ms`
+  return `${(ms / 1000).toFixed(1)} s`
+})
+
 function applyRecord(data: Record<string, unknown>) {
   threadId.value = (data.thread_id as string) || threadId.value
   taskId.value = (data.task_id as string) || taskId.value
@@ -100,24 +145,45 @@ function applyRecord(data: Record<string, unknown>) {
   workspacePath.value = (data.workspace_path as string) || workspacePath.value
   interrupt.value = (data.interrupt as InterruptInfo) || null
   appliedWrites.value = (data.applied_writes as unknown[]) || []
+  if (Array.isArray(data.messages)) {
+    messages.value = data.messages as ChatMessage[]
+  }
   if (Array.isArray(data.todos)) {
     todos.value = data.todos as TodoItem[]
   }
   if (Array.isArray(data.artifacts)) {
     artifacts.value = data.artifacts as ArtifactItem[]
   }
+  if (data.overview && typeof data.overview === 'object') {
+    overview.value = data.overview as RunOverview
+  }
+  if (data.metrics && typeof data.metrics === 'object') {
+    metrics.value = data.metrics as Record<string, unknown>
+  }
   const trace = data.trace as Trace | undefined
   if (trace?.steps?.length) {
     steps.value = trace.steps
   }
+  if (!overview.value && trace?.stages?.length) {
+    overview.value = {
+      status: status.value,
+      stages: trace.stages,
+      skills: trace.skills_used || [],
+      plan: {
+        total: todos.value.length,
+        completed: todos.value.filter((t) => t.status === 'completed').length,
+        items: todos.value,
+      },
+    }
+  }
 }
 
-async function refreshTasks() {
+async function refreshThreads() {
   try {
-    const res = await fetch(`${API}/api/tasks?limit=20`)
+    const res = await fetch(`${API}/api/tasks/threads?limit=40`)
     if (!res.ok) return
     const data = await res.json()
-    taskList.value = data.items || []
+    threadList.value = data.items || []
   } catch {
     /* ignore */
   }
@@ -140,6 +206,7 @@ function newThread() {
   status.value = ''
   workspacePath.value = null
   interrupt.value = null
+  messages.value = []
   steps.value = []
   appliedWrites.value = []
   liveEvents.value = []
@@ -147,21 +214,28 @@ function newThread() {
   artifacts.value = []
   artifactContent.value = null
   artifactFocus.value = null
+  overview.value = null
+  metrics.value = null
+  openStages.value = {}
+  stagesPanelOpen.value = false
+  viewMode.value = 'chat'
   lastError.value = null
   question.value = ''
-  ElMessage.info('已新建会话线程')
+  ElMessage.info('已新建会话（下一轮提交将创建新 Thread）')
 }
 
-async function openTask(item: TaskItem) {
+async function openThread(item: ThreadItem) {
   try {
-    const res = await fetch(`${API}/api/tasks/${item.task_id}`)
+    const res = await fetch(`${API}/api/tasks/${item.latest_task_id}`)
     if (!res.ok) throw new Error('task not found')
     const data = await res.json()
     applyRecord(data)
     lastError.value = null
+    stagesPanelOpen.value = false
+    viewMode.value = 'chat'
     activeTab.value = 'trace'
     await refreshArtifacts()
-    ElMessage.success('已加载历史任务')
+    ElMessage.success(`已打开会话 · ${item.run_count} 轮`)
   } catch (e) {
     lastError.value = e instanceof Error ? e.message : String(e)
     ElMessage.error(`加载失败: ${lastError.value}`)
@@ -206,6 +280,7 @@ async function openArtifact(item: ArtifactItem) {
     const data = await res.json()
     artifactFocus.value = item.path
     artifactContent.value = data.content || ''
+    viewMode.value = 'workspace'
     activeTab.value = 'artifacts'
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : String(e))
@@ -237,9 +312,110 @@ async function submitSync() {
   applyRecord(data)
 }
 
+function handleSseEvent(event: string, data: string) {
+  liveEvents.value.push(event)
+  let payload: Record<string, unknown>
+  try {
+    payload = JSON.parse(data)
+  } catch {
+    // done 偶发超大/截断时：若已收到 interrupt，视为本轮成功暂停
+    if (event === 'done' && interrupt.value) {
+      status.value = 'interrupted'
+      streamingText.value = ''
+      return
+    }
+    if (event === 'done' || event === 'interrupt' || event === 'error') {
+      throw new Error(`SSE ${event} 解析失败`)
+    }
+    return
+  }
+
+  if (event === 'token') {
+    const text = String(payload.text || '')
+    if (text) {
+      streamingText.value += text
+      void scrollChatToBottom()
+    }
+    return
+  }
+
+  if (
+    event === 'tool_start' ||
+    event === 'tool_end' ||
+    event === 'subagent' ||
+    event === 'context_offload'
+  ) {
+    // New tool activity: commit any in-progress token draft into the bubble stream
+    if (streamingText.value.trim()) {
+      messages.value = [
+        ...messages.value,
+        { role: 'assistant', content: streamingText.value },
+      ]
+      streamingText.value = ''
+    }
+    steps.value = [...steps.value, payload as unknown as TraceStep]
+    return
+  }
+
+  if (event === 'message') {
+    const step = payload as unknown as TraceStep
+    steps.value = [...steps.value, step]
+    if (step.kind === 'assistant' && step.content) {
+      streamingText.value = ''
+      const content = String(step.content)
+      const last = messages.value[messages.value.length - 1]
+      if (!(last?.role === 'assistant' && last.content === content)) {
+        messages.value = [...messages.value, { role: 'assistant', content }]
+      }
+      void scrollChatToBottom()
+    }
+    return
+  }
+
+  if (event === 'todos' && Array.isArray(payload.todos)) {
+    todos.value = payload.todos as TodoItem[]
+    return
+  }
+
+  if (event === 'interrupt') {
+    if (streamingText.value.trim()) {
+      messages.value = [
+        ...messages.value,
+        { role: 'assistant', content: streamingText.value },
+      ]
+      streamingText.value = ''
+    }
+    interrupt.value = payload as InterruptInfo
+    status.value = 'interrupted'
+    void scrollChatToBottom()
+    return
+  }
+
+  if (event === 'done') {
+    streamingText.value = ''
+    applyRecord(payload)
+    void scrollChatToBottom()
+    return
+  }
+
+  if (event === 'status' && payload.task_id) {
+    taskId.value = payload.task_id as string
+    threadId.value = (payload.thread_id as string) || threadId.value
+    status.value = (payload.status as string) || status.value
+    if (payload.workspace_path) workspacePath.value = payload.workspace_path as string
+    return
+  }
+
+  if (event === 'error') {
+    throw new Error(String(payload.error || 'stream error'))
+  }
+}
+
 async function submitStream() {
   liveEvents.value = []
   steps.value = []
+  streamingText.value = ''
+  // Keep conversation history; only clear run-local interrupt until stream updates it
   interrupt.value = null
   const res = await fetch(`${API}/api/tasks/stream`, {
     method: 'POST',
@@ -258,57 +434,102 @@ async function submitStream() {
   const decoder = new TextDecoder()
   let buffer = ''
 
-  while (true) {
-    const { done, value } = await reader.read()
-    if (done) break
-    buffer += decoder.decode(value, { stream: true })
-    const parts = buffer.split('\n\n')
-    buffer = parts.pop() || ''
+  const flushParts = (parts: string[]) => {
     for (const part of parts) {
+      if (!part.trim()) continue
       const lines = part.split('\n')
       let event = 'message'
       let data = ''
       for (const line of lines) {
-        if (line.startsWith('event:')) event = line.slice(6).trim()
-        if (line.startsWith('data:')) data += line.slice(5).trim()
+        const raw = line.endsWith('\r') ? line.slice(0, -1) : line
+        if (raw.startsWith('event:')) {
+          event = raw.slice(6).trim()
+          continue
+        }
+        if (raw.startsWith('data:')) {
+          // SSE: optional space after "data:"; multiple data lines join with \n
+          const piece = raw.startsWith('data: ') ? raw.slice(6) : raw.slice(5)
+          data = data ? `${data}\n${piece}` : piece
+        }
       }
       if (!data) continue
-      liveEvents.value.push(`${event}`)
-      try {
-        const payload = JSON.parse(data)
-        if (
-          event === 'tool_start' ||
-          event === 'tool_end' ||
-          event === 'message' ||
-          event === 'subagent' ||
-          event === 'context_offload'
-        ) {
-          steps.value = [...steps.value, payload as TraceStep]
-        } else if (event === 'todos' && Array.isArray(payload.todos)) {
-          todos.value = payload.todos as TodoItem[]
-        } else if (event === 'interrupt') {
-          interrupt.value = payload as InterruptInfo
-          status.value = 'interrupted'
-        } else if (event === 'done') {
-          applyRecord(payload)
-        } else if (event === 'status' && payload.task_id) {
-          taskId.value = payload.task_id
-          threadId.value = payload.thread_id
-          status.value = payload.status || status.value
-          if (payload.workspace_path) workspacePath.value = payload.workspace_path
-        } else if (event === 'error') {
-          throw new Error(payload.error || 'stream error')
-        }
-      } catch (e) {
-        if (event === 'error') throw e
-      }
+      handleSseEvent(event, data)
     }
+  }
+
+  /** sse-starlette frames with CRLF (`\r\n\r\n`); normalize so `\n\n` splits work. */
+  const takeFrames = (finalize: boolean) => {
+    const normalized = buffer.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
+    const parts = normalized.split('\n\n')
+    if (finalize) {
+      buffer = ''
+      flushParts(parts)
+      return
+    }
+    buffer = parts.pop() || ''
+    flushParts(parts)
+  }
+
+  while (true) {
+    const { done, value } = await reader.read()
+    if (value) {
+      buffer += decoder.decode(value, { stream: true })
+    }
+    if (done) {
+      buffer += decoder.decode()
+      takeFrames(true)
+      break
+    }
+    takeFrames(false)
+  }
+}
+
+async function resumeAsk() {
+  if (!threadId.value) return
+  const answer = question.value.trim()
+  if (!answer) {
+    ElMessage.warning('请先填写回复')
+    return
+  }
+  loading.value = true
+  lastError.value = null
+  messages.value = [...messages.value, { role: 'user', content: answer }]
+  const sent = answer
+  question.value = ''
+  try {
+    const res = await fetch(`${API}/api/tasks/resume`, {
+      method: 'POST',
+      headers: apiHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        thread_id: threadId.value,
+        task_id: taskId.value,
+        interrupt_type: 'ask',
+        answer: sent,
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      throw new Error(err.detail || res.statusText)
+    }
+    const data = await res.json()
+    applyRecord(data)
+    ElMessage.success('已回复并继续')
+    await Promise.all([refreshThreads(), refreshAudit(), refreshArtifacts()])
+  } catch (e) {
+    lastError.value = e instanceof Error ? e.message : String(e)
+    ElMessage.error(`继续失败: ${lastError.value}`)
+  } finally {
+    loading.value = false
   }
 }
 
 async function submit() {
   if (!question.value.trim()) {
-    ElMessage.warning('请输入问题')
+    ElMessage.warning(isAskInterrupt.value ? '请填写回复' : '请输入问题')
+    return
+  }
+  if (isAskInterrupt.value) {
+    await resumeAsk()
     return
   }
   if (llmConfigured.value === false) {
@@ -318,17 +539,24 @@ async function submit() {
   lastError.value = null
   lastQuestion.value = question.value
   appliedWrites.value = []
+  messages.value = [...messages.value, { role: 'user', content: question.value.trim() }]
+  const outbound = question.value
+  question.value = ''
   try {
+    // Restore outbound into request body helpers via lastQuestion
+    question.value = outbound
     if (useStream.value) {
       await submitStream()
     } else {
       await submitSync()
     }
-    ElMessage.success('任务已执行')
-    await Promise.all([refreshTasks(), refreshAudit(), refreshArtifacts()])
+    question.value = ''
+    ElMessage.success(status.value === 'interrupted' ? '等待你的操作' : '本轮已完成')
+    await Promise.all([refreshThreads(), refreshAudit(), refreshArtifacts()])
   } catch (e) {
     lastError.value = e instanceof Error ? e.message : String(e)
     status.value = 'failed'
+    question.value = outbound
     ElMessage.error(`执行失败: ${lastError.value}`)
   } finally {
     loading.value = false
@@ -340,14 +568,16 @@ async function retryLast() {
     question.value = lastQuestion.value
   }
   if (status.value === 'failed') {
-    threadId.value = null
-    taskId.value = null
+    // Keep thread for retry in same conversation; only clear if no thread yet
+    if (!threadId.value) {
+      taskId.value = null
+    }
   }
   await submit()
 }
 
 async function resume(approved: boolean) {
-  if (!threadId.value) return
+  if (!threadId.value || isAskInterrupt.value) return
   loading.value = true
   lastError.value = null
   try {
@@ -357,6 +587,7 @@ async function resume(approved: boolean) {
       body: JSON.stringify({
         thread_id: threadId.value,
         task_id: taskId.value,
+        interrupt_type: 'hitl',
         approved,
       }),
     })
@@ -368,7 +599,7 @@ async function resume(approved: boolean) {
     applyRecord(data)
     interrupt.value = (data.interrupt as InterruptInfo) || null
     ElMessage.success(approved ? '已批准并落库' : '已拒绝')
-    await Promise.all([refreshTasks(), refreshAudit(), refreshArtifacts()])
+    await Promise.all([refreshThreads(), refreshAudit(), refreshArtifacts()])
   } catch (e) {
     lastError.value = e instanceof Error ? e.message : String(e)
     ElMessage.error(`恢复失败: ${lastError.value}`)
@@ -379,7 +610,7 @@ async function resume(approved: boolean) {
 
 onMounted(async () => {
   await checkHealth()
-  await Promise.all([refreshTasks(), refreshAudit(), refreshSkills(), refreshMcp()])
+  await Promise.all([refreshThreads(), refreshAudit(), refreshSkills(), refreshMcp()])
 })
 </script>
 
@@ -446,9 +677,24 @@ onMounted(async () => {
             <i class="dot" />{{ healthChecking ? '检查中…' : '检查依赖' }}
           </button>
         </div>
-        <div v-if="status" class="run-status-row">
-          <span class="deps-label soft">当前任务</span>
-          <span class="status-chip is-run"><i class="dot" />{{ status }}</span>
+        <div class="view-switch">
+          <button
+            type="button"
+            class="view-tab"
+            :class="{ active: viewMode === 'chat' }"
+            @click="viewMode = 'chat'"
+          >
+            对话
+          </button>
+          <button
+            type="button"
+            class="view-tab"
+            :class="{ active: viewMode === 'workspace' }"
+            @click="viewMode = 'workspace'"
+          >
+            工作区
+          </button>
+          <span v-if="status" class="status-chip is-run"><i class="dot" />{{ status }}</span>
         </div>
       </div>
     </header>
@@ -483,73 +729,181 @@ onMounted(async () => {
       :closable="true"
     />
 
-    <main class="layout">
-      <aside class="side">
+    <main class="layout" :class="[`mode-${viewMode}`]">
+      <aside v-show="viewMode === 'chat'" class="side">
         <div class="side-head">
           <h3>会话</h3>
           <div class="side-actions">
             <el-button size="small" type="primary" @click="newThread">新建</el-button>
-            <el-button size="small" plain @click="refreshTasks">刷新</el-button>
+            <el-button size="small" plain @click="refreshThreads">刷新</el-button>
           </div>
         </div>
-        <div v-if="!taskList.length" class="empty-hint">暂无历史任务</div>
+        <div v-if="!threadList.length" class="empty-hint">暂无会话 · 发送一条消息开始</div>
         <button
-          v-for="item in taskList"
-          :key="item.task_id"
+          v-for="item in threadList"
+          :key="item.thread_id"
           class="task-item"
-          :class="{ active: item.task_id === taskId }"
+          :class="{ active: item.thread_id === threadId }"
           type="button"
-          @click="openTask(item)"
+          @click="openThread(item)"
         >
           <div class="task-meta">
-            <el-tag size="small" effect="plain">{{ item.status }}</el-tag>
-            <span>{{ item.updated_at?.slice(0, 19) || '' }}</span>
+            <el-tag size="small" effect="plain">{{ item.latest_status }}</el-tag>
+            <span>{{ item.run_count }} 轮</span>
           </div>
-          <div class="task-preview">{{ item.preview || item.task_id }}</div>
+          <div class="task-preview">{{ shortThreadLabel(item.thread_id, item.preview) }}</div>
+          <div class="task-meta muted">{{ item.updated_at?.slice(0, 19) || '' }}</div>
         </button>
       </aside>
 
-      <section class="main">
-        <div class="composer">
-          <label class="composer-label">支持请求</label>
-          <el-input
-            v-model="question"
-            type="textarea"
-            :rows="3"
-            placeholder="例如：我的 Outlook 一直登录不上，邮箱是 wei.zhang@contoso.com"
+      <section v-show="viewMode === 'chat'" class="main">
+        <div class="chat-panel">
+          <div ref="chatScrollEl" class="chat-scroll">
+            <div v-if="!chatBubbles.length && !streamingText" class="empty-hint chat-empty">
+              对话将显示在这里。同一会话多轮续聊会保留气泡；Agent 缺上下文时会提问并等待你回复。
+            </div>
+            <div
+              v-for="b in chatBubbles"
+              :key="b.id"
+              class="bubble"
+              :class="[`role-${b.role}`, { 'pending-ask': b.pendingAsk }]"
+            >
+              <div class="bubble-meta">
+                <span>{{ b.role === 'user' ? '你' : 'Agent' }}</span>
+                <el-tag v-if="b.pendingAsk" type="warning" size="small">需要你回答</el-tag>
+              </div>
+              <div class="bubble-body">{{ b.content }}</div>
+            </div>
+            <div v-if="streamingText" class="bubble role-assistant streaming">
+              <div class="bubble-meta">
+                <span>Agent</span>
+                <el-tag size="small" effect="plain">输出中</el-tag>
+              </div>
+              <div class="bubble-body">{{ streamingText }}</div>
+            </div>
+          </div>
+
+          <el-alert
+            v-if="isAskInterrupt"
+            class="panel-alert ask-banner"
+            title="未结束 · Agent 正在等你回复后继续"
+            type="warning"
+            :description="interrupt?.question || '请在下方输入框回复，然后点「发送回复」。'"
+            show-icon
+            :closable="false"
           />
-          <div class="actions">
-            <el-checkbox v-model="useStream" title="开启后提交走 SSE 流式进度（顶部状态条也会显示 SSE）">
-              流式进度 (SSE)
-            </el-checkbox>
-            <div class="actions-right">
-              <el-button
-                v-if="lastError"
-                type="warning"
-                :loading="loading"
-                @click="retryLast"
+
+          <details
+            v-if="stageBuckets.length"
+            class="stages-panel"
+            :open="stagesPanelOpen"
+            @toggle="stagesPanelOpen = ($event.target as HTMLDetailsElement).open"
+          >
+            <summary class="stages-head">
+              <strong>{{ isAskInterrupt ? '本轮进度（暂停中）' : '本轮运行阶段' }}</strong>
+              <span class="muted">{{ stageBuckets.length }} 段 · 默认折叠，点击展开</span>
+            </summary>
+            <div class="stages-body">
+              <details
+                v-for="st in stageBuckets"
+                :key="st.id"
+                class="stage-fold"
+                :open="openStages[st.id]"
+                @toggle="openStages[st.id] = ($event.target as HTMLDetailsElement).open"
               >
-                重试
-              </el-button>
-              <el-button
-                v-if="hasInterrupt"
-                type="success"
-                :loading="loading"
-                @click="resume(true)"
-              >
-                批准继续
-              </el-button>
-              <el-button
-                v-if="hasInterrupt"
-                type="danger"
-                :loading="loading"
-                @click="resume(false)"
-              >
-                拒绝
-              </el-button>
-              <el-button type="primary" :loading="loading" @click="submit">
-                提交支持任务
-              </el-button>
+                <summary>
+                  <span class="stage-label">{{ st.label }}</span>
+                  <span class="muted">{{ st.summary || `${st.step_count} 步` }}</span>
+                  <el-tag size="small" effect="plain">{{ st.tool_count ?? 0 }} tools</el-tag>
+                </summary>
+                <div class="stage-steps">
+                  <div v-for="(s, i) in st.steps" :key="i" class="stage-step">
+                    <el-tag :type="stepTagType(s.kind)" size="small">{{ s.kind }}</el-tag>
+                    <strong v-if="s.subagent" class="tool-name">{{ s.subagent }}</strong>
+                    <strong v-else-if="s.skill_used" class="tool-name">skill:{{ s.skill_used }}</strong>
+                    <strong v-else-if="s.name" class="tool-name">{{ s.name }}</strong>
+                    <el-tag v-if="s.tool_source" size="small" effect="plain">{{ s.tool_source }}</el-tag>
+                    <pre v-if="s.args">{{ formatArgs(s.args) }}</pre>
+                    <pre v-if="s.content">{{ s.content }}</pre>
+                  </div>
+                </div>
+              </details>
+            </div>
+          </details>
+
+          <el-alert
+            v-if="isHitlInterrupt"
+            class="panel-alert"
+            title="需要人工审批"
+            type="warning"
+            description="高风险写操作待确认。请核对下方参数后批准或拒绝；批准后将写入 Mock 数据库。"
+            show-icon
+            :closable="false"
+          />
+
+          <section v-if="isHitlInterrupt && pendingPreview.length" class="hitl-preview">
+            <h2>待审批写操作</h2>
+            <div v-for="(p, i) in pendingPreview" :key="i" class="hitl-card">
+              <div class="step-head">
+                <el-tag type="danger" size="small">HITL</el-tag>
+                <strong>{{ p.label }}</strong>
+                <span class="muted">{{ p.name }}</span>
+              </div>
+              <ul v-if="p.highlights.length" class="hitl-highlights">
+                <li v-for="(h, j) in p.highlights" :key="j">
+                  <span class="hitl-key">{{ h.key }}</span>
+                  <code>{{ h.value }}</code>
+                </li>
+              </ul>
+              <details>
+                <summary>完整参数</summary>
+                <pre>{{ formatArgs(p.args) }}</pre>
+              </details>
+            </div>
+          </section>
+
+          <div class="composer">
+            <label class="composer-label">{{ isAskInterrupt ? '回复以继续' : '支持请求' }}</label>
+            <el-input
+              v-model="question"
+              type="textarea"
+              :rows="3"
+              :placeholder="composerPlaceholder"
+              @keydown.ctrl.enter="submit"
+            />
+            <div class="actions">
+              <el-checkbox v-model="useStream" title="开启后提交走 SSE 流式进度（顶部状态条也会显示 SSE）">
+                流式进度 (SSE)
+              </el-checkbox>
+              <div class="actions-right">
+                <el-button
+                  v-if="lastError"
+                  type="warning"
+                  :loading="loading"
+                  @click="retryLast"
+                >
+                  重试
+                </el-button>
+                <el-button
+                  v-if="isHitlInterrupt"
+                  type="success"
+                  :loading="loading"
+                  @click="resume(true)"
+                >
+                  批准继续
+                </el-button>
+                <el-button
+                  v-if="isHitlInterrupt"
+                  type="danger"
+                  :loading="loading"
+                  @click="resume(false)"
+                >
+                  拒绝
+                </el-button>
+                <el-button type="primary" :loading="loading" @click="submit">
+                  {{ submitLabel }}
+                </el-button>
+              </div>
             </div>
           </div>
         </div>
@@ -565,48 +919,126 @@ onMounted(async () => {
           @close="lastError = null"
         />
 
-        <el-alert
-          v-if="hasInterrupt"
-          class="panel-alert"
-          title="需要人工审批"
-          type="warning"
-          description="高风险写操作待确认。请核对下方参数后批准或拒绝；批准后将写入 Mock 数据库。"
-          show-icon
-          :closable="false"
-        />
-
-        <section v-if="hasInterrupt && pendingPreview.length" class="hitl-preview">
-          <h2>待审批写操作</h2>
-          <div v-for="(p, i) in pendingPreview" :key="i" class="hitl-card">
-            <div class="step-head">
-              <el-tag type="danger" size="small">HITL</el-tag>
-              <strong>{{ p.label }}</strong>
-              <span class="muted">{{ p.name }}</span>
-            </div>
-            <ul v-if="p.highlights.length" class="hitl-highlights">
-              <li v-for="(h, j) in p.highlights" :key="j">
-                <span class="hitl-key">{{ h.key }}</span>
-                <code>{{ h.value }}</code>
-              </li>
-            </ul>
-            <details>
-              <summary>完整参数</summary>
-              <pre>{{ formatArgs(p.args) }}</pre>
-            </details>
-          </div>
-        </section>
-
-        <div v-if="taskId" class="run-meta">
-          <span class="meta-k">Task</span>
-          <code>{{ taskId }}</code>
+        <div v-if="taskId" class="run-meta compact">
           <span class="meta-k">Thread</span>
-          <code>{{ threadId }}</code>
-          <template v-if="workspacePath">
-            <span class="meta-k">Workspace</span>
-            <code class="ws">{{ workspacePath }}</code>
-          </template>
+          <code>{{ threadId?.slice(0, 8) }}…</code>
+          <span class="meta-k">Run</span>
+          <code>{{ taskId?.slice(0, 8) }}…</code>
+          <button type="button" class="linkish" @click="viewMode = 'workspace'">打开工作区 →</button>
         </div>
+      </section>
 
+      <aside v-show="viewMode === 'chat'" class="overview" :class="{ collapsed: !overviewOpen }">
+        <div class="overview-head">
+          <h3>运行概览</h3>
+          <button type="button" class="status-chip is-action" @click="overviewOpen = !overviewOpen">
+            <i class="dot" />{{ overviewOpen ? '收起' : '展开' }}
+          </button>
+        </div>
+        <template v-if="overviewOpen">
+          <div v-if="!overview && !taskId" class="empty-hint">提交任务后显示本轮统计</div>
+          <template v-else>
+            <div class="ov-block">
+              <div class="ov-title">Meta</div>
+              <p><span class="meta-k">状态</span> {{ overview?.status || status || '—' }}</p>
+              <p><span class="meta-k">耗时</span> {{ durationLabel }}</p>
+              <p><span class="meta-k">步骤</span> {{ overview?.step_count ?? steps.length }}</p>
+            </div>
+            <div class="ov-block">
+              <div class="ov-title">
+                规划
+                <span class="muted">
+                  {{ overview?.plan?.completed ?? todos.filter((t) => t.status === 'completed').length }}
+                  /
+                  {{ overview?.plan?.total ?? todos.length }}
+                </span>
+              </div>
+              <div v-if="!(overview?.plan?.items || todos).length" class="muted">暂无 todos</div>
+              <div
+                v-for="(p, i) in overview?.plan?.items || todos"
+                :key="i"
+                class="ov-row"
+              >
+                <el-tag :type="todoTagType(p.status)" size="small">{{ p.status }}</el-tag>
+                <span>{{ p.content }}</span>
+              </div>
+            </div>
+            <div class="ov-block">
+              <div class="ov-title">Agent · {{ overview?.agents?.length || 0 }}</div>
+              <div v-if="!overview?.agents?.length" class="muted">未委派 SubAgent</div>
+              <el-tag
+                v-for="a in overview?.agents || []"
+                :key="a"
+                size="small"
+                class="ov-tag"
+                type="danger"
+              >
+                {{ a }}
+              </el-tag>
+            </div>
+            <div class="ov-block">
+              <div class="ov-title">Skill · {{ overview?.skills?.length || 0 }}</div>
+              <div v-if="!overview?.skills?.length" class="muted">未读 Skill 文件</div>
+              <el-tag
+                v-for="s in overview?.skills || []"
+                :key="s"
+                size="small"
+                class="ov-tag"
+                type="success"
+              >
+                {{ s }}
+              </el-tag>
+            </div>
+            <div class="ov-block">
+              <div class="ov-title">MCP / 来源</div>
+              <p class="muted">
+                本地 {{ overview?.mcp?.local_calls ?? 0 }} ·
+                知识 {{ overview?.mcp?.knowledge_calls ?? 0 }} ·
+                远程 {{ overview?.mcp?.remote_calls ?? 0 }}
+              </p>
+              <p v-if="overview?.mcp?.servers?.length" class="muted">
+                servers: {{ overview.mcp.servers.join(', ') }}
+              </p>
+            </div>
+            <div class="ov-block">
+              <div class="ov-title">
+                Tool · {{ overview?.tools?.total_calls ?? 0 }} 次
+              </div>
+              <div
+                v-for="t in (overview?.tools?.items || []).slice(0, 10)"
+                :key="t.name"
+                class="ov-row"
+              >
+                <code class="tool-name">{{ t.name }}</code>
+                <span class="muted">×{{ t.count }}</span>
+              </div>
+            </div>
+            <div class="ov-block" v-if="artifacts.length">
+              <div class="ov-title">产物 · {{ artifacts.length }}</div>
+              <button
+                v-for="a in artifacts.slice(0, 6)"
+                :key="a.path"
+                type="button"
+                class="ov-art"
+                @click="openArtifact(a)"
+              >
+                {{ a.name }}
+              </button>
+            </div>
+          </template>
+        </template>
+      </aside>
+
+      <section v-show="viewMode === 'workspace'" class="workspace-page">
+        <div class="workspace-toolbar">
+          <el-button size="small" @click="viewMode = 'chat'">← 返回对话</el-button>
+          <div v-if="taskId" class="run-meta compact flat">
+            <span class="meta-k">Thread</span>
+            <code>{{ threadId }}</code>
+            <span class="meta-k">Run</span>
+            <code>{{ taskId }}</code>
+          </div>
+        </div>
         <div class="workspace-panel">
         <el-tabs v-model="activeTab">
           <el-tab-pane label="执行计划" name="plan">
@@ -780,9 +1212,10 @@ onMounted(async () => {
 
 <style scoped>
 .page {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 32px 20px 56px;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 12px 8px 20px;
   animation: page-in 0.45s ease-out;
 }
 
@@ -800,8 +1233,8 @@ onMounted(async () => {
 .header {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding-bottom: 8px;
+  gap: 12px;
+  padding: 0 4px 6px;
 }
 
 .brand-row {
@@ -1017,16 +1450,65 @@ button.status-chip:disabled {
   border-radius: 12px;
 }
 
-.layout {
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 18px;
-  margin-top: 22px;
-  align-items: start;
+.view-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--ds-line);
 }
 
-@media (max-width: 960px) {
-  .layout {
+.view-tab {
+  appearance: none;
+  border: 1px solid var(--ds-line);
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ds-ink-soft);
+  border-radius: 999px;
+  padding: 5px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.view-tab:hover {
+  border-color: #99f6e4;
+}
+
+.view-tab.active {
+  color: #fff;
+  background: var(--ds-accent);
+  border-color: var(--ds-accent);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr) 220px;
+  gap: 10px;
+  margin-top: 10px;
+  align-items: stretch;
+  min-height: calc(100vh - 168px);
+}
+
+.layout.mode-workspace {
+  grid-template-columns: 1fr;
+  min-height: calc(100vh - 168px);
+}
+
+@media (max-width: 1280px) {
+  .layout.mode-chat {
+    grid-template-columns: 180px minmax(0, 1fr);
+  }
+  .layout.mode-chat .overview {
+    grid-column: 1 / -1;
+    position: static;
+    max-height: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .layout.mode-chat {
     grid-template-columns: 1fr;
   }
 }
@@ -1034,7 +1516,8 @@ button.status-chip:disabled {
 .side,
 .composer,
 .workspace-panel,
-.hitl-preview {
+.hitl-preview,
+.overview {
   background: var(--ds-panel);
   border: 1px solid var(--ds-line);
   border-radius: var(--ds-radius);
@@ -1042,10 +1525,10 @@ button.status-chip:disabled {
 }
 
 .side {
-  padding: 14px;
+  padding: 12px;
   position: sticky;
-  top: 16px;
-  max-height: calc(100vh - 32px);
+  top: 8px;
+  max-height: calc(100vh - 16px);
   overflow: auto;
 }
 
@@ -1116,12 +1599,117 @@ button.status-chip:disabled {
 .main {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 10px;
   min-width: 0;
+  min-height: 0;
+}
+
+.chat-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--ds-panel);
+  border: 1px solid var(--ds-line);
+  border-radius: var(--ds-radius);
+  box-shadow: var(--ds-shadow);
+  padding: 14px 16px;
+  flex: 1;
+  min-height: calc(100vh - 220px);
+}
+
+.chat-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  flex: 1;
+  min-height: 280px;
+  max-height: none;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.chat-empty {
+  margin: 0;
+}
+
+.bubble {
+  max-width: min(96%, 860px);
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--ds-line);
+  background: var(--ds-surface-solid);
+  animation: page-in 0.28s ease-out;
+}
+
+.bubble.role-user {
+  align-self: flex-end;
+  background: #ecfdf5;
+  border-color: #99f6e4;
+}
+
+.bubble.role-assistant {
+  align-self: flex-start;
+  background: #fff;
+}
+
+.bubble.streaming .bubble-body::after {
+  content: '▋';
+  margin-left: 2px;
+  opacity: 0.55;
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.bubble.pending-ask {
+  border-color: #fbbf24;
+  background: linear-gradient(180deg, #fffbeb 0%, #fff 75%);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.12);
+}
+
+.ask-banner {
+  border: 1px solid #fbbf24 !important;
+}
+
+.ask-banner :deep(.el-alert__description) {
+  white-space: pre-wrap;
+  max-height: 180px;
+  overflow: auto;
+}
+
+.bubble-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ds-muted);
+}
+
+.bubble-body {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--ds-ink);
 }
 
 .composer {
-  padding: 16px;
+  padding: 12px 0 0;
+  border-top: 1px dashed var(--ds-line);
+  background: transparent;
+  border-radius: 0;
+  box-shadow: none;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
 }
 
 .composer-label {
@@ -1340,5 +1928,193 @@ pre {
   text-align: center;
   background: rgba(244, 248, 246, 0.7);
   margin: 8px 0;
+}
+
+.stages-panel {
+  margin-top: 4px;
+  border: 1px dashed var(--ds-line);
+  border-radius: 12px;
+  background: rgba(244, 248, 246, 0.65);
+  padding: 0 10px;
+}
+
+.stages-panel > .stages-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 0;
+  font-size: 0.86rem;
+  margin: 0;
+}
+
+.stages-panel > .stages-head::-webkit-details-marker {
+  display: none;
+}
+
+.stages-panel > .stages-head::before {
+  content: '▸';
+  color: var(--ds-muted);
+  font-size: 0.75rem;
+}
+
+.stages-panel[open] > .stages-head::before {
+  content: '▾';
+}
+
+.stages-body {
+  padding-bottom: 8px;
+}
+
+.linkish {
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--ds-accent-deep);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.linkish:hover {
+  text-decoration: underline;
+}
+
+.run-meta.compact {
+  padding: 8px 10px;
+  font-size: 0.78rem;
+}
+
+.run-meta.compact.flat {
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.workspace-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.workspace-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.stage-fold {
+  border: 1px solid var(--ds-line);
+  border-radius: 10px;
+  background: #fff;
+  margin-bottom: 8px;
+  padding: 0 10px;
+}
+
+.stage-fold summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  padding: 10px 0;
+  font-size: 0.88rem;
+}
+
+.stage-fold summary::-webkit-details-marker {
+  display: none;
+}
+
+.stage-label {
+  font-weight: 600;
+  color: var(--ds-accent-deep);
+}
+
+.stage-steps {
+  border-top: 1px dashed var(--ds-line);
+  padding: 8px 0 12px;
+}
+
+.stage-step {
+  padding: 8px 0;
+  border-bottom: 1px solid #eef3f1;
+}
+
+.overview {
+  padding: 12px;
+  position: sticky;
+  top: 8px;
+  max-height: calc(100vh - 16px);
+  overflow: auto;
+}
+
+.overview.collapsed {
+  max-height: none;
+}
+
+.overview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.overview-head h3 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+}
+
+.ov-block {
+  border-top: 1px solid #eef3f1;
+  padding: 10px 0;
+}
+
+.ov-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 0.82rem;
+  margin-bottom: 6px;
+  color: var(--ds-ink-soft);
+}
+
+.ov-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 0.84rem;
+  margin: 4px 0;
+}
+
+.ov-tag {
+  margin: 0 6px 6px 0;
+}
+
+.ov-art {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: var(--ds-surface-solid);
+  border-radius: 8px;
+  padding: 6px 8px;
+  margin: 4px 0;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--ds-accent-deep);
+}
+
+.ov-art:hover {
+  background: #ecfdf5;
 }
 </style>
