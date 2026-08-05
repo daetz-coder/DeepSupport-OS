@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from deepsupport_os.mcp.tools import (
-    ACCOUNT_TOOLS,
     ASSET_TOOLS,
     EMPLOYEE_TOOLS,
-    TICKET_TOOLS,
+    get_account_status,
+    get_license,
+    get_ticket,
+    create_ticket,
+    update_ticket,
 )
 from deepsupport_os.rag.knowledge_tools import KNOWLEDGE_TOOLS
 
@@ -15,6 +18,11 @@ _CONTRACT_FOOTER = (
     "（retrieved_docs.md / diagnosis.md / ticket_draft.md 之一）；"
     "若失败，第一行写 `ERROR:` + 原因，不要假装成功。"
 )
+
+# Read-only account tools — write intents stay on Main Agent + HITL apply.
+_ACCOUNT_READ_TOOLS = [get_account_status, get_license]
+# Ticket ops may draft/update non-terminal state; escalate/close are Main-only.
+_TICKET_DRAFT_TOOLS = [create_ticket, get_ticket, update_ticket]
 
 
 def build_mvp_subagents() -> list[dict]:
@@ -47,28 +55,27 @@ def build_mvp_subagents() -> list[dict]:
                 "输入：邮箱或 employee_id。\n"
                 "查询员工/账号/设备/许可证，输出结构化诊断"
                 "（身份、账号状态、MFA、许可证、设备 OS/Office）。\n"
-                "禁止：重置密码、改许可证、关单。\n"
+                "禁止：重置密码、改许可证、关单、升级工单；本子代理无写工具。\n"
                 "建议主 Agent 写入 diagnosis.md。"
                 + _CONTRACT_FOOTER
             ),
-            "tools": EMPLOYEE_TOOLS + ACCOUNT_TOOLS + ASSET_TOOLS,
+            "tools": EMPLOYEE_TOOLS + _ACCOUNT_READ_TOOLS + ASSET_TOOLS,
         },
         {
             "name": "ticket-operations",
             "description": (
-                "创建、更新、升级工单。当诊断完成需要开单或变更工单时委派；"
-                "不要在未诊断时过早开单。"
+                "创建、更新工单（非终态）。当诊断完成需要开单或调整优先级/处理人时委派；"
+                "不要在未诊断时过早开单。升级/关闭由主 Agent 发起并走 HITL。"
             ),
             "system_prompt": (
                 "你是 Ticket Operations Agent。\n"
                 "输入：已有诊断摘要 + 用户诉求。\n"
-                "根据上下文创建或更新工单；可用 update_ticket 调整 priority（P1–P4）做升降优先级。"
-                "升级/关闭前先 check_action_permission。"
-                "高风险写操作只发起工具调用并保留审批标记，不要声称已执行完成。"
-                "若返回 already_applied 或 hitl=approved_and_applied，禁止再次 escalate/close。"
+                "根据上下文创建或更新工单；可用 update_ticket 调整 priority（P1–P4）做升降优先级。\n"
+                "禁止：调用 escalate_ticket / close_ticket / 密码重置 / 许可证变更"
+                "（终态与高风险写由主 Agent + HITL 执行）。\n"
                 "建议主 Agent 写入 ticket_draft.md（含 ticket_id）。"
                 + _CONTRACT_FOOTER
             ),
-            "tools": TICKET_TOOLS,
+            "tools": _TICKET_DRAFT_TOOLS,
         },
     ]
