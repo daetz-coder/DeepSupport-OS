@@ -106,7 +106,14 @@ def seed_database(*, force: bool = False, extra_employees: int = 20) -> dict:
     with Session() as session:
         existing = session.scalar(select(Employee).limit(1))
         if existing and not force:
-            return {"status": "skipped", "reason": "already seeded"}
+            out = {"status": "skipped", "reason": "already seeded"}
+            try:
+                from deepsupport_os.db.eval_store import sync_eval_cases
+
+                out["eval_cases"] = sync_eval_cases()
+            except Exception as exc:  # noqa: BLE001
+                out["eval_cases"] = {"error": str(exc)}
+            return out
 
         if force:
             for model in (Ticket, Case, License, Account, Asset, Policy, Employee):
@@ -290,12 +297,19 @@ def seed_database(*, force: bool = False, extra_employees: int = 20) -> dict:
         )
 
         session.commit()
-        return {
+        result = {
             "status": "ok",
             "employees": 1 + len(DEMO_EMPLOYEES) + extra_employees,
             "demo_emails": [d["email"] for d in DEMO_EMPLOYEES],
             "seed": SEED,
         }
+        try:
+            from deepsupport_os.db.eval_store import sync_eval_cases
+
+            result["eval_cases"] = sync_eval_cases()
+        except Exception as exc:  # noqa: BLE001
+            result["eval_cases"] = {"error": str(exc)}
+        return result
 
 
 def main() -> None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, create_engine
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, create_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 from deepsupport_os.core.config import get_settings
@@ -141,6 +141,65 @@ class TaskRecord(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=_utcnow, onupdate=_utcnow
     )
+
+
+class EvalCase(Base):
+    """Benchmark / automated-test case catalog (seeded from mvp_cases.jsonl)."""
+
+    __tablename__ = "eval_cases"
+
+    case_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    expect_json: Mapped[str] = mapped_column(Text, default="{}")
+    tags_json: Mapped[str] = mapped_column(Text, default="[]")
+    source: Mapped[str] = mapped_column(String(64), default="mvp_cases")
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=_utcnow, onupdate=_utcnow
+    )
+
+
+class EvalRun(Base):
+    """One automated eval suite execution with aggregate metrics."""
+
+    __tablename__ = "eval_runs"
+
+    run_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    mode: Mapped[str] = mapped_column(String(16), nullable=False)  # offline|online
+    cases_path: Mapped[str] = mapped_column(String(512), default="")
+    use_daytona: Mapped[bool] = mapped_column(Boolean, default=False)
+    total: Mapped[int] = mapped_column(Integer, default=0)
+    passed: Mapped[int] = mapped_column(Integer, default=0)
+    failed: Mapped[int] = mapped_column(Integer, default=0)
+    pass_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    avg_elapsed_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tool_hit_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    hitl_hit_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    offload_hit_rate: Mapped[float | None] = mapped_column(Float, nullable=True)
+    summary_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
+class EvalCaseResult(Base):
+    """Per-case result row for an eval run."""
+
+    __tablename__ = "eval_case_results"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("eval_runs.run_id"), nullable=False, index=True
+    )
+    case_id: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    ok: Mapped[bool] = mapped_column(Boolean, default=False)
+    mode: Mapped[str] = mapped_column(String(16), nullable=False)
+    elapsed_ms: Mapped[float | None] = mapped_column(Float, nullable=True)
+    tool_hit: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    hitl_hit: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    offload_hit: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    result_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
 
 _engine = None
