@@ -693,7 +693,7 @@ Tool Registry + 按 Skill 动态挂载；SubAgent 目录化；Checkpoint 外置 
 
 | ID | 任务 | 对应 AR | 状态 |
 |---|---|---|---|
-| R3-1 | `before_tool` middleware（todos / 重复 ask / policy） | AR-10,15 | `[ ]` |
+| R3-1 | `before_tool` middleware（todos / 重复 ask / policy） | AR-10,15 | `[x]` |
 | R3-2 | 抽出 `HitlRuntime` / `AgentSession`，瘦身 `tasks.py` | AR-19 | `[ ]` |
 | R3-3 | SSE `seq` + interrupt 即时事件 | AR-13 | `[ ]` |
 | R3-4 | Tool/Skill/SubAgent Registry | AR-20 | `[ ]` |

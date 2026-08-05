@@ -14,6 +14,7 @@ from deepagents import create_deep_agent
 from deepsupport_os.core.config import get_settings
 from deepsupport_os.db.repositories import AccountRepo, TicketRepo
 from deepsupport_os.harness.daytona_backend import build_hybrid_backend, run_sandbox_shell
+from deepsupport_os.harness.guard_middleware import support_guard_middleware
 from deepsupport_os.harness.memory_files import ensure_memory_files, memory_paths_for_thread
 from deepsupport_os.harness.prompts import build_system_prompt
 from deepsupport_os.harness.skills_registry import skill_source_paths
@@ -205,7 +206,7 @@ class HarnessBuilder:
             system_prompt=build_system_prompt(thread_id=thread_id),
             skills=skills_dirs or None,
             memory=memory,
-            middleware=[TodoListMiddleware(system_prompt="")],
+            middleware=[TodoListMiddleware(system_prompt=""), *support_guard_middleware()],
             subagents=self.ports.subagents_factory(),
             interrupt_on=dict(self.ports.interrupt_on),
             checkpointer=cp,
