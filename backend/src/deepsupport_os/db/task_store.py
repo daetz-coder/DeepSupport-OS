@@ -105,3 +105,34 @@ def list_tasks(limit: int = 50) -> list[dict[str, Any]]:
                     }
                 )
             return out
+
+
+def list_threads(limit: int = 40) -> list[dict[str, Any]]:
+    """Aggregate runs by thread_id for conversation sidebar."""
+    tasks = list_tasks(limit=max(limit * 4, 80))
+    by_thread: dict[str, dict[str, Any]] = {}
+    order: list[str] = []
+    for t in tasks:
+        tid = t["thread_id"]
+        if tid not in by_thread:
+            by_thread[tid] = {
+                "thread_id": tid,
+                "run_count": 0,
+                "latest_status": t["status"],
+                "updated_at": t.get("updated_at"),
+                "preview": t.get("preview") or "",
+                "latest_task_id": t["task_id"],
+                "runs": [],
+            }
+            order.append(tid)
+        bucket = by_thread[tid]
+        bucket["run_count"] += 1
+        bucket["runs"].append(
+            {
+                "task_id": t["task_id"],
+                "status": t["status"],
+                "updated_at": t.get("updated_at"),
+                "preview": t.get("preview") or "",
+            }
+        )
+    return [by_thread[tid] for tid in order[:limit]]

@@ -232,6 +232,29 @@ def notify_user(email: str, message: str) -> dict:
     return _audit("notify_user", {"email": email, "message": message}, result)
 
 
+@tool
+def ask_user(question: str, context: str = "") -> str:
+    """向用户提问并等待回答。
+
+    缺少邮箱、设备、症状细节等关键上下文时必须调用此工具，禁止臆造。
+    调用后图会中断；用户回答经 resume 注入后作为返回值继续执行。
+    """
+    from langgraph.types import interrupt
+
+    answer = interrupt(
+        {
+            "type": "ask",
+            "question": (question or "").strip() or "请补充信息",
+            "context": (context or "").strip(),
+        }
+    )
+    if answer is None:
+        return ""
+    if isinstance(answer, dict):
+        return str(answer.get("answer") or answer.get("text") or answer)
+    return str(answer)
+
+
 EMPLOYEE_TOOLS = [get_employee, get_department, get_manager]
 ASSET_TOOLS = [get_device, list_user_devices]
 ACCOUNT_TOOLS = [get_account_status, get_license, request_password_reset, request_license_change]
@@ -239,6 +262,7 @@ TICKET_TOOLS = [create_ticket, get_ticket, update_ticket, escalate_ticket, close
 CASE_TOOLS = [search_similar_cases]
 POLICY_TOOLS = [check_action_permission]
 NOTIFICATION_TOOLS = [notify_user]
+DIALOGUE_TOOLS = [ask_user]
 
 ALL_MOCK_TOOLS = (
     EMPLOYEE_TOOLS
@@ -248,18 +272,23 @@ ALL_MOCK_TOOLS = (
     + CASE_TOOLS
     + POLICY_TOOLS
     + NOTIFICATION_TOOLS
+    + DIALOGUE_TOOLS
 )
 
 
 def all_agent_tools():
     """Combine in-process mock tools + knowledge + optional remote MCP tools."""
     from deepsupport_os.core.extensions import ext_bool
+    from deepsupport_os.harness.tool_provenance import clear_tool_provenance, tag_tool
     from deepsupport_os.rag.knowledge_tools import KNOWLEDGE_TOOLS
 
+    clear_tool_provenance()
     tools: list = []
     if ext_bool("mcp_local_tools"):
-        tools.extend(ALL_MOCK_TOOLS)
-    tools.extend(KNOWLEDGE_TOOLS)
+        for t in ALL_MOCK_TOOLS:
+            tools.append(tag_tool(t, source="local"))
+    for t in KNOWLEDGE_TOOLS:
+        tools.append(tag_tool(t, source="knowledge"))
 
     if ext_bool("mcp_remote_enabled"):
         from deepsupport_os.mcp.remote_client import load_remote_mcp_tools
@@ -268,6 +297,10 @@ def all_agent_tools():
         for t in load_remote_mcp_tools():
             name = getattr(t, "name", "")
             if name and name not in existing:
-                tools.append(t)
+                # Prefer server hint from tool metadata when present
+                server = getattr(t, "_ds_server", None) or getattr(t, "metadata", {})
+                if isinstance(server, dict):
+                    server = server.get("server") or server.get("mcp_server")
+                tools.append(tag_tool(t, source="remote", server=str(server) if server else "remote"))
                 existing.add(name)
     return tools

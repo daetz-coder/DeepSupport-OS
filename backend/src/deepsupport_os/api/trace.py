@@ -184,7 +184,9 @@ def build_trace(
     subagent_steps = [s for s in steps if s.get("kind") == "subagent_dispatch"]
     offload_steps = [s for s in steps if s.get("kind") == "context_offload"]
 
-    return {
+    from deepsupport_os.harness.run_overview import enrich_trace
+
+    base = {
         "steps": steps,
         "tool_calls": tool_calls,
         "pending_writes": pending_writes,
@@ -194,6 +196,7 @@ def build_trace(
         "audit": audit or [],
         "messages": serialized,
     }
+    return enrich_trace(base)
 
 
 def extract_interrupt_info(agent: Any, config: dict) -> dict[str, Any] | None:
@@ -208,18 +211,56 @@ def extract_interrupt_info(agent: Any, config: dict) -> dict[str, Any] | None:
     nxt = list(getattr(state, "next", None) or [])
     if not nxt:
         return None
-    values = getattr(state, "values", None) or {}
+
     interrupts = []
     raw_interrupts = getattr(state, "tasks", None) or ()
     for t in raw_interrupts:
         interrupts.append(str(t))
-    # Prefer structured pending writes from latest messages
+
+    ask_payload: dict[str, Any] | None = None
+    for ir in getattr(state, "interrupts", None) or ():
+        val = getattr(ir, "value", ir)
+        if isinstance(val, dict) and val.get("type") == "ask":
+            ask_payload = val
+            break
+        if isinstance(val, str) and val.strip():
+            # Bare string interrupt — treat as ask question
+            ask_payload = {"type": "ask", "question": val.strip(), "context": ""}
+            break
+
+    if ask_payload:
+        return {
+            "type": "ask",
+            "question": str(ask_payload.get("question") or "请补充信息"),
+            "context": str(ask_payload.get("context") or ""),
+            "next": nxt,
+            "pending_writes": [],
+            "pending_preview": [],
+            "tasks": interrupts,
+        }
+
+    values = getattr(state, "values", None) or {}
     msgs = values.get("messages") or []
     trace = build_trace(msgs, interrupt={"next": nxt})
     pending = collect_pending_writes(msgs, pending=trace.get("pending_writes"))
-    # Only surface the most recent write tools for HITL UI (avoid historical noise)
     pending = pending[-3:]
+
+    # Fallback: pending ask_user tool call (middleware-style) without Interrupt.value
+    for step in reversed(pending or []):
+        if step.get("name") == "ask_user":
+            args = step.get("args") if isinstance(step.get("args"), dict) else {}
+            return {
+                "type": "ask",
+                "question": str((args or {}).get("question") or "请补充信息"),
+                "context": str((args or {}).get("context") or ""),
+                "next": nxt,
+                "pending_writes": [],
+                "pending_preview": [],
+                "tasks": interrupts,
+            }
+
     return {
+        "type": "hitl",
         "next": nxt,
         "pending_writes": pending,
         "pending_preview": preview_pending_writes(pending),
