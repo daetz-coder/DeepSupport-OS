@@ -63,3 +63,7 @@ logs/
 models/
 *.bin
 *.safetensors
+
+# Diagrams (local drafts, not part of the repo)
+.drawio-tmp/
+docs/architecture/
