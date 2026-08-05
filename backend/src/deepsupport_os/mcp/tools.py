@@ -297,6 +297,16 @@ def close_ticket(ticket_id: str, resolution: str) -> dict:
 
 # ---- Case / Policy -----------------------------------------------------------
 
+# Canonical Policy.action values for the HITL write tools. `check_action_permission`
+# accepts either the tool name or the canonical action, and the R3-1 guard matches
+# on the canonical action so checking a *different* action cannot satisfy it.
+POLICY_ACTION_FOR_TOOL: dict[str, str] = {
+    "request_password_reset": "password_reset",
+    "request_license_change": "license_change",
+    "close_ticket": "close_ticket",
+    "escalate_ticket": "escalate_ticket",
+}
+
 
 @tool
 def search_similar_cases(query: str, limit: int = 5) -> list:
@@ -307,11 +317,16 @@ def search_similar_cases(query: str, limit: int = 5) -> list:
 
 @tool
 def check_action_permission(action: str) -> dict:
-    """检查企业策略：某动作是否需要审批及 SLA。"""
-    result = _policy.check_action_permission(action)
+    """检查企业策略：某动作是否需要审批及 SLA。
+
+    高风险写操作（request_password_reset / request_license_change /
+    close_ticket / escalate_ticket）前必须调用；传工具名或策略动作名均可。
+    """
+    resolved = POLICY_ACTION_FOR_TOOL.get(action, action)
+    result = _policy.check_action_permission(resolved)
     return _audit(
         "check_action_permission",
-        {"action": action},
+        {"action": resolved},
         result or {"error": "policy_not_found"},
     )
 

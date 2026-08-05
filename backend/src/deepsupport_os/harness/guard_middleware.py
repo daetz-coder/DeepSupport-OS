@@ -9,6 +9,8 @@ from typing import Any
 from langchain.agents.middleware import wrap_tool_call
 from langchain_core.messages import ToolMessage
 
+from deepsupport_os.mcp.tools import POLICY_ACTION_FOR_TOOL
+
 # Tools allowed before a todos plan exists.
 _PRE_TODO_ALLOW = frozenset(
     {
@@ -27,6 +29,9 @@ _WRITE_INTENT = frozenset(
         "escalate_ticket",
     }
 )
+
+# How far back to look for a passing check_action_permission result.
+_SCAN_WINDOW = 40
 
 
 def _tool_name(request: Any) -> str:
@@ -107,6 +112,37 @@ def _prior_ask_questions(messages: list[Any]) -> list[str]:
     return out
 
 
+def _policy_permits(messages: list[Any], expected_action: str) -> bool:
+    """Most recent ``check_action_permission`` result must hit this policy action.
+
+    The result is the tool's return value: a found entry carries ``action`` +
+    ``approval_required``; a miss carries ``{"error": "policy_not_found"}``.
+    Requiring the canonical action match prevents checking an unrelated action
+    (e.g. ``read_employee``) to satisfy a write tool's gate (AR-15 / R3-1).
+    """
+    for m in reversed(messages[-_SCAN_WINDOW:]):
+        if getattr(m, "type", None) != "tool":
+            continue
+        if getattr(m, "name", None) != "check_action_permission":
+            continue
+        raw = getattr(m, "content", None)
+        payload = raw if isinstance(raw, dict) else None
+        if isinstance(raw, str):
+            try:
+                payload = json.loads(raw)
+            except json.JSONDecodeError:
+                payload = None
+        if not isinstance(payload, dict):
+            return False
+        # policy_not_found / error payloads carry no entry → no gate.
+        if "approval_required" not in payload:
+            return False
+        if str(payload.get("action") or "") != expected_action:
+            return False
+        return True
+    return False
+
+
 def _deny(request: Any, payload: dict[str, Any]) -> ToolMessage:
     return ToolMessage(
         content=json.dumps(payload, ensure_ascii=False),
@@ -153,17 +189,23 @@ def apply_support_tool_guards(
                 },
             )
 
-    # 3) High-risk writes should have checked policy in this thread.
+    # 3) High-risk writes need a *passing* policy check for THIS action (not just
+    #    a call to check_action_permission for any action) — AR-15 / R3-1.
     if name in _WRITE_INTENT:
-        seen = _recent_tool_names(messages)
-        if "check_action_permission" not in seen:
+        expected = POLICY_ACTION_FOR_TOOL.get(name)
+        if not expected or not _policy_permits(messages, expected):
             return _deny(
                 request,
                 {
                     "ok": False,
                     "error": "policy_check_required",
-                    "hint": "高风险写操作前必须先调用 check_action_permission",
+                    "hint": (
+                        "高风险写操作前必须 check_action_permission 且返回该 action 的策略条目"
+                        f"（action={expected!r}，approval_required 存在）；"
+                        "查其它 action 或策略未命中不算数"
+                    ),
                     "blocked_tool": name,
+                    "required_policy_action": expected,
                 },
             )
 

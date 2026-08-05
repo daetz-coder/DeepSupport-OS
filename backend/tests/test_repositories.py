@@ -47,6 +47,26 @@ def test_apply_approved_writes_is_idempotent(fresh_db):
     assert AccountRepo().get_account_status("wei.zhang@contoso.com")["status"] == "active"
 
 
+def test_check_action_permission_accepts_tool_name_alias(fresh_db):
+    """R3-1: check_action_permission resolves write-tool names to canonical actions."""
+    from deepsupport_os.mcp.tools import POLICY_ACTION_FOR_TOOL, check_action_permission
+
+    assert POLICY_ACTION_FOR_TOOL["request_password_reset"] == "password_reset"
+    assert POLICY_ACTION_FOR_TOOL["request_license_change"] == "license_change"
+    assert POLICY_ACTION_FOR_TOOL["close_ticket"] == "close_ticket"
+    assert POLICY_ACTION_FOR_TOOL["escalate_ticket"] == "escalate_ticket"
+
+    by_tool = check_action_permission.invoke({"action": "request_password_reset"})
+    assert by_tool.get("action") == "password_reset"
+    assert by_tool.get("approval_required") is True
+
+    by_canonical = check_action_permission.invoke({"action": "password_reset"})
+    assert by_canonical.get("action") == "password_reset"
+
+    unknown = check_action_permission.invoke({"action": "nonsense"})
+    assert unknown.get("error") == "policy_not_found"
+
+
 def test_create_ticket_idempotency_key(fresh_db):
     a = TicketRepo().create_ticket(
         title="dup", description="d", category="Account", idempotency_key="k-1"
