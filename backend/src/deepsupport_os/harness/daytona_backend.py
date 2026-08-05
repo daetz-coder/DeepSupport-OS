@@ -173,3 +173,72 @@ def cleanup_daytona(*, stop: bool = False, delete: bool = False) -> None:
         _daytona_raw = None
         _daytona_client = None
         _hybrid_backend = None
+
+
+def probe_sandbox_status() -> dict[str, Any]:
+    """Lightweight Sandbox/Daytona status for UI (does not create a sandbox)."""
+    settings = get_settings()
+    mode = (settings.daytona_mode or "sidecar").strip().lower()
+    base: dict[str, Any] = {
+        "enabled": bool(settings.daytona_enabled),
+        "mode": mode,
+        "name": settings.daytona_sandbox_name or "deepsupport-sandbox",
+        "api_key_configured": bool(settings.daytona_api_key),
+        "route": SANDBOX_ROUTE,
+    }
+    if not settings.daytona_enabled or mode in {"off", "false", "0", "disabled"}:
+        return {
+            **base,
+            "ok": False,
+            "status": "disabled",
+            "detail": "DAYTONA_ENABLED=false 或 DAYTONA_MODE=off",
+        }
+    if not settings.daytona_api_key:
+        return {
+            **base,
+            "ok": False,
+            "status": "unconfigured",
+            "detail": "缺少 DAYTONA_API_KEY",
+        }
+
+    if _daytona_raw is not None and _sandbox is not None:
+        state = _sandbox_state(_sandbox)
+        return {
+            **base,
+            "ok": True,
+            "status": "ready",
+            "state": state or "cached",
+            "cached": True,
+        }
+
+    _ensure_env()
+    try:
+        from daytona import Daytona
+    except ImportError as exc:
+        return {
+            **base,
+            "ok": False,
+            "status": "missing_package",
+            "detail": str(exc),
+        }
+
+    try:
+        client = Daytona()
+        sandbox = client.get(base["name"])
+        state = _sandbox_state(sandbox)
+        ok = state in {"started", "running", "ready"}
+        return {
+            **base,
+            "ok": ok,
+            "status": "ready" if ok else "stopped",
+            "state": state or "unknown",
+            "cached": False,
+            "detail": None if ok else "沙箱存在但未处于运行态（首次任务时可能自动 start）",
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {
+            **base,
+            "ok": False,
+            "status": "unreachable",
+            "detail": str(exc)[:240],
+        }

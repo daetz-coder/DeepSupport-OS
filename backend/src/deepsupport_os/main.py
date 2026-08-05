@@ -46,7 +46,23 @@ def create_app() -> FastAPI:
 
     @app.get("/health")
     def health():
-        return {"status": "ok", "llm_configured": settings.llm_configured}
+        from deepsupport_os.harness.daytona_backend import probe_sandbox_status
+        from deepsupport_os.rag.client import RAGLabClient
+
+        live = get_settings()
+        rag = RAGLabClient().health()
+        sandbox = probe_sandbox_status()
+        return {
+            "status": "ok",
+            "llm_configured": live.llm_configured,
+            "raglab": {
+                "ok": bool(rag.get("ok")),
+                "base_url": live.raglab_base_url,
+                "path": rag.get("path"),
+                "error": rag.get("error"),
+            },
+            "sandbox": sandbox,
+        }
 
     @app.post("/admin/seed")
     def admin_seed(force: bool = False):

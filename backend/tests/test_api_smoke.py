@@ -5,12 +5,35 @@ from deepsupport_os.db.models import reset_engine
 from deepsupport_os.main import create_app
 
 
-def test_health_and_root(fresh_db):
+def test_health_and_root(fresh_db, monkeypatch):
     # Ensure app uses the temp DB from fresh_db fixture env
     get_settings.cache_clear()
     reset_engine()
+
+    class _FakeRag:
+        def health(self):
+            return {"ok": False, "error": "unreachable"}
+
+    monkeypatch.setattr(
+        "deepsupport_os.rag.client.RAGLabClient",
+        lambda *a, **k: _FakeRag(),
+    )
+    monkeypatch.setattr(
+        "deepsupport_os.harness.daytona_backend.probe_sandbox_status",
+        lambda: {
+            "ok": False,
+            "status": "unconfigured",
+            "enabled": True,
+            "api_key_configured": False,
+        },
+    )
+
     client = TestClient(create_app())
-    assert client.get("/health").json()["status"] == "ok"
+    health = client.get("/health").json()
+    assert health["status"] == "ok"
+    assert "llm_configured" in health
+    assert health["raglab"]["ok"] is False
+    assert health["sandbox"]["ok"] is False
     root = client.get("/").json()
     assert root["project"] == "DeepSupport OS"
     assert "llm_configured" in root

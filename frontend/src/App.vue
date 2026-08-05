@@ -100,6 +100,10 @@ const loading = ref(false)
 const useStream = ref(true)
 const health = ref('未检查')
 const llmConfigured = ref<boolean | null>(null)
+const raglabOk = ref<boolean | null>(null)
+const raglabLabel = ref('RAGLab 未检查')
+const sandboxOk = ref<boolean | null>(null)
+const sandboxLabel = ref('Sandbox 未检查')
 const threadId = ref<string | null>(null)
 const taskId = ref<string | null>(null)
 const status = ref('')
@@ -175,9 +179,35 @@ async function checkHealth() {
     const data = await res.json()
     health.value = data.status === 'ok' ? '后端正常' : '后端异常'
     llmConfigured.value = Boolean(data.llm_configured)
+
+    const rag = data.raglab || {}
+    raglabOk.value = Boolean(rag.ok)
+    raglabLabel.value = rag.ok
+      ? 'RAGLab 正常'
+      : `RAGLab 不可用${rag.error ? `（${String(rag.error).slice(0, 48)}）` : ''}`
+
+    const sb = data.sandbox || {}
+    sandboxOk.value = Boolean(sb.ok)
+    if (sb.ok) {
+      sandboxLabel.value = `Sandbox 正常${sb.state ? `（${sb.state}）` : ''}`
+    } else if (sb.status === 'disabled') {
+      sandboxLabel.value = 'Sandbox 已关闭'
+      sandboxOk.value = null
+    } else if (sb.status === 'unconfigured') {
+      sandboxLabel.value = 'Sandbox 未配置 Key'
+    } else if (sb.status === 'stopped') {
+      sandboxLabel.value = 'Sandbox 未运行'
+    } else {
+      const detail = sb.detail ? `（${String(sb.detail).slice(0, 40)}）` : ''
+      sandboxLabel.value = `Sandbox 不可用${detail}`
+    }
   } catch {
     health.value = '无法连接后端'
     llmConfigured.value = null
+    raglabOk.value = null
+    sandboxOk.value = null
+    raglabLabel.value = 'RAGLab 未检查'
+    sandboxLabel.value = 'Sandbox 未检查'
   }
 }
 
@@ -667,6 +697,20 @@ onMounted(async () => {
         >
           {{ llmConfigured ? 'LLM 已配置' : 'LLM 未配置' }}
         </el-tag>
+        <el-tag
+          :type="raglabOk === true ? 'success' : raglabOk === false ? 'warning' : 'info'"
+          size="small"
+          :title="raglabLabel"
+        >
+          {{ raglabLabel }}
+        </el-tag>
+        <el-tag
+          :type="sandboxOk === true ? 'success' : sandboxOk === false ? 'warning' : 'info'"
+          size="small"
+          :title="sandboxLabel"
+        >
+          {{ sandboxLabel }}
+        </el-tag>
         <el-tag v-if="status" size="small">{{ status }}</el-tag>
         <el-tag v-if="useStream" type="warning" size="small">SSE</el-tag>
       </div>
@@ -680,6 +724,26 @@ onMounted(async () => {
       description="请在仓库根目录配置 .env 中的 DEEPSEEK_API_KEY 后重启后端。"
       show-icon
       :closable="false"
+    />
+
+    <el-alert
+      v-if="raglabOk === false"
+      class="banner"
+      title="RAGLab 未就绪（外部知识检索）"
+      type="warning"
+      description="Knowledge 将回退本地 Markdown。请另启 RAGLab：cd ../RAGLab/backend && uv run --python .venv uvicorn app.main:app --reload --host 0.0.0.0 --port 8001"
+      show-icon
+      :closable="true"
+    />
+
+    <el-alert
+      v-if="sandboxOk === false"
+      class="banner"
+      title="Daytona Sandbox 未就绪"
+      type="warning"
+      description="本地 Skills/工作区仍可用；/sandbox/ 与 run_sandbox_shell 需要 DAYTONA_API_KEY 且沙箱可连通。可在 .env 配置后点「检查依赖」。"
+      show-icon
+      :closable="true"
     />
 
     <main class="layout">
@@ -725,7 +789,7 @@ onMounted(async () => {
           >
             重试
           </el-button>
-          <el-button @click="checkHealth">检查后端</el-button>
+          <el-button @click="checkHealth">检查依赖</el-button>
           <el-button
             v-if="hasInterrupt"
             type="success"

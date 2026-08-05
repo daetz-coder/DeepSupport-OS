@@ -39,53 +39,49 @@ Deep Agents Harness
 ### 前置
 
 - Python 3.12+、[uv](https://github.com/astral-sh/uv)、Node.js 20+
-- 本地已有 RAGLab 与 BGE 模型（默认路径 `D:\2026AppDev\RAGLab\models`）
-- DeepSeek API Key（或本地 Ollama）
+- 本地已有 [RAGLab](../RAGLab) 与 BGE 模型（默认路径 `D:\2026AppDev\RAGLab\models`）
+- DeepSeek API Key（或本地 Ollama）；可选 `DAYTONA_API_KEY`（Sandbox）
 
 ### 1. 配置
 
 ```bash
 cp .env.example .env
 cp config/mcp_servers.example.json config/mcp_servers.json   # 若尚无
-# 编辑 .env：DEEPSEEK_API_KEY、可选 DAYTONA_API_KEY、RAGLAB_* 
+# 编辑 .env：DEEPSEEK_API_KEY、可选 DAYTONA_API_KEY、RAGLAB_BASE_URL=http://127.0.0.1:8001
 ```
 
-### 2. 后端
+### 2. 本地三进程启动（推荐）
+
+开 **三个终端**（均用 `uv`，无需 `activate`）：
 
 ```bash
+# 终端 A — RAGLab（外部知识；端口 8001，避免与本仓库 8000 冲突）
+cd ../RAGLab
+docker compose up -d qdrant          # 首次 / 需要时
+cd backend
+uv run --python .venv uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
+
+# 终端 B — DeepSupport 后端
 cd backend
 uv sync
 uv run deepsupport-os
 # 或: uv run uvicorn deepsupport_os.main:app --reload --port 8000
-```
 
-### 3. 前端
-
-```bash
+# 终端 C — DeepSupport 前端
 cd frontend
-npm install
+npm install                          # 首次
 npm run dev
 ```
 
-浏览器打开 http://localhost:5173 。API 文档：http://localhost:8000/docs 。
+| 服务 | 地址 |
+|---|---|
+| DeepSupport UI | http://localhost:5173 |
+| DeepSupport API | http://localhost:8000/docs |
+| RAGLab API | http://localhost:8001/docs |
 
-### 4. RAGLab（知识检索，可选）
+打开 UI 后顶部会显示 **后端 / LLM / RAGLab / Sandbox** 状态；可点「检查依赖」刷新。未启 RAGLab 时 Knowledge 回退本地 Markdown；Sandbox 未配置时本地 Skills/工作区仍可用。
 
-DeepSupport OS **不内嵌** RAG。另用 [uv](https://github.com/astral-sh/uv) 启动 RAGLab（**8001**，避免与本仓库 API 的 8000 冲突）；未启动时 Knowledge 工具回退本地 Markdown。
-
-```bash
-# 可选：Qdrant（RAGLab 推荐）
-cd ../RAGLab
-docker compose up -d qdrant
-
-# RAGLab API — 勿 activate .venv，用 uv run
-cd ../RAGLab/backend
-uv run --python .venv uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
-```
-
-确认本仓库 `.env`：`RAGLAB_BASE_URL=http://127.0.0.1:8001`。
-
-### 5. Docker Compose（可选）
+### 3. Docker Compose（可选）
 
 ```bash
 # 需已配置 .env；RAGLab 仍建议宿主机单独运行（容器经 host.docker.internal:8001 访问）
