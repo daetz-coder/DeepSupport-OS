@@ -11,7 +11,7 @@ from sse_starlette.sse import EventSourceResponse
 from deepsupport_os.api.trace import build_trace, extract_interrupt_info, serialize_messages
 from deepsupport_os.db import task_store
 from deepsupport_os.db.repositories import list_audit
-from deepsupport_os.harness.agent import MEMORY_FILE, build_support_agent
+from deepsupport_os.harness.agent import MEMORY_PATHS, build_support_agent
 from deepsupport_os.harness.artifacts import list_artifacts, read_artifact, write_manifest
 from deepsupport_os.harness.hitl_apply import apply_approved_writes, collect_pending_writes
 from deepsupport_os.harness.metrics import TurnTimer, write_turn_metrics
@@ -90,7 +90,7 @@ def _build_record(
         "artifacts": artifacts,
         "manifest": manifest,
         "metrics": metrics,
-        "memory_paths": [MEMORY_FILE],
+        "memory_paths": list(MEMORY_PATHS),
     }
 
 

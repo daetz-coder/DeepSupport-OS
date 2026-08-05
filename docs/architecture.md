@@ -13,7 +13,7 @@ DeepSupport OS is an **enterprise IT support agent harness** built on Deep Agent
 User → Vue → FastAPI /api/tasks[/stream|/resume]
               ↓
      Per-thread Deep Agents (prompt embeds /workspace/<tid>/)
-     ├── Skills (/skills/…) · Memory (/memory/AGENTS.md)
+     ├── Skills (/skills/…) · Memory (/memory/org.md + /memory/AGENTS.md)
      ├── Subagents (knowledge / environment / ticket)
      ├── Checkpoint (data/checkpoints.sqlite)
      └── HITL interrupt_on → hitl_apply → SQLite

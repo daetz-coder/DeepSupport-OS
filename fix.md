@@ -10,8 +10,8 @@
 ## P0 — 正确性 / 架构债
 
 ### F-01 Harness 工厂过胖，职责边界不清
-- **状态**：`[ ]`（等 F-02 ADR 后再拆 HarnessBuilder）
-- **建议**：拆为 `HarnessBuilder` + `PromptBundle` + `RuntimePorts`
+- **状态**：`[x]`
+- **产出**：`harness/prompts.py`（PromptBundle）· `harness/builder.py`（`HarnessBuilder` + `RuntimePorts`）· `agent.py` 变薄为入口/checkpointer
 
 ### F-02 进程内 Mock Tools ≠ MCP 契约，双轨并存
 - **状态**：`[x]` 文档/ADR 已落地（实现收敛后置）
@@ -22,11 +22,12 @@
 - **产出**：`workspace/{tid}/manifest.json`（`write_manifest` / `validate_canonical`）；任务记录带回 `manifest`
 
 ### F-04 Memory 仅单文件 AGENTS.md，无语义检索
-- **状态**：`[ ]`
+- **状态**：`[x]` 分层已落地（语义检索仍后置）
+- **产出**：`memory/org.md` + `memory/AGENTS.md`；`MEMORY_PATHS` 双路径注入；`harness/memory_files.py`
 
 ### F-05 System Prompt 与 Skill/Memory 内容重叠
 - **状态**：`[x]`
-- **产出**：SYSTEM_PROMPT 仅硬约束；演示账号迁回 `memory/AGENTS.md`；产物约定指向 manifest
+- **产出**：SYSTEM_PROMPT 仅硬约束；演示账号在 `memory/org.md`；产物约定指向 manifest
 
 ---
 
@@ -53,7 +54,8 @@
 - **产出**：`core/http_retry.py`；RAGLab client + Remote MCP load 有限重试
 
 ### F-11 前端单文件 App.vue（~1.2k 行）
-- **状态**：`[ ]`
+- **状态**：`[x]` 脚本拆分（模板仍聚合）
+- **产出**：`types.ts` · `api/client.ts` · `composables/useHealth|useSkills|useMcp.ts`
 
 ### F-12 Demo 与开箱体验不完整
 - **状态**：`[ ]`（screenshots + benchmark 扩量）
@@ -71,15 +73,13 @@ F-13 … F-20 仍后置（见原建议）。F-16 部分被 F-03/F-09 覆盖（ma
 - 全量 CI/CD — 不做
 - 真实 AD / M365 / ServiceNow — 后置
 - Baseline C 完整手写 LangGraph — 后置
+- F-04 语义 Memory 检索 — 后置
+- F-11 模板级组件拆分 — 可选后续
 
 ---
 
 ## 建议落地顺序（下一迭代）
 
-1. ~~F-05 + F-03~~  
-2. ~~F-08 + F-07（smoke）~~  
-3. ~~F-06~~ · F-12 Demo 截图仍待  
-4. ~~F-09 + F-10（基础）~~  
-5. ~~F-02 ADR~~ · 实现收敛仍待  
-6. F-01 HarnessBuilder 重构  
-7. F-04 Memory 分层 · F-11 前端拆分
+1. F-12 Demo 截图 / README 开箱路径补全  
+2. F-02 MCP 双轨实现收敛（可选）  
+3. F-11 继续拆面板组件（可选）

@@ -4,7 +4,14 @@ from deepsupport_os.harness.artifacts import (
     validate_canonical,
     write_manifest,
 )
+from deepsupport_os.harness.memory_files import (
+    MEMORY_PATHS,
+    ORG_MEMORY_FILE,
+    SESSION_MEMORY_FILE,
+    ensure_memory_files,
+)
 from deepsupport_os.harness.metrics import summarize_trace, write_turn_metrics
+from deepsupport_os.harness.prompts import build_system_prompt
 from deepsupport_os.harness.subagents import build_mvp_subagents
 from deepsupport_os.harness.workspace import ensure_thread_workspace
 
@@ -13,7 +20,24 @@ def test_system_prompt_is_slim():
     assert "wei.zhang@contoso.com" not in SYSTEM_PROMPT
     assert "工作原则" not in SYSTEM_PROMPT
     assert "硬约束" in SYSTEM_PROMPT
+    assert "/memory/org.md" in SYSTEM_PROMPT
     assert len(SYSTEM_PROMPT) < 900
+
+
+def test_thread_prompt_binds_workspace():
+    p = build_system_prompt(thread_id="tid-demo")
+    assert "/workspace/tid-demo/" in p
+    assert "manifest.json" in p
+
+
+def test_memory_layers_seeded():
+    paths = ensure_memory_files()
+    assert len(paths) == 2
+    assert paths[0].name == "org.md"
+    assert paths[1].name == "AGENTS.md"
+    assert ORG_MEMORY_FILE in MEMORY_PATHS
+    assert SESSION_MEMORY_FILE in MEMORY_PATHS
+    assert "wei.zhang@contoso.com" in paths[0].read_text(encoding="utf-8")
 
 
 def test_manifest_and_validation(tmp_path, monkeypatch):

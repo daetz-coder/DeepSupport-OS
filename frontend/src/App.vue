@@ -1,116 +1,33 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { API, apiHeaders } from './api/client'
+import { useHealth } from './composables/useHealth'
+import { useMcp } from './composables/useMcp'
+import { useSkills } from './composables/useSkills'
+import type {
+  ArtifactItem,
+  AuditItem,
+  HitlPreview,
+  InterruptInfo,
+  TaskItem,
+  TodoItem,
+  Trace,
+  TraceStep,
+} from './types'
 
-type TraceStep = {
-  kind: string
-  content?: string
-  name?: string
-  args?: unknown
-  id?: string
-  tool_call_id?: string
-  subagent?: string
-}
-
-type HitlHighlight = { key: string; value: string }
-type HitlPreview = {
-  name: string
-  label: string
-  highlights: HitlHighlight[]
-  args: Record<string, unknown>
-}
-
-type InterruptInfo = {
-  next?: string[]
-  pending_writes?: TraceStep[]
-  pending_preview?: HitlPreview[]
-  tasks?: string[]
-}
-
-type Trace = {
-  steps?: TraceStep[]
-  pending_writes?: TraceStep[]
-  interrupt?: unknown
-}
-
-type TaskItem = {
-  task_id: string
-  thread_id: string
-  status: string
-  updated_at?: string
-  preview?: string
-}
-
-type AuditItem = {
-  id: number
-  task_id: string
-  tool: string
-  arguments: string
-  result: string
-  timestamp?: string
-}
-
-type TodoItem = {
-  content: string
-  status: 'pending' | 'in_progress' | 'completed'
-}
-
-type ArtifactItem = {
-  name: string
-  path: string
-  bytes: number
-  canonical?: boolean
-  preview?: string
-  updated_at?: string
-}
-
-type SkillItem = {
-  name: string
-  dir_name: string
-  description: string
-  path: string
-  layer: string
-  enabled: boolean
-  has_references?: boolean
-}
-
-type CatalogEntry = {
-  id: string
-  name: string
-  description?: string
-  license?: string
-  install?: string
-  url?: string
-  optional?: boolean
-  source?: string
-}
-
-type McpServerSpec = {
-  enabled: boolean
-  transport?: string
-  url?: string
-  command?: string
-  description?: string
-}
-
-// Dev: hit API directly. Production/Docker build: same-origin via nginx `/api` + `/health`.
-const API = import.meta.env.VITE_API_BASE ?? (import.meta.env.DEV ? 'http://127.0.0.1:8000' : '')
-const ADMIN_TOKEN = String(import.meta.env.VITE_ADMIN_TOKEN || '')
-
-function apiHeaders(extra?: HeadersInit): HeadersInit {
-  const h: Record<string, string> = { ...(extra as Record<string, string> | undefined) }
-  if (ADMIN_TOKEN) h['X-Admin-Token'] = ADMIN_TOKEN
-  return h
-}
 const question = ref('我的 Outlook 一直登录不上，邮箱是 wei.zhang@contoso.com')
 const loading = ref(false)
 const useStream = ref(true)
-const health = ref('未检查')
-const llmConfigured = ref<boolean | null>(null)
-const raglabOk = ref<boolean | null>(null)
-const raglabLabel = ref('RAGLab 未检查')
-const sandboxOk = ref<boolean | null>(null)
-const sandboxLabel = ref('Sandbox 未检查')
+const {
+  health,
+  llmConfigured,
+  raglabOk,
+  raglabLabel,
+  sandboxOk,
+  sandboxLabel,
+  checkHealth,
+} = useHealth()
 const threadId = ref<string | null>(null)
 const taskId = ref<string | null>(null)
 const status = ref('')
@@ -129,20 +46,34 @@ const activeTab = ref('trace')
 const lastError = ref<string | null>(null)
 const lastQuestion = ref('')
 
-const skillsInstalled = ref<SkillItem[]>([])
-const skillsCatalog = ref<CatalogEntry[]>([])
-const skillsImportedEnabled = ref(true)
-const skillsBusy = ref(false)
+const {
+  skillsInstalled,
+  skillsCatalog,
+  skillsImportedEnabled,
+  skillsBusy,
+  refreshSkills,
+  toggleSkill,
+  setImportedLayer,
+  importCatalogSkill,
+} = useSkills()
 
-const mcpLocalTools = ref(true)
-const mcpRemoteEnabled = ref(false)
-const mcpServers = ref<Record<string, McpServerSpec>>({})
-const mcpRuntime = ref<Record<string, unknown>>({})
-const mcpBusy = ref(false)
-const newMcpName = ref('')
-const newMcpUrl = ref('http://127.0.0.1:8100/mcp')
-const newMcpTransport = ref('streamable_http')
-const newMcpDesc = ref('')
+const {
+  mcpLocalTools,
+  mcpRemoteEnabled,
+  mcpServers,
+  mcpRuntime,
+  mcpBusy,
+  newMcpName,
+  newMcpUrl,
+  newMcpTransport,
+  newMcpDesc,
+  refreshMcp,
+  patchMcpSettings,
+  toggleMcpServer,
+  addMcpServer,
+  removeMcpServer,
+  reloadMcp,
+} = useMcp()
 
 const hasInterrupt = computed(() => Boolean(interrupt.value))
 const pendingPreview = computed<HitlPreview[]>(() => {
@@ -177,54 +108,6 @@ function applyRecord(data: Record<string, unknown>) {
   const trace = data.trace as Trace | undefined
   if (trace?.steps?.length) {
     steps.value = trace.steps
-  }
-}
-
-async function checkHealth() {
-  try {
-    const res = await fetch(`${API}/health`)
-    const data = await res.json()
-    health.value = data.status === 'ok' ? '后端正常' : '后端异常'
-    llmConfigured.value = Boolean(data.llm_configured)
-  } catch {
-    health.value = '无法连接后端'
-    llmConfigured.value = null
-    raglabOk.value = null
-    sandboxOk.value = null
-    raglabLabel.value = 'RAGLab 未检查'
-    sandboxLabel.value = 'Sandbox 未检查'
-    return
-  }
-
-  try {
-    const res = await fetch(`${API}/api/health/deps`)
-    const data = await res.json()
-    const rag = data.raglab || {}
-    raglabOk.value = Boolean(rag.ok)
-    raglabLabel.value = rag.ok
-      ? 'RAGLab 正常'
-      : `RAGLab 不可用${rag.error ? `（${String(rag.error).slice(0, 48)}）` : ''}`
-
-    const sb = data.sandbox || {}
-    sandboxOk.value = Boolean(sb.ok)
-    if (sb.ok) {
-      sandboxLabel.value = `Sandbox 正常${sb.state ? `（${sb.state}）` : ''}`
-    } else if (sb.status === 'disabled') {
-      sandboxLabel.value = 'Sandbox 已关闭'
-      sandboxOk.value = null
-    } else if (sb.status === 'unconfigured') {
-      sandboxLabel.value = 'Sandbox 未配置 Key'
-    } else if (sb.status === 'stopped') {
-      sandboxLabel.value = 'Sandbox 未运行'
-    } else {
-      const detail = sb.detail ? `（${String(sb.detail).slice(0, 40)}）` : ''
-      sandboxLabel.value = `Sandbox 不可用${detail}`
-    }
-  } catch {
-    raglabOk.value = false
-    sandboxOk.value = false
-    raglabLabel.value = 'RAGLab 探测失败'
-    sandboxLabel.value = 'Sandbox 探测失败'
   }
 }
 
@@ -325,202 +208,6 @@ async function openArtifact(item: ArtifactItem) {
     activeTab.value = 'artifacts'
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : String(e))
-  }
-}
-
-async function refreshSkills() {
-  try {
-    const res = await fetch(`${API}/api/meta/skills`)
-    if (!res.ok) return
-    const data = await res.json()
-    skillsInstalled.value = data.installed || []
-    skillsCatalog.value = data.catalog?.entries || []
-    skillsImportedEnabled.value = Boolean(data.settings?.skills_imported_enabled ?? true)
-  } catch {
-    /* ignore */
-  }
-}
-
-async function toggleSkill(item: SkillItem, enabled: boolean) {
-  skillsBusy.value = true
-  try {
-    const res = await fetch(`${API}/api/meta/skills/${encodeURIComponent(item.dir_name)}/toggle`, {
-      method: 'POST',
-      headers: apiHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ enabled }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err.detail || res.statusText)
-    }
-    ElMessage.success(enabled ? `已启用 ${item.name}` : `已禁用 ${item.name}`)
-    await refreshSkills()
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : String(e))
-  } finally {
-    skillsBusy.value = false
-  }
-}
-
-async function setImportedLayer(enabled: boolean) {
-  skillsBusy.value = true
-  try {
-    const res = await fetch(`${API}/api/meta/skills/settings`, {
-      method: 'PATCH',
-      headers: apiHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ skills_imported_enabled: enabled }),
-    })
-    if (!res.ok) throw new Error('update failed')
-    skillsImportedEnabled.value = enabled
-    ElMessage.success(enabled ? '已开启 imported 层' : '已关闭 imported 层')
-    await refreshSkills()
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : String(e))
-  } finally {
-    skillsBusy.value = false
-  }
-}
-
-async function importCatalogSkill(entry: CatalogEntry) {
-  if (entry.source === 'cli') {
-    ElMessage.info(entry.install || '请使用 CLI 安装后复制到 skills/imported/')
-    return
-  }
-  const needLicense = (entry.license || '').toLowerCase().includes('proprietary')
-  skillsBusy.value = true
-  try {
-    const res = await fetch(`${API}/api/meta/skills/import`, {
-      method: 'POST',
-      headers: apiHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
-        catalog_id: entry.id,
-        accept_license: needLicense,
-      }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err.detail || res.statusText)
-    }
-    ElMessage.success(`已导入 ${entry.name}`)
-    await refreshSkills()
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : String(e))
-  } finally {
-    skillsBusy.value = false
-  }
-}
-
-async function refreshMcp() {
-  try {
-    const res = await fetch(`${API}/api/meta/mcp`)
-    if (!res.ok) return
-    const data = await res.json()
-    mcpLocalTools.value = Boolean(data.settings?.mcp_local_tools ?? true)
-    mcpRemoteEnabled.value = Boolean(data.settings?.mcp_remote_enabled ?? false)
-    mcpServers.value = data.config_servers || {}
-    mcpRuntime.value = data.runtime || {}
-  } catch {
-    /* ignore */
-  }
-}
-
-async function patchMcpSettings(patch: { mcp_local_tools?: boolean; mcp_remote_enabled?: boolean }) {
-  mcpBusy.value = true
-  try {
-    const res = await fetch(`${API}/api/meta/mcp/settings`, {
-      method: 'PATCH',
-      headers: apiHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(patch),
-    })
-    if (!res.ok) throw new Error('update failed')
-    ElMessage.success('MCP 设置已保存（下次任务生效）')
-    await refreshMcp()
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : String(e))
-  } finally {
-    mcpBusy.value = false
-  }
-}
-
-async function toggleMcpServer(name: string, enabled: boolean) {
-  mcpBusy.value = true
-  try {
-    const res = await fetch(`${API}/api/meta/mcp/servers/${encodeURIComponent(name)}/toggle`, {
-      method: 'POST',
-      headers: apiHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ enabled }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err.detail || res.statusText)
-    }
-    await refreshMcp()
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : String(e))
-  } finally {
-    mcpBusy.value = false
-  }
-}
-
-async function addMcpServer() {
-  if (!newMcpName.value.trim() || !newMcpUrl.value.trim()) {
-    ElMessage.warning('请填写名称与 URL')
-    return
-  }
-  mcpBusy.value = true
-  try {
-    const res = await fetch(`${API}/api/meta/mcp/servers`, {
-      method: 'POST',
-      headers: apiHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
-        name: newMcpName.value.trim(),
-        transport: newMcpTransport.value,
-        url: newMcpUrl.value.trim(),
-        description: newMcpDesc.value.trim(),
-        enabled: true,
-      }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err.detail || res.statusText)
-    }
-    ElMessage.success('已添加 MCP Server')
-    newMcpName.value = ''
-    newMcpDesc.value = ''
-    await refreshMcp()
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : String(e))
-  } finally {
-    mcpBusy.value = false
-  }
-}
-
-async function removeMcpServer(name: string) {
-  mcpBusy.value = true
-  try {
-    const res = await fetch(`${API}/api/meta/mcp/servers/${encodeURIComponent(name)}`, { method: 'DELETE', headers: apiHeaders() })
-    if (!res.ok) throw new Error('delete failed')
-    ElMessage.success(`已删除 ${name}`)
-    await refreshMcp()
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : String(e))
-  } finally {
-    mcpBusy.value = false
-  }
-}
-
-async function reloadMcp() {
-  mcpBusy.value = true
-  try {
-    const res = await fetch(`${API}/api/meta/mcp/reload`, { method: 'POST', headers: apiHeaders() })
-    const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new Error(data.detail || 'reload failed')
-    ElMessage.success(`已重载，工具数 ${data.tool_count ?? 0}`)
-    await refreshMcp()
-  } catch (e) {
-    ElMessage.error(e instanceof Error ? e.message : String(e))
-  } finally {
-    mcpBusy.value = false
   }
 }
 
@@ -651,7 +338,6 @@ async function retryLast() {
   if (lastQuestion.value) {
     question.value = lastQuestion.value
   }
-  // New thread for clean retry after failure (avoid polluted checkpoint)
   if (status.value === 'failed') {
     threadId.value = null
     taskId.value = null
