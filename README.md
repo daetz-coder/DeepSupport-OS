@@ -76,10 +76,23 @@ DeepSupport OS **不内嵌** RAG。另启 RAGLab（默认 `8001`）；未启动�
 ### 5. Docker Compose（可选）
 
 ```bash
-# 需已配置 .env；RAGLab 仍建议宿主机单独运行
+# 需已配置 .env；RAGLab 仍建议宿主机单独运行（容器经 host.docker.internal:8001 访问）
 docker compose up --build
-# API http://localhost:8000  · 前端 http://localhost:5173（映射以 compose 为准）
+# API http://localhost:8000  · 前端 http://localhost:5173（nginx → api）
+# 停止：docker compose down
 ```
+
+**实测记录（2026-08-05 · Windows 10 + Docker Desktop 29.5 / Compose v5.1）**
+
+| 项 | 结果 |
+|---|---|
+| `docker compose up --build -d` | 成功；首次构建约 3–4 分钟 |
+| `api` | `healthy`；`GET /health` → `{"status":"ok"}` |
+| `frontend` | 启动正常；`GET /` → 200；经 nginx 代理 `GET /health`、`GET /api/meta/skills` → 200 |
+| 卷挂载 | 容器内 `root_dir=/app`；`data` / `skills` / `config` / `memory` 可读 |
+| RAGLab | compose 将 `RAGLAB_BASE_URL` 指到 `host.docker.internal:8001`（宿主机未启 RAGLab 时 Knowledge 回退本地 Markdown） |
+
+说明：远程 MCP（`127.0.0.1:8100`）与 Ollama 同理需跑在宿主机；远程开关以 `config/extensions.json`（或 UI「MCP」）为准，不是仅改 `.env` 的 `MCP_REMOTE_ENABLED`。
 
 ### Skills（渐进披露 + 持续接入）
 
@@ -90,8 +103,8 @@ docker compose up --build
 
 ### MCP（本地 + 远程）
 
-- 默认：进程内 Mock LangChain 工具（`MCP_LOCAL_TOOLS=true`）
-- 远程：编辑 `config/mcp_servers.json`，设 `MCP_REMOTE_ENABLED=true`
+- 默认：进程内 Mock LangChain 工具（`config/extensions.json` → `mcp_local_tools`）
+- 远程：编辑 `config/mcp_servers.json`，并将 `extensions.json` 中 `mcp_remote_enabled` 设为 `true`（或 UI「MCP」）
 
 ```bash
 # 终端 A — 远程风格 HTTP Employee MCP

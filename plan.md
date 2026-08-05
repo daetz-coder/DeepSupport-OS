@@ -10,7 +10,7 @@
 
 ### 开源体验（可选）
 
-- [ ] `docker compose up` 实测记录补进 README（文件与说明已有）
+- [x] `docker compose up` 实测记录补进 README（2026-08-05；并修 ROOT_DIR / `.dockerignore` / compose 宿主机网络）
 - [ ] Demo 截图/GIF 填入 `docs/demo-screenshots/`（目录已就绪）
 
 ### 评测（后置）
