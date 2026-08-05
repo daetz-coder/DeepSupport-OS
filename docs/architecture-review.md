@@ -686,8 +686,8 @@ Tool Registry + 按 Skill 动态挂载；SubAgent 目录化；Checkpoint 外置 
 | R2-1 | `applied_actions` 表 + apply 幂等 | AR-06,16 | `[x]` |
 | R2-2 | `create_ticket` 幂等键或 draft→commit | AR-05 | `[x]` |
 | R2-3 | `purge_thread` 清理 checkpoint | AR-08 | `[x]` |
-| R2-4 | Daytona/sandbox per-thread 或默认关闭共享可写 | AR-07 | `[ ]` |
-| R2-5 | Audit 注入 thread_id/task_id（contextvars） | AR-11 | `[ ]` |
+| R2-4 | Daytona/sandbox per-thread 或默认关闭共享可写 | AR-07 | `[x]` |
+| R2-5 | Audit 注入 thread_id/task_id（contextvars） | AR-11 | `[x]` |
 
 ### R3 — Runtime 硬化 & 扩展
 
@@ -729,7 +729,7 @@ Tool Registry + 按 Skill 动态挂载；SubAgent 目录化；Checkpoint 外置 
 
 ## 8. 下一步
 
-按 **R1-1 → R1-2 → R1-3 → R1-4 → R1-5** 顺序落地。  
+R1 / R2 已落地。下一迭代按 **R3-1 → R3-2 → R3-3 → R3-4 → R3-5** 推进 Runtime 硬化。  
 每完成一项：更新本文件勾选 + 补充回归测试 + 必要时同步 `fix.md`。
 
 **本审查结论一句话**：  

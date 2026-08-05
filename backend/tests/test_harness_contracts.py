@@ -168,3 +168,23 @@ def test_thread_backends_isolate_workspace_and_memory(tmp_path, monkeypatch):
 def test_canonical_names_stable():
     assert "diagnosis.md" in CANONICAL_ARTIFACTS
     assert "final_resolution.md" in CANONICAL_ARTIFACTS
+
+
+def test_sandbox_scope_local_isolates_per_thread(tmp_path, monkeypatch):
+    """R2-4: default scope=local mounts /sandbox/ under workspace/{tid}/sandbox/."""
+    from deepsupport_os.core.config import get_settings
+    from deepsupport_os.harness.daytona_backend import build_thread_backend, clear_thread_backends
+
+    monkeypatch.setenv("WORKSPACE_DIR", str(tmp_path / "ws"))
+    monkeypatch.setenv("DAYTONA_SANDBOX_SCOPE", "local")
+    get_settings.cache_clear()
+    clear_thread_backends()
+
+    b1 = build_thread_backend("sb-a", attach_daytona=True)
+    b2 = build_thread_backend("sb-b", attach_daytona=True)
+    r1 = b1.write("/sandbox/note.txt", "alpha")
+    assert r1.error is None
+    assert (tmp_path / "ws" / "sb-a" / "sandbox" / "note.txt").read_text(encoding="utf-8") == "alpha"
+    assert not (tmp_path / "ws" / "sb-b" / "sandbox" / "note.txt").exists()
+    clear_thread_backends()
+    get_settings.cache_clear()

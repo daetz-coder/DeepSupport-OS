@@ -71,6 +71,12 @@ class Settings(BaseSettings):
     # sidecar = local primary + /sandbox/ route (recommended on 1vCPU/1GiB)
     # off = local only; full = entire FS on Daytona (slow, not recommended)
     daytona_mode: str = "sidecar"
+    # Sandbox writable isolation (AR-07 / R2-4):
+    #   local  = /sandbox/ → workspace/{tid}/sandbox/ (default, no cross-thread share)
+    #   off    = no /sandbox/ route
+    #   shared = legacy single Daytona sandbox (explicit opt-in)
+    #   thread = one Daytona sandbox name per thread_id (cloud cost)
+    daytona_sandbox_scope: str = "local"
 
     # Skills: multi-source progressive disclosure
     skills_imported_enabled: bool = True

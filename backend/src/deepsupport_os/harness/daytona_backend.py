@@ -24,6 +24,9 @@ _daytona_raw: Any | None = None
 _daytona_client: Any | None = None
 # Per-thread CompositeBackend cache (workspace isolation); not shared across threads.
 _thread_backends: dict[str, Any] = {}
+# Optional per-thread Daytona sandboxes when daytona_sandbox_scope=thread.
+_daytona_by_thread: dict[str, Any] = {}
+_sandbox_by_thread: dict[str, Any] = {}
 
 SANDBOX_ROUTE = "/sandbox/"
 SKILLS_ROUTE = "/skills/"
@@ -56,8 +59,12 @@ def _sandbox_state(sandbox: Any) -> str:
     return text
 
 
-def get_or_create_daytona_backend() -> Any | None:
-    """Raw DaytonaSandbox instance (may be slow). Prefer build_hybrid_backend()."""
+def get_or_create_daytona_backend(thread_id: str | None = None) -> Any | None:
+    """Raw DaytonaSandbox. Prefer build_hybrid_backend().
+
+    When ``thread_id`` is set, uses a dedicated sandbox name
+    ``{base}-{tid}`` so threads do not share a writable cloud FS.
+    """
     global _sandbox, _daytona_raw, _daytona_client
     settings = get_settings()
     if not settings.daytona_enabled:
@@ -65,7 +72,15 @@ def get_or_create_daytona_backend() -> Any | None:
     if not settings.daytona_api_key:
         logger.warning("DAYTONA_ENABLED but DAYTONA_API_KEY empty; local-only backend")
         return None
-    if _daytona_raw is not None:
+
+    from deepsupport_os.harness.workspace import sanitize_thread_id
+
+    tid_key = sanitize_thread_id(thread_id) if thread_id else None
+    if tid_key:
+        cached = _daytona_by_thread.get(tid_key)
+        if cached is not None:
+            return cached
+    elif _daytona_raw is not None:
         return _daytona_raw
 
     _ensure_env()
@@ -76,7 +91,8 @@ def get_or_create_daytona_backend() -> Any | None:
         logger.warning("daytona packages missing: %s", exc)
         return None
 
-    name = settings.daytona_sandbox_name or "deepsupport-sandbox"
+    base = settings.daytona_sandbox_name or "deepsupport-sandbox"
+    name = f"{base}-{tid_key[:40]}" if tid_key else base
     try:
         client = Daytona()
         _daytona_client = client
@@ -95,14 +111,20 @@ def get_or_create_daytona_backend() -> Any | None:
             )
             logger.info("created daytona sandbox %s id=%s", name, getattr(sandbox, "id", "?"))
 
-        _sandbox = sandbox
-        _daytona_raw = DaytonaSandbox(sandbox=sandbox)
-        return _daytona_raw
+        raw = DaytonaSandbox(sandbox=sandbox)
+        if tid_key:
+            _sandbox_by_thread[tid_key] = sandbox
+            _daytona_by_thread[tid_key] = raw
+        else:
+            _sandbox = sandbox
+            _daytona_raw = raw
+        return raw
     except Exception as exc:  # noqa: BLE001
         logger.warning("daytona unavailable, local-only: %s", exc)
-        _sandbox = None
-        _daytona_raw = None
-        _daytona_client = None
+        if not tid_key:
+            _sandbox = None
+            _daytona_raw = None
+            _daytona_client = None
         return None
 
 
@@ -126,16 +148,16 @@ def build_thread_backend(
     *,
     attach_daytona: bool = True,
 ):
-    """CompositeBackend with forced path isolation (AR-02 / R1-5).
+    """CompositeBackend with forced path isolation (AR-02 / R1-5 / R2-4).
 
     - default + ``/workspace/{tid}/`` → thread workspace (writable + execute)
     - ``/skills/`` → repo skills (read via FilesystemBackend)
     - ``/memory/`` → memory/ (org + per-thread AGENTS under threads/{tid}/)
-    - ``/sandbox/`` → Daytona sidecar when enabled
+    - ``/sandbox/`` → scope-dependent (default: local workspace sandbox, not shared Daytona)
     """
     from deepagents.backends import CompositeBackend, FilesystemBackend
 
-    from deepsupport_os.harness.workspace import sanitize_thread_id
+    from deepsupport_os.harness.workspace import ensure_thread_workspace, sanitize_thread_id
 
     settings = get_settings()
     tid = sanitize_thread_id(thread_id) if thread_id else "default"
@@ -155,24 +177,39 @@ def build_thread_backend(
         MEMORY_ROUTE: FilesystemBackend(root_dir=memory_root, virtual_mode=True),
     }
 
-    if attach_daytona:
-        mode = (settings.daytona_mode or "sidecar").strip().lower()
-        if mode not in {"off", "false", "0", "disabled"}:
-            if mode == "full":
-                remote = get_or_create_daytona_backend()
-                if remote is not None:
-                    _thread_backends[cache_key] = remote
-                    return remote
-            else:
-                remote = get_or_create_daytona_backend()
-                if remote is not None:
-                    routes[SANDBOX_ROUTE] = remote
+    scope = (settings.daytona_sandbox_scope or "local").strip().lower()
+    mode = (settings.daytona_mode or "sidecar").strip().lower()
+
+    if attach_daytona and mode not in {"off", "false", "0", "disabled"}:
+        if mode == "full" and scope in {"shared", "thread"}:
+            remote = get_or_create_daytona_backend(
+                thread_id=tid if scope == "thread" else None
+            )
+            if remote is not None:
+                _thread_backends[cache_key] = remote
+                return remote
+        elif scope == "local":
+            sandbox_dir = ensure_thread_workspace(tid) / "sandbox"
+            sandbox_dir.mkdir(parents=True, exist_ok=True)
+            routes[SANDBOX_ROUTE] = FilesystemBackend(
+                root_dir=sandbox_dir, virtual_mode=True
+            )
+        elif scope == "shared":
+            remote = get_or_create_daytona_backend()
+            if remote is not None:
+                routes[SANDBOX_ROUTE] = remote
+        elif scope == "thread":
+            remote = get_or_create_daytona_backend(thread_id=tid)
+            if remote is not None:
+                routes[SANDBOX_ROUTE] = remote
+        # scope=off → no /sandbox/ route
 
     hybrid = CompositeBackend(default=ws_backend, routes=routes)
     _thread_backends[cache_key] = hybrid
     logger.info(
-        "thread backend ready tid=%s routes=%s",
+        "thread backend ready tid=%s scope=%s routes=%s",
         tid,
+        scope,
         sorted(routes.keys()),
     )
     return hybrid
@@ -195,35 +232,58 @@ def run_sandbox_shell(command: str) -> dict:
         return {"ok": False, "error": "empty_command"}
     if len(cmd) > 500:
         return {"ok": False, "error": "command_too_long", "hint": "keep sandbox commands trivial"}
-    backend = get_or_create_daytona_backend()
+    settings = get_settings()
+    scope = (settings.daytona_sandbox_scope or "local").strip().lower()
+    if scope in {"local", "off"}:
+        return {
+            "ok": False,
+            "error": "daytona_shell_disabled",
+            "hint": "DAYTONA_SANDBOX_SCOPE=local|off uses thread-local /sandbox/ files; set shared|thread for cloud shell",
+            "scope": scope,
+        }
+    from deepsupport_os.harness.runtime_context import get_thread_id
+
+    thread_id = get_thread_id() if scope == "thread" else None
+    backend = get_or_create_daytona_backend(thread_id=thread_id)
     if backend is None:
         return {"ok": False, "error": "daytona_unavailable", "hint": "DAYTONA_ENABLED / API key / sandbox started?"}
     try:
         result = backend.execute(cmd, timeout=30)
         output = getattr(result, "output", None) or getattr(result, "result", None) or str(result)
         exit_code = getattr(result, "exit_code", None)
-        return {"ok": True, "exit_code": exit_code, "output": str(output)[:4000]}
+        return {"ok": True, "exit_code": exit_code, "output": str(output)[:4000], "scope": scope}
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "error": str(exc)}
 
 
 def cleanup_daytona(*, stop: bool = False, delete: bool = False) -> None:
-    global _sandbox, _daytona_raw, _daytona_client, _thread_backends
-    if _daytona_client is None or _sandbox is None:
+    global _sandbox, _daytona_raw, _daytona_client, _thread_backends, _daytona_by_thread, _sandbox_by_thread
+    client = _daytona_client
+    sandboxes = []
+    if _sandbox is not None:
+        sandboxes.append(_sandbox)
+    sandboxes.extend(_sandbox_by_thread.values())
+    if client is None or not sandboxes:
         _thread_backends.clear()
+        _daytona_by_thread.clear()
+        _sandbox_by_thread.clear()
         return
     try:
-        if delete:
-            _daytona_client.delete(_sandbox)
-        elif stop:
-            _daytona_client.stop(_sandbox)
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("daytona cleanup failed: %s", exc)
+        for sandbox in sandboxes:
+            try:
+                if delete:
+                    client.delete(sandbox)
+                elif stop:
+                    client.stop(sandbox)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("daytona cleanup failed: %s", exc)
     finally:
         _sandbox = None
         _daytona_raw = None
         _daytona_client = None
         _thread_backends.clear()
+        _daytona_by_thread.clear()
+        _sandbox_by_thread.clear()
 
 
 def clear_thread_backends(thread_id: str | None = None) -> None:
@@ -243,13 +303,26 @@ def probe_sandbox_status() -> dict[str, Any]:
     """Lightweight Sandbox/Daytona status for UI (does not create a sandbox)."""
     settings = get_settings()
     mode = (settings.daytona_mode or "sidecar").strip().lower()
+    scope = (settings.daytona_sandbox_scope or "local").strip().lower()
     base: dict[str, Any] = {
         "enabled": bool(settings.daytona_enabled),
         "mode": mode,
+        "scope": scope,
         "name": settings.daytona_sandbox_name or "deepsupport-sandbox",
         "api_key_configured": bool(settings.daytona_api_key),
         "route": SANDBOX_ROUTE,
     }
+    if scope in {"local", "off"}:
+        return {
+            **base,
+            "ok": True,
+            "status": "local" if scope == "local" else "off",
+            "detail": (
+                "/sandbox/ → workspace/{tid}/sandbox/（thread 隔离，无共享云沙箱）"
+                if scope == "local"
+                else "未挂载 /sandbox/ 路由"
+            ),
+        }
     if not settings.daytona_enabled or mode in {"off", "false", "0", "disabled"}:
         return {
             **base,
