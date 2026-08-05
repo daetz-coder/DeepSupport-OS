@@ -30,7 +30,11 @@ def _loads(text: str | None, fallback: Any) -> Any:
 
 
 def default_cases_path() -> Path:
-    return get_settings().resolve("data/benchmark/mvp_cases.jsonl")
+    settings = get_settings()
+    full = settings.resolve("data/benchmark/full_cases.jsonl")
+    if full.exists():
+        return full
+    return settings.resolve("data/benchmark/mvp_cases.jsonl")
 
 
 def load_cases_from_jsonl(path: Path | None = None) -> list[dict[str, Any]]:
@@ -49,20 +53,24 @@ def load_cases_from_jsonl(path: Path | None = None) -> list[dict[str, Any]]:
 def sync_eval_cases(
     cases: list[dict[str, Any]] | None = None,
     *,
-    source: str = "mvp_cases",
+    source: str = "full_cases",
     path: Path | None = None,
+    disable_missing: bool = True,
 ) -> dict[str, int]:
-    """Upsert benchmark cases into eval_cases. Returns {upserted, total}."""
+    """Upsert benchmark cases into eval_cases. Returns {upserted, total, disabled}."""
     with _lock:
         init_db()
         rows = cases if cases is not None else load_cases_from_jsonl(path)
         Session = get_session_factory()
         upserted = 0
+        disabled = 0
+        keep_ids: set[str] = set()
         with Session() as s:
             for case in rows:
                 case_id = str(case.get("id") or "").strip()
                 if not case_id:
                     continue
+                keep_ids.add(case_id)
                 question = str(case.get("question") or "")
                 expect = case.get("expect") or {}
                 tags = case.get("tags") or []
@@ -85,8 +93,13 @@ def sync_eval_cases(
                     existing.source = source
                     existing.enabled = True
                 upserted += 1
+            if disable_missing and keep_ids:
+                for row in s.scalars(select(EvalCase)).all():
+                    if row.case_id not in keep_ids and row.enabled:
+                        row.enabled = False
+                        disabled += 1
             s.commit()
-        return {"upserted": upserted, "total": upserted}
+        return {"upserted": upserted, "total": upserted, "disabled": disabled}
 
 
 def list_eval_cases(*, enabled_only: bool = True, limit: int = 200) -> list[dict[str, Any]]:

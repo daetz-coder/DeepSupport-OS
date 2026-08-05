@@ -64,7 +64,7 @@ OpenAPI：[/docs](http://127.0.0.1:8000/docs)
 |---|---|---|
 | GET | `/api/eval/metrics` | 指标目录 |
 | GET | `/api/eval/cases` | 用例列表（DB） |
-| POST | `/api/eval/cases/sync` | 从 `mvp_cases.jsonl` 同步用例 |
+| POST | `/api/eval/cases/sync` | 从 `full_cases.jsonl`（或指定 path）同步用例 |
 | POST | `/api/eval/run` | 离线跑分并写入 DB |
 | GET | `/api/eval/runs` | 历史跑次 |
 | GET | `/api/eval/runs/latest` | 最近一次跑次 |

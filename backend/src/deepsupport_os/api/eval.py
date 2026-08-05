@@ -14,7 +14,7 @@ router = APIRouter(prefix="/eval", tags=["eval"])
 
 
 class SyncCasesBody(BaseModel):
-    path: str | None = Field(default=None, description="Optional jsonl path; default mvp_cases.jsonl")
+    path: str | None = Field(default=None, description="Optional jsonl path; default full_cases.jsonl")
 
 
 @router.get("/metrics")

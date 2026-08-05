@@ -144,7 +144,7 @@ class TaskRecord(Base):
 
 
 class EvalCase(Base):
-    """Benchmark / automated-test case catalog (seeded from mvp_cases.jsonl)."""
+    """Benchmark / automated-test case catalog (seeded from full_cases.jsonl)."""
 
     __tablename__ = "eval_cases"
 

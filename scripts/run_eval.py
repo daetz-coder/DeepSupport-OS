@@ -1,4 +1,4 @@
-"""Offline/online evaluation for mvp_cases.jsonl.
+"""Offline/online evaluation for benchmark cases (default: full_cases.jsonl).
 
 Offline mode checks case schema + golden expect fields without calling LLM.
 Online mode (optional) invokes the harness and scores tool/HITL presence.
@@ -15,7 +15,9 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-CASES = ROOT / "data" / "benchmark" / "mvp_cases.jsonl"
+CASES = ROOT / "data" / "benchmark" / "full_cases.jsonl"
+if not CASES.exists():
+    CASES = ROOT / "data" / "benchmark" / "mvp_cases.jsonl"
 
 
 def load_cases(path: Path) -> list[dict[str, Any]]:

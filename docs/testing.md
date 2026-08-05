@@ -6,7 +6,7 @@ DeepSupport OS 将 benchmark 用例与跑分结果写入同一 SQLite（`data/de
 
 | 表 | 用途 |
 |---|---|
-| `eval_cases` | 测试用例目录（自 `mvp_cases.jsonl` 同步） |
+| `eval_cases` | 测试用例目录（默认自 `full_cases.jsonl` 同步；`mvp_cases.jsonl` 为演示子集） |
 | `eval_runs` | 一次跑分汇总（核心列 + `summary_json` 扩展指标） |
 | `eval_case_results` | 单案结果（核心列 + `result_json` 详情） |
 
@@ -52,14 +52,22 @@ DeepSupport OS 将 benchmark 用例与跑分结果写入同一 SQLite（`data/de
 ```bash
 cd backend
 
-# 离线自动评测 + 写库
+# 生成全面测试集（覆盖指标维度）
+uv run python ../scripts/generate_full_cases.py
+
+# 离线自动评测 + 写库（默认 full_cases.jsonl）
 uv run python ../scripts/run_eval.py --offline --from-db
 
 # 在线 LLM 评测（扩展指标主要在 online 有意义）
 uv run python ../scripts/run_eval.py --online --limit 3
 
+# 演示子集
+uv run python ../scripts/run_eval.py --offline --cases ../data/benchmark/mvp_cases.jsonl
+
 uv run pytest tests/test_eval_store.py tests/test_eval_metrics.py -q
 ```
+
+用例说明见 [`data/benchmark/README.md`](../data/benchmark/README.md)。
 
 ## HTTP API
 
