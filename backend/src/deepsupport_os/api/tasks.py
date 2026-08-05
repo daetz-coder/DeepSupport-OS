@@ -364,12 +364,17 @@ def resume_task(body: ResumeRequest):
 
     ws = ensure_thread_workspace(body.thread_id)
     timer = TurnTimer()
-    resume_payload, applied, fallback, itype, agent, config = _prepare_resume(body)
+    resume_payload, applied, fallback, itype, agent, config, interrupt_before = _prepare_resume(
+        body
+    )
 
     try:
         result = agent.invoke(Command(resume=resume_payload), config=config)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"resume failed: {exc}") from exc
+
+    if itype == "hitl":
+        _inject_hitl_notice(agent, config, interrupt_before, body.approved)
 
     messages = result.get("messages", [])
     interrupt = extract_interrupt_info(agent, config)
@@ -434,6 +439,7 @@ def _iter_agent_sse(
     timer: TurnTimer,
     applied: list[dict[str, Any]] | None = None,
     fallback_status: str = "completed",
+    hitl_notice: tuple[dict[str, Any], bool] | None = None,
 ) -> Iterator[dict[str, str]]:
     """Shared SSE loop for new turns and ask/HITL resume."""
     yield {
@@ -553,6 +559,9 @@ def _iter_agent_sse(
             }
             return
 
+    if hitl_notice is not None:
+        _inject_hitl_notice(agent, config, hitl_notice[0], hitl_notice[1])
+
     try:
         state = agent.get_state(config)
         state_msgs = (getattr(state, "values", None) or {}).get("messages") or []
@@ -648,14 +657,62 @@ def _inject_hitl_notice(agent: Any, config: dict, interrupt: dict[str, Any], app
         logger.exception("inject HITL notice into transcript failed")
 
 
+def _hitl_resume_decisions(
+    *,
+    approved: bool,
+    pending: list[dict[str, Any]],
+    applied: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Build HITL resume decisions.
+
+    After a successful apply we use `respond` (synthetic ToolMessage) so the write
+    tool is not re-executed — re-running escalate/close invited the model to call
+    them again and re-open the approval UI.
+    """
+    n = max(len(pending), 1)
+    if not approved:
+        msg = (
+            "用户拒绝了该写操作。请勿再次调用同一写工具；"
+            "改用其它方案，或向用户确认下一步。"
+        )
+        return [{"type": "reject", "message": msg} for _ in range(n)]
+
+    applied_ok = bool(applied) and all(
+        isinstance(a.get("result"), dict) and a["result"].get("ok") for a in applied
+    )
+    if applied_ok and len(applied) >= len(pending) and pending:
+        decisions: list[dict[str, Any]] = []
+        for i, _w in enumerate(pending):
+            result = dict(applied[i].get("result") or {})
+            result.setdefault("hitl", "approved_and_applied")
+            result.setdefault(
+                "message",
+                "人工已批准，写操作已落库。勿再次调用同一写工具；继续收尾并回复用户。",
+            )
+            decisions.append(
+                {"type": "respond", "message": json.dumps(result, ensure_ascii=False, default=str)}
+            )
+        return decisions
+
+    return [{"type": "approve"} for _ in range(n)]
+
+
 def _prepare_resume(
     body: ResumeRequest,
-) -> tuple[Any, list[dict[str, Any]], str, str, Any, dict]:
-    """Validate resume request → (payload, applied, fallback_status, itype, agent, config)."""
-    agent = get_agent(body.thread_id)
-    config = {"configurable": {"thread_id": body.thread_id}}
+) -> tuple[Any, list[dict[str, Any]], str, str, Any, dict, dict[str, Any]]:
+    """Validate resume request → payload, applied, status, itype, agent, config, interrupt_before."""
+    tid = body.thread_id
+    config = {"configurable": {"thread_id": tid}}
+    agent = get_agent(tid)
     interrupt_before = extract_interrupt_info(agent, config) or {}
     itype = (body.interrupt_type or interrupt_before.get("type") or "hitl").strip().lower()
+
+    # Rebuild agent on HITL resume so interrupt_on includes `respond` / latest `when`
+    # guards. Checkpointer keeps the interrupted thread state.
+    if itype == "hitl":
+        _agents.pop(tid, None)
+        agent = get_agent(tid)
+        interrupt_before = extract_interrupt_info(agent, config) or interrupt_before
 
     applied: list[dict[str, Any]] = []
     if itype == "ask":
@@ -665,18 +722,16 @@ def _prepare_resume(
         resume_payload: Any = str(answer).strip()
         fallback = "completed"
     else:
-        # pending_writes now comes from the interrupt's exact action_requests
-        # (extract_interrupt_info), so it matches the interrupted tool calls 1:1.
         pending = collect_pending_writes(None, pending=interrupt_before.get("pending_writes"))
         if body.approved and pending:
             applied = apply_approved_writes(pending, task_id=body.task_id or body.thread_id)
-        decision: dict[str, Any] = {"type": "approve" if body.approved else "reject"}
-        # One decision per interrupted tool call — the middleware validates that
-        # the decisions count equals the number of hanging tool calls.
-        resume_payload = {"decisions": [decision for _ in pending] or [decision]}
+        resume_payload = {
+            "decisions": _hitl_resume_decisions(
+                approved=body.approved, pending=pending, applied=applied
+            )
+        }
         fallback = "approved" if body.approved else "rejected"
-        _inject_hitl_notice(agent, config, interrupt_before, body.approved)
-    return resume_payload, applied, fallback, itype, agent, config
+    return resume_payload, applied, fallback, itype, agent, config, interrupt_before
 
 
 @router.post("/stream")
@@ -710,7 +765,9 @@ async def resume_task_stream(body: ResumeRequest):
 
     ws = ensure_thread_workspace(body.thread_id)
     timer = TurnTimer()
-    resume_payload, applied, fallback, _itype, agent, config = _prepare_resume(body)
+    resume_payload, applied, fallback, itype, agent, config, interrupt_before = _prepare_resume(
+        body
+    )
     task_id = body.task_id or str(uuid.uuid4())
 
     def event_gen() -> Iterator[dict[str, str]]:
@@ -724,6 +781,7 @@ async def resume_task_stream(body: ResumeRequest):
             timer=timer,
             applied=applied,
             fallback_status=fallback,
+            hitl_notice=(interrupt_before, body.approved) if itype == "hitl" else None,
         )
 
     return EventSourceResponse(event_gen())

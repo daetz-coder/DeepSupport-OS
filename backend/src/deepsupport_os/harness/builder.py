@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -24,10 +25,30 @@ WRITE_TOOL_NAMES = frozenset(
     {"request_password_reset", "request_license_change", "close_ticket", "escalate_ticket"}
 )
 
+# approve = run tool; reject = cancel; respond = side effect already applied by API
+_HITL_DECISIONS = ["approve", "reject", "respond"]
+
+
+def _tool_call_args(req: Any) -> dict[str, Any]:
+    """Normalize ToolCallRequest.args whether tool_call is a dict or object."""
+    tc = getattr(req, "tool_call", None)
+    if tc is None and isinstance(req, dict):
+        tc = req.get("tool_call")
+    if isinstance(tc, dict):
+        args = tc.get("args") or {}
+    else:
+        args = getattr(tc, "args", None) or {}
+    if isinstance(args, str):
+        try:
+            args = json.loads(args)
+        except json.JSONDecodeError:
+            args = {}
+    return args if isinstance(args, dict) else {}
+
 
 def _needs_password_reset(req) -> bool:
     try:
-        email = str((req.tool_call.get("args") or {}).get("email") or "")
+        email = str(_tool_call_args(req).get("email") or "")
         account = AccountRepo().get_account_status(email) if email else None
         return not account or account.get("status") != "active"
     except Exception:  # noqa: BLE001 - conservative: interrupt on lookup failure
@@ -36,7 +57,7 @@ def _needs_password_reset(req) -> bool:
 
 def _needs_license_change(req) -> bool:
     try:
-        args = req.tool_call.get("args") or {}
+        args = _tool_call_args(req)
         email = str(args.get("email") or "")
         target = str(args.get("new_license_type") or "")
         account = AccountRepo().get_account_status(email) if email else None
@@ -47,7 +68,7 @@ def _needs_license_change(req) -> bool:
 
 def _needs_close(req) -> bool:
     try:
-        ticket_id = str((req.tool_call.get("args") or {}).get("ticket_id") or "")
+        ticket_id = str(_tool_call_args(req).get("ticket_id") or "")
         ticket = TicketRepo().get_ticket(ticket_id) if ticket_id else None
         return not ticket or ticket.get("status") != "closed"
     except Exception:  # noqa: BLE001
@@ -56,7 +77,7 @@ def _needs_close(req) -> bool:
 
 def _needs_escalate(req) -> bool:
     try:
-        ticket_id = str((req.tool_call.get("args") or {}).get("ticket_id") or "")
+        ticket_id = str(_tool_call_args(req).get("ticket_id") or "")
         ticket = TicketRepo().get_ticket(ticket_id) if ticket_id else None
         return not ticket or ticket.get("status") != "escalated"
     except Exception:  # noqa: BLE001
@@ -66,19 +87,23 @@ def _needs_escalate(req) -> bool:
 def build_interrupt_on() -> dict[str, bool | InterruptOnConfig]:
     """Interrupt-on map with `when` guards: an action that is already applied
     auto-approves instead of interrupting, so a re-issued write after approval
-    cannot loop the HITL prompt."""
+    cannot loop the HITL prompt.
+
+    `respond` lets the API resume with an already-applied result and skip
+    re-running the write tool (which previously invited escalate/close loops).
+    """
     return {
         "request_password_reset": InterruptOnConfig(
-            allowed_decisions=["approve", "reject"], when=_needs_password_reset
+            allowed_decisions=list(_HITL_DECISIONS), when=_needs_password_reset
         ),
         "request_license_change": InterruptOnConfig(
-            allowed_decisions=["approve", "reject"], when=_needs_license_change
+            allowed_decisions=list(_HITL_DECISIONS), when=_needs_license_change
         ),
         "close_ticket": InterruptOnConfig(
-            allowed_decisions=["approve", "reject"], when=_needs_close
+            allowed_decisions=list(_HITL_DECISIONS), when=_needs_close
         ),
         "escalate_ticket": InterruptOnConfig(
-            allowed_decisions=["approve", "reject"], when=_needs_escalate
+            allowed_decisions=list(_HITL_DECISIONS), when=_needs_escalate
         ),
     }
 
