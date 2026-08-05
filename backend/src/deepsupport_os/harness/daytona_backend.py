@@ -22,9 +22,12 @@ logger = logging.getLogger(__name__)
 _sandbox: Any | None = None
 _daytona_raw: Any | None = None
 _daytona_client: Any | None = None
-_hybrid_backend: Any | None = None
+# Per-thread CompositeBackend cache (workspace isolation); not shared across threads.
+_thread_backends: dict[str, Any] = {}
 
 SANDBOX_ROUTE = "/sandbox/"
+SKILLS_ROUTE = "/skills/"
+MEMORY_ROUTE = "/memory/"
 
 
 def _ensure_env() -> None:
@@ -103,49 +106,85 @@ def get_or_create_daytona_backend() -> Any | None:
         return None
 
 
-def build_local_backend():
-    """Fast local backend: Skills + workspace + shell on this machine."""
+def build_local_backend(*, thread_id: str | None = None):
+    """Local backend rooted at the thread workspace (or workspace root)."""
     from deepagents.backends import LocalShellBackend
 
+    from deepsupport_os.harness.workspace import ensure_thread_workspace, sanitize_thread_id
+
     settings = get_settings()
-    return LocalShellBackend(root_dir=settings.root_dir, timeout=60)
+    if thread_id:
+        root = ensure_thread_workspace(sanitize_thread_id(thread_id))
+    else:
+        root = settings.resolve(settings.workspace_dir)
+        root.mkdir(parents=True, exist_ok=True)
+    return LocalShellBackend(root_dir=root, timeout=60)
 
 
-def build_hybrid_backend(*, attach_daytona: bool = True):
-    """Local-first CompositeBackend; Daytona only under /sandbox/ when available.
+def build_thread_backend(
+    thread_id: str | None = None,
+    *,
+    attach_daytona: bool = True,
+):
+    """CompositeBackend with forced path isolation (AR-02 / R1-5).
 
-    - default: LocalShellBackend (skills, workspace, execute — fast)
-    - /sandbox/: Daytona (simple isolated snippets only)
+    - default + ``/workspace/{tid}/`` → thread workspace (writable + execute)
+    - ``/skills/`` → repo skills (read via FilesystemBackend)
+    - ``/memory/`` → memory/ (org + per-thread AGENTS under threads/{tid}/)
+    - ``/sandbox/`` → Daytona sidecar when enabled
     """
-    global _hybrid_backend
-    if _hybrid_backend is not None and attach_daytona:
-        return _hybrid_backend
+    from deepagents.backends import CompositeBackend, FilesystemBackend
 
-    local = build_local_backend()
-    if not attach_daytona:
-        return local
+    from deepsupport_os.harness.workspace import sanitize_thread_id
 
     settings = get_settings()
-    mode = (settings.daytona_mode or "sidecar").strip().lower()
-    if mode in {"off", "false", "0", "disabled"}:
-        return local
+    tid = sanitize_thread_id(thread_id) if thread_id else "default"
+    cache_key = f"{tid}:{'daytona' if attach_daytona else 'local'}"
+    cached = _thread_backends.get(cache_key)
+    if cached is not None:
+        return cached
 
-    if mode == "full":
-        # Legacy: entire agent FS on Daytona — slow on 1vCPU/1GiB; not recommended.
-        remote = get_or_create_daytona_backend()
-        return remote or local
+    ws_backend = build_local_backend(thread_id=tid)
+    skills_root = settings.resolve("skills")
+    memory_root = settings.resolve("memory")
+    memory_root.mkdir(parents=True, exist_ok=True)
 
-    # sidecar (default)
-    remote = get_or_create_daytona_backend()
-    if remote is None:
-        return local
+    routes: dict[str, Any] = {
+        f"/workspace/{tid}/": ws_backend,
+        SKILLS_ROUTE: FilesystemBackend(root_dir=skills_root, virtual_mode=True),
+        MEMORY_ROUTE: FilesystemBackend(root_dir=memory_root, virtual_mode=True),
+    }
 
-    from deepagents.backends import CompositeBackend
+    if attach_daytona:
+        mode = (settings.daytona_mode or "sidecar").strip().lower()
+        if mode not in {"off", "false", "0", "disabled"}:
+            if mode == "full":
+                remote = get_or_create_daytona_backend()
+                if remote is not None:
+                    _thread_backends[cache_key] = remote
+                    return remote
+            else:
+                remote = get_or_create_daytona_backend()
+                if remote is not None:
+                    routes[SANDBOX_ROUTE] = remote
 
-    hybrid = CompositeBackend(default=local, routes={SANDBOX_ROUTE: remote})
-    _hybrid_backend = hybrid
-    logger.info("hybrid backend ready: local primary + daytona route %s", SANDBOX_ROUTE)
+    hybrid = CompositeBackend(default=ws_backend, routes=routes)
+    _thread_backends[cache_key] = hybrid
+    logger.info(
+        "thread backend ready tid=%s routes=%s",
+        tid,
+        sorted(routes.keys()),
+    )
     return hybrid
+
+
+def build_hybrid_backend(
+    thread_id: str | None = None,
+    *,
+    attach_daytona: bool = True,
+):
+    """Alias for build_thread_backend (keeps older call sites working)."""
+    return build_thread_backend(thread_id=thread_id, attach_daytona=attach_daytona)
 
 
 @tool
@@ -169,9 +208,9 @@ def run_sandbox_shell(command: str) -> dict:
 
 
 def cleanup_daytona(*, stop: bool = False, delete: bool = False) -> None:
-    global _sandbox, _daytona_raw, _daytona_client, _hybrid_backend
+    global _sandbox, _daytona_raw, _daytona_client, _thread_backends
     if _daytona_client is None or _sandbox is None:
-        _hybrid_backend = None
+        _thread_backends.clear()
         return
     try:
         if delete:
@@ -184,7 +223,20 @@ def cleanup_daytona(*, stop: bool = False, delete: bool = False) -> None:
         _sandbox = None
         _daytona_raw = None
         _daytona_client = None
-        _hybrid_backend = None
+        _thread_backends.clear()
+
+
+def clear_thread_backends(thread_id: str | None = None) -> None:
+    """Drop cached CompositeBackends (all, or one thread)."""
+    if thread_id is None:
+        _thread_backends.clear()
+        return
+    from deepsupport_os.harness.workspace import sanitize_thread_id
+
+    tid = sanitize_thread_id(thread_id)
+    for key in list(_thread_backends):
+        if key.startswith(f"{tid}:"):
+            _thread_backends.pop(key, None)
 
 
 def probe_sandbox_status() -> dict[str, Any]:

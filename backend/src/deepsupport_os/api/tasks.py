@@ -12,9 +12,10 @@ from sse_starlette.sse import EventSourceResponse
 from deepsupport_os.api.trace import build_trace, extract_interrupt_info, serialize_messages
 from deepsupport_os.db import task_store
 from deepsupport_os.db.repositories import list_audit
-from deepsupport_os.harness.agent import MEMORY_PATHS, build_support_agent
+from deepsupport_os.harness.agent import build_support_agent
 from deepsupport_os.harness.artifacts import list_artifacts, read_artifact, write_manifest
 from deepsupport_os.harness.hitl_apply import apply_approved_writes, collect_pending_writes
+from deepsupport_os.harness.memory_files import memory_paths_for_thread
 from deepsupport_os.harness.metrics import TurnTimer, write_turn_metrics
 from deepsupport_os.harness.run_overview import build_run_overview
 from deepsupport_os.harness.state_extract import extract_todos
@@ -45,7 +46,10 @@ def get_agent(thread_id: str | None = None):
 
 def reset_agents() -> None:
     """Drop cached agents (e.g. after Skills/MCP config changes)."""
+    from deepsupport_os.harness.daytona_backend import clear_thread_backends
+
     _agents.clear()
+    clear_thread_backends()
 
 
 def _recent_audit(limit: int = 30) -> list[dict[str, Any]]:
@@ -214,7 +218,7 @@ def _build_record(
         "artifacts": artifacts,
         "manifest": manifest,
         "metrics": metrics,
-        "memory_paths": list(MEMORY_PATHS),
+        "memory_paths": memory_paths_for_thread(thread_id),
     }
 
 
@@ -257,22 +261,39 @@ def list_threads(limit: int = 40):
 
 @router.delete("/threads/{thread_id}")
 def delete_thread(thread_id: str):
-    """Clear a conversation: drop persisted runs and drop cached agent for the thread."""
+    """Purge a conversation: runs, agent cache, workspace, session memory, checkpoint."""
     tid = (thread_id or "").strip()
     if not tid:
         raise HTTPException(status_code=400, detail="thread_id required")
     deleted = task_store.delete_thread(tid)
     _agents.pop(tid, None)
-    # Best-effort workspace cleanup
+    checkpoint_purged = False
     try:
         import shutil
 
+        from deepsupport_os.core.config import get_settings
+        from deepsupport_os.harness.agent import purge_thread_checkpoint
+        from deepsupport_os.harness.daytona_backend import clear_thread_backends
+        from deepsupport_os.harness.workspace import sanitize_thread_id
+
+        clear_thread_backends(tid)
+        checkpoint_purged = purge_thread_checkpoint(tid)
         ws = ensure_thread_workspace(tid)
         if ws.exists() and ws.is_dir():
             shutil.rmtree(ws, ignore_errors=True)
+        mem_session = (
+            get_settings().resolve("memory") / "threads" / sanitize_thread_id(tid)
+        )
+        if mem_session.exists() and mem_session.is_dir():
+            shutil.rmtree(mem_session, ignore_errors=True)
     except Exception:  # noqa: BLE001
         pass
-    return {"ok": True, "thread_id": tid, "deleted_runs": deleted}
+    return {
+        "ok": True,
+        "thread_id": tid,
+        "deleted_runs": deleted,
+        "checkpoint_purged": checkpoint_purged,
+    }
 
 
 @router.post("", response_model=TaskCreateResponse)
@@ -746,7 +767,11 @@ def _prepare_resume(
     else:
         pending = collect_pending_writes(None, pending=interrupt_before.get("pending_writes"))
         if body.approved and pending:
-            applied = apply_approved_writes(pending, task_id=body.task_id or body.thread_id)
+            applied = apply_approved_writes(
+                pending,
+                task_id=body.task_id or body.thread_id,
+                thread_id=tid,
+            )
         resume_payload = {
             "decisions": _hitl_resume_decisions(
                 approved=body.approved, pending=pending, applied=applied

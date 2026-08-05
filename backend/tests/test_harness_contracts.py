@@ -27,16 +27,23 @@ def test_system_prompt_is_slim():
 def test_thread_prompt_binds_workspace():
     p = build_system_prompt(thread_id="tid-demo")
     assert "/workspace/tid-demo/" in p
+    assert "/memory/threads/tid-demo/AGENTS.md" in p
     assert "manifest.json" in p
 
 
 def test_memory_layers_seeded():
-    paths = ensure_memory_files()
+    paths = ensure_memory_files(thread_id="mem-t1")
     assert len(paths) == 2
     assert paths[0].name == "org.md"
     assert paths[1].name == "AGENTS.md"
+    assert "threads" in str(paths[1]).replace("\\", "/")
     assert ORG_MEMORY_FILE in MEMORY_PATHS
-    assert SESSION_MEMORY_FILE in MEMORY_PATHS
+    assert SESSION_MEMORY_FILE not in MEMORY_PATHS  # legacy; not injected globally
+    from deepsupport_os.harness.memory_files import memory_paths_for_thread
+
+    injected = memory_paths_for_thread("mem-t1")
+    assert ORG_MEMORY_FILE in injected
+    assert "/memory/threads/mem-t1/AGENTS.md" in injected
     assert "wei.zhang@contoso.com" in paths[0].read_text(encoding="utf-8")
 
 
@@ -89,6 +96,73 @@ def test_subagents_have_output_contract():
     for s in subs:
         assert "输出契约" in s["system_prompt"]
         assert "ERROR:" in s["system_prompt"]
+
+
+# HITL write tools — must stay Main-only (Single Executor via hitl_apply).
+_HITL_WRITE_TOOL_NAMES = frozenset(
+    {
+        "request_password_reset",
+        "request_license_change",
+        "close_ticket",
+        "escalate_ticket",
+    }
+)
+
+
+def test_subagents_do_not_mount_hitl_write_tools():
+    """SubAgents must not hold write-intent tools (AR-03 / R1-2)."""
+    for sub in build_mvp_subagents():
+        names = {getattr(t, "name", None) or getattr(t, "__name__", "") for t in sub["tools"]}
+        leaked = names & _HITL_WRITE_TOOL_NAMES
+        assert not leaked, f"{sub['name']} mounts HITL write tools: {leaked}"
+
+
+def test_write_tools_are_intent_only_no_apply_in_source():
+    """WRITE tool modules must not call apply_* / allow_terminal (AR-18 / R1-3)."""
+    from pathlib import Path
+
+    import deepsupport_os.mcp.tools as tools_mod
+
+    src = Path(tools_mod.__file__).read_text(encoding="utf-8")
+    # Strip the read-only helpers / comments by scanning function bodies roughly:
+    # forbid apply_* and allow_terminal anywhere in the tools module body.
+    assert "apply_password_reset" not in src
+    assert "apply_license_change" not in src
+    assert "allow_terminal" not in src
+
+
+def test_thread_backends_isolate_workspace_and_memory(tmp_path, monkeypatch):
+    """R1-4 / R1-5: workspace writes and session memory stay per-thread."""
+    from deepsupport_os.core.config import get_settings
+    from deepsupport_os.harness.daytona_backend import build_thread_backend, clear_thread_backends
+    from deepsupport_os.harness.memory_files import ensure_memory_files, session_memory_virtual
+
+    monkeypatch.setenv("WORKSPACE_DIR", str(tmp_path / "ws"))
+    get_settings.cache_clear()
+    clear_thread_backends()
+
+    b1 = build_thread_backend("iso-a", attach_daytona=False)
+    b2 = build_thread_backend("iso-b", attach_daytona=False)
+
+    r1 = b1.write("/workspace/iso-a/note.md", "alpha")
+    assert r1.error is None
+    assert (tmp_path / "ws" / "iso-a" / "note.md").read_text(encoding="utf-8") == "alpha"
+    assert not (tmp_path / "ws" / "iso-b" / "note.md").exists()
+
+    ensure_memory_files("iso-a")
+    ensure_memory_files("iso-b")
+    v1 = session_memory_virtual("iso-a")
+    v2 = session_memory_virtual("iso-b")
+    b1.write(v1, "# Session Memory\n\n- note from A\n")
+    b2.write(v2, "# Session Memory\n\n- note from B\n")
+    a_body = str((getattr(b1.read(v1), "file_data", None) or {}).get("content") or "")
+    b_body = str((getattr(b2.read(v2), "file_data", None) or {}).get("content") or "")
+    assert "note from A" in a_body
+    assert "note from B" in b_body
+    assert "note from A" not in b_body
+
+    clear_thread_backends()
+    get_settings.cache_clear()
 
 
 def test_canonical_names_stable():

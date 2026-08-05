@@ -14,7 +14,7 @@ from deepagents import create_deep_agent
 from deepsupport_os.core.config import get_settings
 from deepsupport_os.db.repositories import AccountRepo, TicketRepo
 from deepsupport_os.harness.daytona_backend import build_hybrid_backend, run_sandbox_shell
-from deepsupport_os.harness.memory_files import MEMORY_PATHS, ensure_memory_files
+from deepsupport_os.harness.memory_files import ensure_memory_files, memory_paths_for_thread
 from deepsupport_os.harness.prompts import build_system_prompt
 from deepsupport_os.harness.skills_registry import skill_source_paths
 from deepsupport_os.harness.subagents import build_mvp_subagents
@@ -29,7 +29,6 @@ WRITE_TOOL_NAMES = frozenset(
 # `approve` remains allowed so interrupt `when=False` auto-approve can still run
 # already-applied tools (returns already_applied); API never sends approve.
 _HITL_DECISIONS = ["approve", "reject", "respond"]
-
 
 def _tool_call_args(req: Any) -> dict[str, Any]:
     """Normalize ToolCallRequest.args whether tool_call is a dict or object."""
@@ -50,7 +49,12 @@ def _tool_call_args(req: Any) -> dict[str, Any]:
 
 def _needs_password_reset(req) -> bool:
     try:
-        email = str(_tool_call_args(req).get("email") or "")
+        from deepsupport_os.db.repositories import lookup_applied_action, make_idempotency_key
+
+        args = _tool_call_args(req)
+        if lookup_applied_action(make_idempotency_key("request_password_reset", args)):
+            return False
+        email = str(args.get("email") or "")
         account = AccountRepo().get_account_status(email) if email else None
         return not account or account.get("status") != "active"
     except Exception:  # noqa: BLE001 - conservative: interrupt on lookup failure
@@ -59,7 +63,11 @@ def _needs_password_reset(req) -> bool:
 
 def _needs_license_change(req) -> bool:
     try:
+        from deepsupport_os.db.repositories import lookup_applied_action, make_idempotency_key
+
         args = _tool_call_args(req)
+        if lookup_applied_action(make_idempotency_key("request_license_change", args)):
+            return False
         email = str(args.get("email") or "")
         target = str(args.get("new_license_type") or "")
         account = AccountRepo().get_account_status(email) if email else None
@@ -70,7 +78,12 @@ def _needs_license_change(req) -> bool:
 
 def _needs_close(req) -> bool:
     try:
-        ticket_id = str(_tool_call_args(req).get("ticket_id") or "")
+        from deepsupport_os.db.repositories import lookup_applied_action, make_idempotency_key
+
+        args = _tool_call_args(req)
+        if lookup_applied_action(make_idempotency_key("close_ticket", args)):
+            return False
+        ticket_id = str(args.get("ticket_id") or "")
         ticket = TicketRepo().get_ticket(ticket_id) if ticket_id else None
         return not ticket or ticket.get("status") != "closed"
     except Exception:  # noqa: BLE001
@@ -79,7 +92,12 @@ def _needs_close(req) -> bool:
 
 def _needs_escalate(req) -> bool:
     try:
-        ticket_id = str(_tool_call_args(req).get("ticket_id") or "")
+        from deepsupport_os.db.repositories import lookup_applied_action, make_idempotency_key
+
+        args = _tool_call_args(req)
+        if lookup_applied_action(make_idempotency_key("escalate_ticket", args)):
+            return False
+        ticket_id = str(args.get("ticket_id") or "")
         ticket = TicketRepo().get_ticket(ticket_id) if ticket_id else None
         return not ticket or ticket.get("status") != "escalated"
     except Exception:  # noqa: BLE001
@@ -124,7 +142,8 @@ class RuntimePorts:
     backend_factory: Callable[..., Any] = field(default=build_hybrid_backend)
     checkpointer_factory: Callable[[], Any] | None = None
     interrupt_on: dict[str, bool | InterruptOnConfig] = field(default_factory=lambda: dict(INTERRUPT_ON))
-    memory_paths: list[str] = field(default_factory=lambda: list(MEMORY_PATHS))
+    # None → derive org + per-thread session via memory_paths_for_thread
+    memory_paths: list[str] | None = None
     name: str = "deepsupport-os"
 
 
@@ -145,7 +164,7 @@ class HarnessBuilder:
         use_daytona: bool = True,
     ):
         settings = get_settings()
-        ensure_memory_files()
+        ensure_memory_files(thread_id=thread_id)
 
         if workspace is not None:
             ws = workspace
@@ -162,7 +181,9 @@ class HarnessBuilder:
         if backend is not None:
             agent_backend = backend
         else:
-            agent_backend = self.ports.backend_factory(attach_daytona=use_daytona)
+            agent_backend = self.ports.backend_factory(
+                thread_id=thread_id, attach_daytona=use_daytona
+            )
 
         tools = list(self.ports.tools_factory())
         if use_daytona and settings.daytona_enabled:
@@ -172,12 +193,18 @@ class HarnessBuilder:
         if cp is None and self.ports.checkpointer_factory is not None:
             cp = self.ports.checkpointer_factory()
 
+        memory = (
+            list(self.ports.memory_paths)
+            if self.ports.memory_paths is not None
+            else memory_paths_for_thread(thread_id)
+        )
+
         return create_deep_agent(
             model=self.ports.model_factory(),
             tools=tools,
             system_prompt=build_system_prompt(thread_id=thread_id),
             skills=skills_dirs or None,
-            memory=list(self.ports.memory_paths),
+            memory=memory,
             middleware=[TodoListMiddleware(system_prompt="")],
             subagents=self.ports.subagents_factory(),
             interrupt_on=dict(self.ports.interrupt_on),

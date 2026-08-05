@@ -17,6 +17,8 @@ from deepsupport_os.harness.memory_files import (
     SESSION_MEMORY_FILE,
     ensure_memory_file,
     ensure_memory_files,
+    memory_paths_for_thread,
+    session_memory_virtual,
 )
 from deepsupport_os.harness.prompts import SYSTEM_PROMPT, build_system_prompt
 
@@ -69,12 +71,35 @@ def get_checkpointer():
         return _checkpointer
 
 
+def purge_thread_checkpoint(thread_id: str) -> bool:
+    """Delete LangGraph checkpoints for a thread (best-effort)."""
+    tid = (thread_id or "").strip()
+    if not tid:
+        return False
+    cp = get_checkpointer()
+    delete = getattr(cp, "delete_thread", None)
+    if not callable(delete):
+        return False
+    try:
+        delete(tid)
+        return True
+    except TypeError:
+        # Some savers expect a config dict
+        try:
+            delete({"configurable": {"thread_id": tid}})
+            return True
+        except Exception:  # noqa: BLE001
+            return False
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def default_ports() -> RuntimePorts:
     return RuntimePorts(
         model_factory=build_model,
         checkpointer_factory=get_checkpointer,
         interrupt_on=dict(INTERRUPT_ON),
-        memory_paths=list(MEMORY_PATHS),
+        # memory_paths=None → per-thread org + session in HarnessBuilder
     )
 
 
@@ -114,4 +139,7 @@ __all__ = [
     "ensure_memory_file",
     "ensure_memory_files",
     "get_checkpointer",
+    "memory_paths_for_thread",
+    "purge_thread_checkpoint",
+    "session_memory_virtual",
 ]
