@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from typing import Any, Iterator
 
@@ -20,6 +21,8 @@ from deepsupport_os.harness.state_extract import extract_todos
 from deepsupport_os.harness.workspace import ensure_thread_workspace
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
+
+logger = logging.getLogger(__name__)
 
 # One compiled agent per thread so system prompt workspace path stays correct.
 _agents: dict[str, Any] = {}
@@ -613,6 +616,38 @@ def _iter_agent_sse(
             }
 
 
+def _hitl_notice_text(interrupt: dict[str, Any] | None, approved: bool) -> str:
+    """Human-readable HITL decision, e.g. `已批准写操作：升级工单`."""
+    previews = (interrupt or {}).get("pending_preview") or []
+    labels = [
+        str(p.get("label") or p.get("name"))
+        for p in previews
+        if p.get("label") or p.get("name")
+    ]
+    if not labels:
+        writes = (interrupt or {}).get("pending_writes") or []
+        labels = [str(w.get("name")) for w in writes if w.get("name")]
+    suffix = f"：{'、'.join(labels)}" if labels else ""
+    return f"已批准写操作{suffix}" if approved else f"已拒绝写操作{suffix}"
+
+
+def _inject_hitl_notice(agent: Any, config: dict, interrupt: dict[str, Any], approved: bool) -> None:
+    """Persist the HITL decision as a SystemMessage in the checkpoint transcript.
+
+    The message lands at the interruption seam, so it survives refresh and later
+    turns (frontend shows the same line immediately via its own local copy).
+    """
+    try:
+        from langchain_core.messages import SystemMessage
+
+        text = _hitl_notice_text(interrupt, approved)
+        if not text:
+            return
+        agent.update_state(config, {"messages": [SystemMessage(content=text)]})
+    except Exception:  # noqa: BLE001
+        logger.exception("inject HITL notice into transcript failed")
+
+
 def _prepare_resume(
     body: ResumeRequest,
 ) -> tuple[Any, list[dict[str, Any]], str, str, Any, dict]:
@@ -640,6 +675,7 @@ def _prepare_resume(
             applied = apply_approved_writes(pending, task_id=body.task_id or body.thread_id)
         resume_payload = {"decisions": [{"type": "approve" if body.approved else "reject"}]}
         fallback = "approved" if body.approved else "rejected"
+        _inject_hitl_notice(agent, config, interrupt_before, body.approved)
     return resume_payload, applied, fallback, itype, agent, config
 
 
