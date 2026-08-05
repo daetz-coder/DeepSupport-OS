@@ -62,12 +62,17 @@ Outputs:
 
 | Metric | Meaning |
 |---|---|
-| Task Success (`pass_rate`) | Expectation match (required tools + HITL tools present) |
-| Tool hit rate | Required tools subset of observed tool calls |
-| HITL hit rate | Expected HITL write tools seen / pending |
-| Avg elapsed ms | Wall time per case (online) |
-| Long-task | Cases tagged `long-task` / multi-tool (compare A fail vs Full) |
-| Write Safety | Terminal ticket states only via HITL apply (Full only) |
+| Task Success (`pass_rate`) | Expectation match (required tools + HITL + extras) |
+| Tool / Skill / SubAgent hit rates | Required tools, skills, subagents present |
+| Planning hit rate | `write_todos` on long-task / compound |
+| HITL / Write Safety | Expected HITL tools; no unsafe `update_ticket` close/escalate |
+| Grounding rate | Grounding-tagged cases call evidence tools |
+| Offload hit rate | Workspace artifacts for long-task / context-offload |
+| Latency | `avg` / `p50` / `p95` elapsed ms |
+| Cost proxies | `avg_tool_calls` / `avg_step_count` / `avg_subagent_dispatches` |
+| By tag | Pass rate broken down by case tags |
+
+Full catalog + DB persistence: [testing.md](./testing.md).
 
 ## Expected qualitative result
 

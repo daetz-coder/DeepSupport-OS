@@ -56,6 +56,22 @@ OpenAPI：[/docs](http://127.0.0.1:8000/docs)
 | DELETE | `/api/meta/mcp/servers/{name}` | admin token if set |
 | POST | `/api/meta/mcp/reload` | admin token if set |
 
+## Eval — 自动化测试与指标落库
+
+详见 [testing.md](./testing.md)。数据表：`eval_cases` / `eval_runs` / `eval_case_results`。
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/api/eval/metrics` | 指标目录 |
+| GET | `/api/eval/cases` | 用例列表（DB） |
+| POST | `/api/eval/cases/sync` | 从 `mvp_cases.jsonl` 同步用例 |
+| POST | `/api/eval/run` | 离线跑分并写入 DB |
+| GET | `/api/eval/runs` | 历史跑次 |
+| GET | `/api/eval/runs/latest` | 最近一次跑次 |
+| GET | `/api/eval/runs/{run_id}` | 跑次详情 |
+
+在线 LLM 评测：`uv run python ../scripts/run_eval.py --online --limit 3`（同样写库）。
+
 ## Workspace side files
 
 每线程目录 `workspace/{thread_id}/`：
