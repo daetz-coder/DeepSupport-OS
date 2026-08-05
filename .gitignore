@@ -39,6 +39,7 @@ data/uploads/
 backend/data/
 conversation_history/
 memory/AGENTS.md
+memory/threads/
 workspace/**
 !workspace/.gitkeep
 

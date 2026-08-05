@@ -1,15 +1,21 @@
-"""Layered memory files for Deep Agents MemoryMiddleware."""
+"""Layered memory files for Deep Agents MemoryMiddleware.
+
+Org facts are shared; session notes are per-thread to avoid cross-talk.
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 from deepsupport_os.core.config import get_settings
+from deepsupport_os.harness.workspace import sanitize_thread_id
 
-# Virtual paths (LocalShell root = repo / Docker /app)
+# Virtual paths (CompositeBackend routes /memory/ → physical memory/)
 ORG_MEMORY_FILE = "/memory/org.md"
+# Legacy global session path — no longer injected; kept for docs/migrations.
 SESSION_MEMORY_FILE = "/memory/AGENTS.md"
-MEMORY_PATHS = (ORG_MEMORY_FILE, SESSION_MEMORY_FILE)
+# Org-only constant; prefer memory_paths_for_thread(thread_id) at runtime.
+MEMORY_PATHS = (ORG_MEMORY_FILE,)
 
 _ORG_TEMPLATE = """# Organization Memory
 
@@ -30,8 +36,8 @@ Stable tenant / demo facts. Prefer editing this file over session notes.
 
 _SESSION_TEMPLATE = """# Session Memory
 
-Short, desensitized notes the agent may append during a thread.
-Prefer updating this file for per-conversation facts; keep org facts in `/memory/org.md`.
+Short, desensitized notes for **this thread only**.
+Keep org facts in `/memory/org.md`.
 
 ## Notes
 
@@ -39,21 +45,40 @@ Prefer updating this file for per-conversation facts; keep org facts in `/memory
 """
 
 
-def ensure_memory_files() -> list[Path]:
-    """Create org + session memory files if missing; return local paths."""
+def session_memory_virtual(thread_id: str) -> str:
+    """Virtual path for per-thread session memory."""
+    tid = sanitize_thread_id(thread_id)
+    return f"/memory/threads/{tid}/AGENTS.md"
+
+
+def memory_paths_for_thread(thread_id: str | None = None) -> list[str]:
+    """Paths passed to create_deep_agent(memory=...)."""
+    if not thread_id:
+        return [ORG_MEMORY_FILE]
+    return [ORG_MEMORY_FILE, session_memory_virtual(thread_id)]
+
+
+def ensure_memory_files(thread_id: str | None = None) -> list[Path]:
+    """Ensure org (+ optional per-thread session) files exist; return local paths."""
     settings = get_settings()
     root = settings.resolve("memory")
     root.mkdir(parents=True, exist_ok=True)
     org = root / "org.md"
-    session = root / "AGENTS.md"
     if not org.exists():
         org.write_text(_ORG_TEMPLATE, encoding="utf-8")
-    if not session.exists():
-        session.write_text(_SESSION_TEMPLATE, encoding="utf-8")
-    return [org, session]
+    out = [org]
+    if thread_id:
+        tid = sanitize_thread_id(thread_id)
+        session_dir = root / "threads" / tid
+        session_dir.mkdir(parents=True, exist_ok=True)
+        session = session_dir / "AGENTS.md"
+        if not session.exists():
+            session.write_text(_SESSION_TEMPLATE, encoding="utf-8")
+        out.append(session)
+    return out
 
 
-def ensure_memory_file() -> Path:
-    """Backward-compatible alias: ensure layered files, return session path."""
-    paths = ensure_memory_files()
+def ensure_memory_file(thread_id: str | None = None) -> Path:
+    """Backward-compatible: ensure files, return session path or org."""
+    paths = ensure_memory_files(thread_id=thread_id)
     return paths[-1]

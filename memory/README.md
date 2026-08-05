@@ -2,12 +2,12 @@
 
 | File | Virtual path | Role | In git? |
 |---|---|---|---|
-| `org.md` | `/memory/org.md` | Stable org / demo facts | ✅ committed |
-| `AGENTS.md` | `/memory/AGENTS.md` | Session scratch (agent may append each run) | ❌ ignored |
+| `org.md` | `/memory/org.md` | Stable org / demo facts (shared) | ✅ committed |
+| `threads/{tid}/AGENTS.md` | `/memory/threads/{tid}/AGENTS.md` | Session scratch **per thread** | ❌ ignored |
 
-Both are passed to Deep Agents `memory=[...]`. Do not put secrets in either file.
+`create_deep_agent(memory=memory_paths_for_thread(tid))` injects org + that thread’s session file.
+Do not put secrets in either file.
 
-`AGENTS.md` is **runtime scratch** — the agent appends per-conversation notes, so it is
-`.gitignore`d to keep the working tree clean. It is regenerated from a template on
-startup (`harness/memory_files.py` → `ensure_memory_files`). Keep stable facts in
-`org.md`, which is committed.
+Session notes are **thread-scoped** (`harness/memory_files.py`) so concurrent conversations
+cannot pollute each other. Stable facts stay in `org.md`. Legacy global `memory/AGENTS.md`
+is no longer injected (may still exist on disk from older runs).

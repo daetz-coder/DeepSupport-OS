@@ -59,8 +59,8 @@ User → Vue → FastAPI /api/tasks[/stream|/resume]
 
 ## Memory 分层
 
-- `/memory/org.md` — 稳定组织事实，**入库**（`memory/org.md`）
-- `/memory/AGENTS.md` — 会话运行时记忆（agent 逐轮追加），**gitignore**、启动时自动重建（`harness/memory_files.py`）
+- `/memory/org.md` — 稳定组织事实，**入库**（`memory/org.md`），全 thread 共享只读意图
+- `/memory/threads/{tid}/AGENTS.md` — **per-thread** 会话运行时记忆（`harness/memory_files.py` → `memory_paths_for_thread`）
 
 ## Eval（评测）
 
