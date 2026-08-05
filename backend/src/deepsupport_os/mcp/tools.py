@@ -138,14 +138,16 @@ def create_ticket(
     category: str = "General",
     priority: str = "P3",
     employee_id: str = "",
+    idempotency_key: str = "",
 ) -> dict:
-    """创建 IT 支持工单。"""
+    """创建 IT 支持工单。传入 idempotency_key 可避免重复开单。"""
     result = _ticket.create_ticket(
         title=title,
         description=description,
         category=category,
         priority=priority,
         employee_id=employee_id or None,
+        idempotency_key=idempotency_key or None,
     )
     return _audit(
         "create_ticket",
@@ -154,6 +156,7 @@ def create_ticket(
             "category": category,
             "priority": priority,
             "employee_id": employee_id,
+            "idempotency_key": idempotency_key,
         },
         result,
     )
