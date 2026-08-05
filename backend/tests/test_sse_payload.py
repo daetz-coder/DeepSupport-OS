@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+
+from deepsupport_os.api.sse_framing import SseSequencer
 from deepsupport_os.api.tasks import _slim_interrupt, _sse_done_payload
 
 
@@ -62,3 +65,17 @@ def test_sse_done_payload_drops_audit_and_caps_content():
     assert len(slim["trace"]["steps"][0]["content"]) < 1300
     assert slim["overview"]["stages"][0].get("steps") is None
     assert slim["interrupt"]["type"] == "ask"
+
+
+def test_sse_sequencer_assigns_monotonic_seq():
+    seq = SseSequencer(run_id="run-1", thread_id="th-1")
+    a = seq.event("status", {"status": "running"})
+    b = seq.event("token", {"text": "hi"})
+    c = seq.event("interrupt", {"type": "ask", "question": "邮箱？"})
+    assert a["event"] == "status"
+    pa, pb, pc = (json.loads(x["data"]) for x in (a, b, c))
+    assert pa["seq"] == 1
+    assert pb["seq"] == 2
+    assert pc["seq"] == 3
+    assert pa["run_id"] == pb["run_id"] == "run-1"
+    assert pc["type"] == "ask"

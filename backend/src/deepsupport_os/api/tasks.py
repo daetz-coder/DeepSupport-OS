@@ -510,21 +510,22 @@ def _iter_agent_sse_body(
     fallback_status: str = "completed",
     hitl_notice: tuple[dict[str, Any], bool] | None = None,
 ) -> Iterator[dict[str, str]]:
-    yield {
-        "event": "status",
-        "data": json.dumps(
-            {
-                "task_id": task_id,
-                "thread_id": thread_id,
-                "status": "running",
-                "workspace_path": workspace_path,
-            },
-            ensure_ascii=False,
-        ),
-    }
+    from deepsupport_os.api.sse_framing import SseSequencer
+
+    seq = SseSequencer(run_id=task_id, thread_id=thread_id)
+    yield seq.event(
+        "status",
+        {
+            "task_id": task_id,
+            "thread_id": thread_id,
+            "status": "running",
+            "workspace_path": workspace_path,
+        },
+    )
     final_messages: list[Any] = []
     last_todos: list[dict[str, Any]] = []
     interrupt: Any = None
+    interrupt_emitted = False
     try:
         for item in agent.stream(
             stream_input,
@@ -545,15 +546,18 @@ def _iter_agent_sse_body(
                     continue
                 text = _message_text(getattr(msg_chunk, "content", None))
                 if text:
-                    yield {
-                        "event": "token",
-                        "data": json.dumps({"text": text}, ensure_ascii=False),
-                    }
+                    yield seq.event("token", {"text": text})
                 continue
 
             if not isinstance(chunk, dict):
                 continue
-            if "__interrupt__" in chunk:
+            # Emit interrupt as soon as LangGraph signals it (do not wait for done).
+            if "__interrupt__" in chunk or any(k == "__interrupt__" for k in chunk):
+                info = extract_interrupt_info(agent, config)
+                if info and not interrupt_emitted:
+                    interrupt = info
+                    interrupt_emitted = True
+                    yield seq.event("interrupt", _slim_interrupt(info))
                 continue
             for _node, update in chunk.items():
                 if _node == "__interrupt__":
@@ -564,14 +568,7 @@ def _iter_agent_sse_body(
                     )
                     if todos_update != last_todos:
                         last_todos = todos_update
-                        yield {
-                            "event": "todos",
-                            "data": json.dumps(
-                                {"todos": todos_update},
-                                ensure_ascii=False,
-                                default=str,
-                            ),
-                        }
+                        yield seq.event("todos", {"todos": todos_update})
                 if isinstance(update, dict) and "messages" in update:
                     msgs = update.get("messages") or []
                     normalized = []
@@ -586,45 +583,24 @@ def _iter_agent_sse_body(
                         for step in step_trace.get("steps") or []:
                             kind = step.get("kind")
                             if kind == "tool_call":
-                                yield {
-                                    "event": "tool_start",
-                                    "data": json.dumps(step, ensure_ascii=False, default=str),
-                                }
+                                yield seq.event("tool_start", step)
                             elif kind == "subagent_dispatch":
-                                yield {
-                                    "event": "subagent",
-                                    "data": json.dumps(step, ensure_ascii=False, default=str),
-                                }
+                                yield seq.event("subagent", step)
                             elif kind == "context_offload":
-                                yield {
-                                    "event": "context_offload",
-                                    "data": json.dumps(step, ensure_ascii=False, default=str),
-                                }
+                                yield seq.event("context_offload", step)
                             elif kind == "tool_result":
-                                yield {
-                                    "event": "tool_end",
-                                    "data": json.dumps(step, ensure_ascii=False, default=str),
-                                }
+                                yield seq.event("tool_end", step)
                             elif kind in {"assistant", "user"}:
-                                yield {
-                                    "event": "message",
-                                    "data": json.dumps(step, ensure_ascii=False, default=str),
-                                }
+                                yield seq.event("message", step)
     except Exception as exc:  # noqa: BLE001
         interrupt_on_err = extract_interrupt_info(agent, config)
         if interrupt_on_err:
             interrupt = interrupt_on_err
-            yield {
-                "event": "interrupt",
-                "data": json.dumps(
-                    _slim_interrupt(interrupt_on_err), ensure_ascii=False, default=str
-                ),
-            }
+            if not interrupt_emitted:
+                interrupt_emitted = True
+                yield seq.event("interrupt", _slim_interrupt(interrupt_on_err))
         else:
-            yield {
-                "event": "error",
-                "data": json.dumps({"error": str(exc)}, ensure_ascii=False),
-            }
+            yield seq.event("error", {"error": str(exc)})
             return
 
     if hitl_notice is not None:
@@ -640,11 +616,8 @@ def _iter_agent_sse_body(
 
     interrupt = extract_interrupt_info(agent, config) or interrupt
     status = "interrupted" if interrupt else fallback_status
-    if interrupt:
-        yield {
-            "event": "interrupt",
-            "data": json.dumps(_slim_interrupt(interrupt), ensure_ascii=False, default=str),
-        }
+    if interrupt and not interrupt_emitted:
+        yield seq.event("interrupt", _slim_interrupt(interrupt))
 
     try:
         record = _build_record(
@@ -660,37 +633,24 @@ def _iter_agent_sse_body(
             duration_ms=timer.ms(),
         )
         if record.get("todos") and record["todos"] != last_todos:
-            yield {
-                "event": "todos",
-                "data": json.dumps({"todos": record["todos"]}, ensure_ascii=False, default=str),
-            }
+            yield seq.event("todos", {"todos": record["todos"]})
         _persist(record)
-        yield {
-            "event": "done",
-            "data": json.dumps(_sse_done_payload(record), ensure_ascii=False, default=str),
-        }
+        yield seq.event("done", _sse_done_payload(record))
     except Exception as exc:  # noqa: BLE001
         if not interrupt:
-            yield {
-                "event": "error",
-                "data": json.dumps({"error": str(exc)}, ensure_ascii=False),
-            }
+            yield seq.event("error", {"error": str(exc)})
         else:
-            yield {
-                "event": "done",
-                "data": json.dumps(
-                    {
-                        "task_id": task_id,
-                        "thread_id": thread_id,
-                        "status": "interrupted",
-                        "interrupt": _slim_interrupt(interrupt),
-                        "workspace_path": workspace_path,
-                        "messages": serialize_messages(final_messages),
-                    },
-                    ensure_ascii=False,
-                    default=str,
-                ),
-            }
+            yield seq.event(
+                "done",
+                {
+                    "task_id": task_id,
+                    "thread_id": thread_id,
+                    "status": "interrupted",
+                    "interrupt": _slim_interrupt(interrupt),
+                    "workspace_path": workspace_path,
+                    "messages": serialize_messages(final_messages),
+                },
+            )
 
 
 def _prepare_resume(
