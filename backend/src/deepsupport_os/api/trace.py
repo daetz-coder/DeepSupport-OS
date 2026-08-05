@@ -199,6 +199,19 @@ def build_trace(
     return enrich_trace(base)
 
 
+def _current_turn_messages(messages: list[Any]) -> list[Any]:
+    """Messages after the last user utterance (= the current conversation turn)."""
+    out: list[Any] = []
+    for m in reversed(messages or []):
+        role = getattr(m, "type", None)
+        if isinstance(m, dict):
+            role = m.get("role")
+        if role in {"user", "human"}:
+            break
+        out.insert(0, m)
+    return out
+
+
 def extract_interrupt_info(agent: Any, config: dict) -> dict[str, Any] | None:
     from deepsupport_os.harness.hitl_apply import collect_pending_writes, preview_pending_writes
 
@@ -217,7 +230,10 @@ def extract_interrupt_info(agent: Any, config: dict) -> dict[str, Any] | None:
     for t in raw_interrupts:
         interrupts.append(str(t))
 
+    # Prefer the actual interrupt value: it tells us exactly which tool calls
+    # are waiting (no stale/historical writes leak into the approval preview).
     ask_payload: dict[str, Any] | None = None
+    hitl_actions: list[dict[str, Any]] = []
     for ir in getattr(state, "interrupts", None) or ():
         val = getattr(ir, "value", ir)
         if isinstance(val, dict) and val.get("type") == "ask":
@@ -226,6 +242,18 @@ def extract_interrupt_info(agent: Any, config: dict) -> dict[str, Any] | None:
         if isinstance(val, str) and val.strip():
             # Bare string interrupt — treat as ask question
             ask_payload = {"type": "ask", "question": val.strip(), "context": ""}
+            break
+        action_requests = (
+            val.get("action_requests")
+            if isinstance(val, dict)
+            else getattr(val, "action_requests", None)
+        )
+        if action_requests:
+            for ar in action_requests:
+                name = ar.get("name") if isinstance(ar, dict) else getattr(ar, "name", None)
+                args = ar.get("args") if isinstance(ar, dict) else getattr(ar, "args", {})
+                if name:
+                    hitl_actions.append({"name": str(name), "args": args or {}})
             break
 
     if ask_payload:
@@ -239,25 +267,16 @@ def extract_interrupt_info(agent: Any, config: dict) -> dict[str, Any] | None:
             "tasks": interrupts,
         }
 
-    values = getattr(state, "values", None) or {}
-    msgs = values.get("messages") or []
-    trace = build_trace(msgs, interrupt={"next": nxt})
-    pending = collect_pending_writes(msgs, pending=trace.get("pending_writes"))
-    pending = pending[-3:]
-
-    # Fallback: pending ask_user tool call (middleware-style) without Interrupt.value
-    for step in reversed(pending or []):
-        if step.get("name") == "ask_user":
-            args = step.get("args") if isinstance(step.get("args"), dict) else {}
-            return {
-                "type": "ask",
-                "question": str((args or {}).get("question") or "请补充信息"),
-                "context": str((args or {}).get("context") or ""),
-                "next": nxt,
-                "pending_writes": [],
-                "pending_preview": [],
-                "tasks": interrupts,
-            }
+    if hitl_actions:
+        pending: list[dict[str, Any]] = hitl_actions[-3:]
+    else:
+        # Fallback (older checkpoints / middleware-style): scan only the current
+        # turn so previously-approved writes do not reappear.
+        values = getattr(state, "values", None) or {}
+        msgs = _current_turn_messages(values.get("messages") or [])
+        trace = build_trace(msgs, interrupt={"next": nxt})
+        pending = collect_pending_writes(msgs, pending=trace.get("pending_writes"))
+        pending = pending[-3:]
 
     return {
         "type": "hitl",

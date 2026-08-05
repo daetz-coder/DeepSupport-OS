@@ -114,6 +114,34 @@ def test_artifacts_list_and_read(tmp_path, monkeypatch):
     get_settings.cache_clear()
 
 
+def test_current_turn_messages_scopes_to_last_user():
+    from deepsupport_os.api.trace import _current_turn_messages
+
+    class M:
+        def __init__(self, type):
+            self.type = type
+
+    # object messages: only the messages after the last user turn are kept
+    msgs = [M("user"), M("ai"), M("tool"), M("ai")]
+    current = _current_turn_messages(msgs)
+    assert [m.type for m in current] == ["ai", "tool", "ai"]
+
+    # dict messages too
+    dmsgs = [{"role": "user"}, {"role": "assistant"}, {"role": "tool"}]
+    current2 = _current_turn_messages(dmsgs)
+    assert [m["role"] for m in current2] == ["assistant", "tool"]
+
+
+def test_collect_pending_uses_exact_interrupt_writes():
+    """resume must not re-add stale writes from the message history."""
+    from deepsupport_os.harness.hitl_apply import collect_pending_writes
+
+    exact = [{"name": "escalate_ticket", "args": {"ticket_id": "T1"}}]
+    pending = collect_pending_writes(None, pending=exact)
+    assert [p["name"] for p in pending] == ["escalate_ticket"]
+    assert pending[0]["args"] == {"ticket_id": "T1"}
+
+
 def test_extract_todos_normalize():
     from deepsupport_os.harness.state_extract import extract_todos
 

@@ -654,8 +654,6 @@ def _prepare_resume(
     """Validate resume request → (payload, applied, fallback_status, itype, agent, config)."""
     agent = get_agent(body.thread_id)
     config = {"configurable": {"thread_id": body.thread_id}}
-    pre_state = agent.get_state(config)
-    pre_messages = (getattr(pre_state, "values", None) or {}).get("messages") or []
     interrupt_before = extract_interrupt_info(agent, config) or {}
     itype = (body.interrupt_type or interrupt_before.get("type") or "hitl").strip().lower()
 
@@ -667,13 +665,15 @@ def _prepare_resume(
         resume_payload: Any = str(answer).strip()
         fallback = "completed"
     else:
-        pending = collect_pending_writes(
-            pre_messages,
-            pending=interrupt_before.get("pending_writes"),
-        )
+        # pending_writes now comes from the interrupt's exact action_requests
+        # (extract_interrupt_info), so it matches the interrupted tool calls 1:1.
+        pending = collect_pending_writes(None, pending=interrupt_before.get("pending_writes"))
         if body.approved and pending:
             applied = apply_approved_writes(pending, task_id=body.task_id or body.thread_id)
-        resume_payload = {"decisions": [{"type": "approve" if body.approved else "reject"}]}
+        decision: dict[str, Any] = {"type": "approve" if body.approved else "reject"}
+        # One decision per interrupted tool call — the middleware validates that
+        # the decisions count equals the number of hanging tool calls.
+        resume_payload = {"decisions": [decision for _ in pending] or [decision]}
         fallback = "approved" if body.approved else "rejected"
         _inject_hitl_notice(agent, config, interrupt_before, body.approved)
     return resume_payload, applied, fallback, itype, agent, config
