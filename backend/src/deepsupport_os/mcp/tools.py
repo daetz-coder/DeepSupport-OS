@@ -166,11 +166,24 @@ def get_ticket(ticket_id: str) -> dict:
     return _audit("get_ticket", {"ticket_id": ticket_id}, result or {"error": "not_found"})
 
 
-@tool
-def update_ticket(ticket_id: str, status: str = "", resolution: str = "", assignee: str = "") -> dict:
-    """更新工单状态、处理人或解决方案。
+# Non-terminal ticket statuses allowed via update_ticket (no HITL).
+_TICKET_STATUSES = frozenset({"open", "in_progress", "pending", "resolved"})
+_TICKET_PRIORITIES = frozenset({"P1", "P2", "P3", "P4"})
 
-    不可直接设为 closed/escalated；关闭请用 close_ticket，升级请用 escalate_ticket（需审批）。
+
+@tool
+def update_ticket(
+    ticket_id: str,
+    status: str = "",
+    resolution: str = "",
+    assignee: str = "",
+    priority: str = "",
+) -> dict:
+    """更新工单：状态 / 优先级 / 处理人 / 解决方案。
+
+    - status 仅允许：open / in_progress / pending / resolved（不可写 P1–P4）
+    - priority 仅允许：P1 / P2 / P3 / P4（降级或调优优先级用此字段，不要塞进 status）
+    - 不可直接设为 closed/escalated；关闭用 close_ticket，升级用 escalate_ticket（需审批）
     """
     if status in {"closed", "escalated"}:
         result = {
@@ -179,15 +192,51 @@ def update_ticket(ticket_id: str, status: str = "", resolution: str = "", assign
             "hint": "Use close_ticket or escalate_ticket (HITL required)",
         }
         return _audit("update_ticket", {"ticket_id": ticket_id, "status": status}, result)
-    fields = {}
+
+    if status and status not in _TICKET_STATUSES:
+        result = {
+            "ok": False,
+            "error": "invalid_status",
+            "allowed_status": sorted(_TICKET_STATUSES),
+            "hint": "priority 请用 priority 参数（P1–P4），不要写入 status",
+            "requested_status": status,
+        }
+        return _audit("update_ticket", {"ticket_id": ticket_id, "status": status}, result)
+
+    if priority and priority not in _TICKET_PRIORITIES:
+        result = {
+            "ok": False,
+            "error": "invalid_priority",
+            "allowed_priority": sorted(_TICKET_PRIORITIES),
+            "requested_priority": priority,
+        }
+        return _audit("update_ticket", {"ticket_id": ticket_id, "priority": priority}, result)
+
+    fields: dict = {}
     if status:
         fields["status"] = status
     if resolution:
         fields["resolution"] = resolution
     if assignee:
         fields["assignee"] = assignee
-    result = _ticket.update_ticket(ticket_id, **fields)
-    return _audit("update_ticket", {"ticket_id": ticket_id, **fields}, result or {"error": "not_found"})
+    if priority:
+        fields["priority"] = priority
+    if not fields:
+        result = {
+            "ok": False,
+            "error": "no_fields",
+            "hint": "Provide at least one of status / priority / resolution / assignee",
+        }
+        return _audit("update_ticket", {"ticket_id": ticket_id}, result)
+
+    updated = _ticket.update_ticket(ticket_id, **fields)
+    if not updated:
+        result = {"ok": False, "error": "not_found", "ticket_id": ticket_id}
+    elif isinstance(updated, dict) and updated.get("error"):
+        result = updated
+    else:
+        result = {"ok": True, "ticket": updated, "updated_fields": sorted(fields.keys())}
+    return _audit("update_ticket", {"ticket_id": ticket_id, **fields}, result)
 
 
 def _ticket_state(ticket_id: str) -> dict | None:

@@ -62,7 +62,8 @@ def build_mvp_subagents() -> list[dict]:
             "system_prompt": (
                 "你是 Ticket Operations Agent。\n"
                 "输入：已有诊断摘要 + 用户诉求。\n"
-                "根据上下文创建或更新工单；升级/关闭前先 check_action_permission。"
+                "根据上下文创建或更新工单；可用 update_ticket 调整 priority（P1–P4）做升降优先级。"
+                "升级/关闭前先 check_action_permission。"
                 "高风险写操作只发起工具调用并保留审批标记，不要声称已执行完成。"
                 "若返回 already_applied 或 hitl=approved_and_applied，禁止再次 escalate/close。"
                 "建议主 Agent 写入 ticket_draft.md（含 ticket_id）。"

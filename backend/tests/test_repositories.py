@@ -76,3 +76,21 @@ def test_update_ticket_blocks_terminal_without_hitl(fresh_db):
         t["ticket_id"], allow_terminal=True, status="closed", resolution="done"
     )
     assert closed["status"] == "closed"
+
+
+def test_update_ticket_tool_supports_priority_and_rejects_bad_status(fresh_db):
+    from deepsupport_os.mcp.tools import update_ticket
+
+    t = TicketRepo().create_ticket(title="t", description="d", category="Teams", priority="P2")
+    tid = t["ticket_id"]
+
+    bad = update_ticket.invoke({"ticket_id": tid, "status": "P3"})
+    assert bad["ok"] is False
+    assert bad["error"] == "invalid_status"
+    assert TicketRepo().get_ticket(tid)["status"] == "open"
+    assert TicketRepo().get_ticket(tid)["priority"] == "P2"
+
+    ok = update_ticket.invoke({"ticket_id": tid, "priority": "P3"})
+    assert ok["ok"] is True
+    assert ok["ticket"]["priority"] == "P3"
+    assert ok["ticket"]["status"] == "open"
