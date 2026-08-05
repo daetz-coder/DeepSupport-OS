@@ -168,7 +168,7 @@ cd backend && uv run python ../scripts/test_remote_mcp.py
 | ![HITL](./docs/demo-screenshots/08-hitl-escalate.png) | ![Skills](./docs/demo-screenshots/05-skills.png) |
 
 | MCP（本地 Mock + 远程配置） |
-|---|---|
+|---|
 | ![MCP](./docs/demo-screenshots/06-mcp.png) |
 
 > UI 截图若发糊：聊天附件会被压到约 1024px；请用浏览器 100% 整窗截图直接覆盖 `docs/demo-screenshots/`。主图 `DeepSupport-OS.png` 为仓库原图，清晰。
