@@ -15,8 +15,8 @@
     }
   },
   "notes": [
-    "In-process LangChain mock tools remain the default (MCP_LOCAL_TOOLS=true).",
-    "Enable remote servers here and set MCP_REMOTE_ENABLED=true to merge remote tools into the agent.",
+    "In-process LangChain mock tools remain the default (extensions.json → mcp_local_tools).",
+    "Enable remote servers here and set extensions.json mcp_remote_enabled=true (or UI MCP tab) to merge remote tools.",
     "Add public/third-party MCP by appending a server block with url + transport (sse|streamable_http|http)."
   ]
 }
