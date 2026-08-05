@@ -14,7 +14,12 @@ from deepsupport_os.db import task_store
 from deepsupport_os.db.repositories import list_audit
 from deepsupport_os.harness.agent import build_support_agent
 from deepsupport_os.harness.artifacts import list_artifacts, read_artifact, write_manifest
-from deepsupport_os.harness.hitl_apply import apply_approved_writes, collect_pending_writes
+from deepsupport_os.harness.hitl_runtime import (
+    hitl_notice_text as _hitl_notice_text,
+    hitl_resume_decisions as _hitl_resume_decisions,
+    inject_hitl_notice as _inject_hitl_notice,
+    prepare_resume,
+)
 from deepsupport_os.harness.memory_files import memory_paths_for_thread
 from deepsupport_os.harness.metrics import TurnTimer, write_turn_metrics
 from deepsupport_os.harness.run_overview import build_run_overview
@@ -688,142 +693,20 @@ def _iter_agent_sse_body(
             }
 
 
-def _hitl_notice_text(interrupt: dict[str, Any] | None, approved: bool) -> str:
-    """Human-readable HITL decision, e.g. `已批准写操作：升级工单`."""
-    previews = (interrupt or {}).get("pending_preview") or []
-    labels = [
-        str(p.get("label") or p.get("name"))
-        for p in previews
-        if p.get("label") or p.get("name")
-    ]
-    if not labels:
-        writes = (interrupt or {}).get("pending_writes") or []
-        labels = [str(w.get("name")) for w in writes if w.get("name")]
-    suffix = f"：{'、'.join(labels)}" if labels else ""
-    return f"已批准写操作{suffix}" if approved else f"已拒绝写操作{suffix}"
-
-
-def _inject_hitl_notice(agent: Any, config: dict, interrupt: dict[str, Any], approved: bool) -> None:
-    """Persist the HITL decision as a SystemMessage in the checkpoint transcript.
-
-    The message lands at the interruption seam, so it survives refresh and later
-    turns (frontend shows the same line immediately via its own local copy).
-    """
-    try:
-        from langchain_core.messages import SystemMessage
-
-        text = _hitl_notice_text(interrupt, approved)
-        if not text:
-            return
-        agent.update_state(config, {"messages": [SystemMessage(content=text)]})
-    except Exception:  # noqa: BLE001
-        logger.exception("inject HITL notice into transcript failed")
-
-
-def _hitl_resume_decisions(
-    *,
-    approved: bool,
-    pending: list[dict[str, Any]],
-    applied: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    """Build HITL resume decisions.
-
-    Single Executor: business writes are applied only by ``apply_approved_writes``.
-    Resume must never use ``approve`` (that would re-run the write tool). Always
-    ``respond`` with the apply result (or an apply-failed payload) / ``reject``.
-    """
-    n = max(len(pending), 1)
-    if not approved:
-        msg = (
-            "用户拒绝了该写操作。请勿再次调用同一写工具；"
-            "改用其它方案，或向用户确认下一步。"
-        )
-        return [{"type": "reject", "message": msg} for _ in range(n)]
-
-    if not pending:
-        payload = {
-            "ok": False,
-            "error": "no_pending_writes",
-            "hitl": "apply_skipped",
-            "message": "人工已批准但无待写操作。请勿再次调用写工具；向用户说明并继续。",
-        }
-        return [{"type": "respond", "message": json.dumps(payload, ensure_ascii=False)}]
-
-    decisions: list[dict[str, Any]] = []
-    for i, w in enumerate(pending):
-        if i < len(applied) and isinstance(applied[i].get("result"), dict):
-            result = dict(applied[i]["result"])
-            if result.get("ok"):
-                result.setdefault("hitl", "approved_and_applied")
-                result.setdefault(
-                    "message",
-                    "人工已批准，写操作已落库。勿再次调用同一写工具；继续收尾并回复用户。",
-                )
-            else:
-                result.setdefault("hitl", "approved_but_apply_failed")
-                result.setdefault(
-                    "message",
-                    "人工已批准但落库失败。请勿再次调用同一写工具；向用户说明错误并改用其它方案。",
-                )
-        else:
-            result = {
-                "ok": False,
-                "error": "apply_missing",
-                "hitl": "approved_but_apply_failed",
-                "tool": w.get("name"),
-                "args": w.get("args") or {},
-                "message": (
-                    "人工已批准但落库未执行。请勿再次调用同一写工具；"
-                    "向用户说明并改用其它方案。"
-                ),
-            }
-        decisions.append(
-            {"type": "respond", "message": json.dumps(result, ensure_ascii=False, default=str)}
-        )
-    return decisions
-
 def _prepare_resume(
     body: ResumeRequest,
 ) -> tuple[Any, list[dict[str, Any]], str, str, Any, dict, dict[str, Any]]:
-    """Validate resume request → payload, applied, status, itype, agent, config, interrupt_before."""
-    tid = body.thread_id
-    config = {"configurable": {"thread_id": tid}}
-    agent = get_agent(tid)
-    interrupt_before = extract_interrupt_info(agent, config) or {}
-    itype = (body.interrupt_type or interrupt_before.get("type") or "hitl").strip().lower()
+    """API adapter around harness.hitl_runtime.prepare_resume."""
 
-    # Rebuild agent on HITL resume so interrupt_on includes `respond` / latest `when`
-    # guards. Checkpointer keeps the interrupted thread state.
-    if itype == "hitl":
+    def _drop(tid: str) -> None:
         _agents.pop(tid, None)
-        agent = get_agent(tid)
-        interrupt_before = extract_interrupt_info(agent, config) or interrupt_before
 
-    applied: list[dict[str, Any]] = []
-    if itype == "ask":
-        answer = (body.answer if body.answer is not None else body.note) or ""
-        if not str(answer).strip():
-            raise HTTPException(status_code=400, detail="answer required for ask resume")
-        resume_payload: Any = str(answer).strip()
-        fallback = "completed"
-    else:
-        from deepsupport_os.harness.runtime_context import run_context
-
-        pending = collect_pending_writes(None, pending=interrupt_before.get("pending_writes"))
-        if body.approved and pending:
-            with run_context(thread_id=tid, task_id=body.task_id or tid):
-                applied = apply_approved_writes(
-                    pending,
-                    task_id=body.task_id or body.thread_id,
-                    thread_id=tid,
-                )
-        resume_payload = {
-            "decisions": _hitl_resume_decisions(
-                approved=body.approved, pending=pending, applied=applied
-            )
-        }
-        fallback = "approved" if body.approved else "rejected"
-    return resume_payload, applied, fallback, itype, agent, config, interrupt_before
+    return prepare_resume(
+        body,
+        get_agent=get_agent,
+        extract_interrupt=extract_interrupt_info,
+        drop_cached_agent=_drop,
+    )
 
 
 @router.post("/stream")
