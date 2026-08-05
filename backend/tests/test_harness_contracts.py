@@ -170,6 +170,45 @@ def test_canonical_names_stable():
     assert "final_resolution.md" in CANONICAL_ARTIFACTS
 
 
+def test_readonly_backend_blocks_writes_outside_writable_prefixes(tmp_path):
+    """R1-5: wrapper blocks write/edit/delete; read works; threads/ stays writable."""
+    from deepsupport_os.harness.daytona_backend import ReadOnlyFilesystemBackend
+
+    root = tmp_path / "mem"
+    (root / "threads" / "t1").mkdir(parents=True)
+    (root / "org.md").write_text("org", encoding="utf-8")
+    (root / "threads" / "t1" / "AGENTS.md").write_text("note", encoding="utf-8")
+    b = ReadOnlyFilesystemBackend(root, writable_prefixes=("threads/",))
+    assert b.read("/org.md").error is None
+    assert b.read("/threads/t1/AGENTS.md").error is None
+    assert b.write("/org.md", "x").error is not None
+    assert b.edit("/org.md", "org", "n").error is not None
+    assert b.delete("/org.md").error is not None
+    assert b.write("/threads/t1/AGENTS.md", "new").error is None
+    assert (root / "threads" / "t1" / "AGENTS.md").read_text(encoding="utf-8") == "new"
+    # Fully read-only variant (skills): nothing is writable.
+    ro = ReadOnlyFilesystemBackend(root)
+    assert ro.write("/SKILL.md", "x").error is not None
+    assert ro.read("/org.md").error is None
+
+
+def test_skills_memory_mounts_reject_writes(tmp_path, monkeypatch):
+    """R1-5: /skills/ and /memory/org.md read-only on the composite; workspace writable."""
+    from deepsupport_os.core.config import get_settings
+    from deepsupport_os.harness.daytona_backend import build_thread_backend, clear_thread_backends
+
+    monkeypatch.setenv("WORKSPACE_DIR", str(tmp_path / "ws"))
+    get_settings.cache_clear()
+    clear_thread_backends()
+    b = build_thread_backend("ro-x", attach_daytona=False)
+    assert b.write("/skills/foo/SKILL.md", "x").error is not None
+    assert b.write("/memory/org.md", "overwrite").error is not None
+    assert b.read("/memory/org.md").error is None
+    assert b.write("/workspace/ro-x/n.md", "ok").error is None
+    clear_thread_backends()
+    get_settings.cache_clear()
+
+
 def test_sandbox_scope_local_isolates_per_thread(tmp_path, monkeypatch):
     """R2-4: default scope=local mounts /sandbox/ under workspace/{tid}/sandbox/."""
     from deepsupport_os.core.config import get_settings

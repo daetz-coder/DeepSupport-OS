@@ -19,6 +19,18 @@ from deepsupport_os.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+from deepagents.backends.protocol import (  # noqa: E402  (lightweight dataclasses)
+    DeleteResult,
+    EditResult,
+    FileDownloadResponse,
+    FileUploadResponse,
+    GlobResult,
+    GrepResult,
+    LsResult,
+    ReadResult,
+    WriteResult,
+)
+
 _sandbox: Any | None = None
 _daytona_raw: Any | None = None
 _daytona_client: Any | None = None
@@ -31,6 +43,131 @@ _sandbox_by_thread: dict[str, Any] = {}
 SANDBOX_ROUTE = "/sandbox/"
 SKILLS_ROUTE = "/skills/"
 MEMORY_ROUTE = "/memory/"
+
+
+class ReadOnlyFilesystemBackend:
+    """FilesystemBackend wrapper that rejects writes outside an allow-list.
+
+    deepagents' ``FilesystemBackend`` has no read-only mode, so shared mounts
+    are writable by default. This wrapper blocks ``write`` / ``edit`` /
+    ``delete`` / ``upload`` for any path not under a configured writable prefix
+    and delegates everything else (``read`` / ``ls`` / ``glob`` / ``grep`` /
+    ``download``) to the inner backend.
+
+    Used for AR-02 / R1-5 isolation:
+      - ``/skills/``   → ``writable_prefixes=()`` (fully read-only)
+      - ``/memory/``   → ``writable_prefixes=("threads/",)`` so per-thread
+                         session notes stay writable while ``org.md`` is not.
+
+    Paths arrive from ``CompositeBackend`` already stripped of the route prefix
+    (e.g. ``/memory/org.md`` → ``/org.md``), so writable prefixes are matched
+    against the normalized relative path.
+    """
+
+    def __init__(
+        self,
+        root_dir: str | Path | None = None,
+        *,
+        writable_prefixes: tuple[str, ...] = (),
+        virtual_mode: bool = True,
+        max_file_size_mb: int = 10,
+    ):
+        from deepagents.backends import FilesystemBackend
+
+        self._inner = FilesystemBackend(
+            root_dir=root_dir, virtual_mode=virtual_mode, max_file_size_mb=max_file_size_mb
+        )
+        self._writable = tuple(
+            str(p).replace("\\", "/").strip("/") for p in writable_prefixes if str(p).strip("/")
+        )
+
+    def _is_writable(self, path: str) -> bool:
+        rel = str(path or "").replace("\\", "/").lstrip("/")
+        return any(rel == p or rel.startswith(p + "/") for p in self._writable)
+
+    def _deny(self, result_type: type, file_path: str, op: str):
+        return result_type(
+            error=f"readonly_path: {op} blocked for read-only mount '{file_path}'",
+            path=str(file_path),
+        )
+
+    # ---- read-only ops (delegate to inner) ----
+
+    def read(self, file_path: str, offset: int = 0, limit: int = 2000) -> ReadResult:
+        return self._inner.read(file_path, offset=offset, limit=limit)
+
+    def ls(self, path: str) -> LsResult:
+        return self._inner.ls(path)
+
+    def glob(self, pattern: str, path: str | None = None) -> GlobResult:
+        return self._inner.glob(pattern, path=path)
+
+    def grep(self, pattern: str, path: str | None = None, glob: str | None = None, **kw) -> GrepResult:
+        return self._inner.grep(pattern, path=path, glob=glob, **kw)
+
+    def download_files(self, paths: list[str]) -> list[FileDownloadResponse]:
+        return self._inner.download_files(paths)
+
+    # ---- mutating ops (blocked unless path is writable) ----
+
+    def write(self, file_path: str, content: str) -> WriteResult:
+        if not self._is_writable(file_path):
+            return self._deny(WriteResult, file_path, "write")
+        return self._inner.write(file_path, content)
+
+    def edit(self, file_path: str, old_string: str, new_string: str, replace_all: bool = False) -> EditResult:
+        if not self._is_writable(file_path):
+            return self._deny(EditResult, file_path, "edit")
+        return self._inner.edit(file_path, old_string, new_string, replace_all=replace_all)
+
+    def delete(self, file_path: str) -> DeleteResult:
+        if not self._is_writable(file_path):
+            return self._deny(DeleteResult, file_path, "delete")
+        return self._inner.delete(file_path)
+
+    def upload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
+        blocked = [path for path, _ in files if not self._is_writable(path)]
+        if blocked:
+            return [FileUploadResponse(path=p, error="permission_denied") for p in blocked]
+        return self._inner.upload_files(files)
+
+    # ---- async variants ----
+
+    async def aread(self, file_path: str, offset: int = 0, limit: int = 2000) -> ReadResult:
+        return await self._inner.aread(file_path, offset=offset, limit=limit)
+
+    async def als(self, path: str) -> LsResult:
+        return await self._inner.als(path)
+
+    async def aglob(self, pattern: str, path: str | None = None) -> GlobResult:
+        return await self._inner.aglob(pattern, path=path)
+
+    async def agrep(self, pattern: str, path: str | None = None, glob: str | None = None, **kw) -> GrepResult:
+        return await self._inner.agrep(pattern, path=path, glob=glob, **kw)
+
+    async def adownload_files(self, paths: list[str]) -> list[FileDownloadResponse]:
+        return await self._inner.adownload_files(paths)
+
+    async def awrite(self, file_path: str, content: str) -> WriteResult:
+        if not self._is_writable(file_path):
+            return self._deny(WriteResult, file_path, "write")
+        return await self._inner.awrite(file_path, content)
+
+    async def aedit(self, file_path: str, old_string: str, new_string: str, replace_all: bool = False) -> EditResult:
+        if not self._is_writable(file_path):
+            return self._deny(EditResult, file_path, "edit")
+        return await self._inner.aedit(file_path, old_string, new_string, replace_all=replace_all)
+
+    async def adelete(self, file_path: str) -> DeleteResult:
+        if not self._is_writable(file_path):
+            return self._deny(DeleteResult, file_path, "delete")
+        return await self._inner.adelete(file_path)
+
+    async def aupload_files(self, files: list[tuple[str, bytes]]) -> list[FileUploadResponse]:
+        blocked = [path for path, _ in files if not self._is_writable(path)]
+        if blocked:
+            return [FileUploadResponse(path=p, error="permission_denied") for p in blocked]
+        return await self._inner.aupload_files(files)
 
 
 def _ensure_env() -> None:
@@ -173,8 +310,12 @@ def build_thread_backend(
 
     routes: dict[str, Any] = {
         f"/workspace/{tid}/": ws_backend,
-        SKILLS_ROUTE: FilesystemBackend(root_dir=skills_root, virtual_mode=True),
-        MEMORY_ROUTE: FilesystemBackend(root_dir=memory_root, virtual_mode=True),
+        # /skills/ fully read-only; /memory/ only per-thread session notes writable
+        # (org.md stays read-only) — AR-02 / R1-5.
+        SKILLS_ROUTE: ReadOnlyFilesystemBackend(root_dir=skills_root, virtual_mode=True),
+        MEMORY_ROUTE: ReadOnlyFilesystemBackend(
+            root_dir=memory_root, virtual_mode=True, writable_prefixes=("threads/",)
+        ),
     }
 
     scope = (settings.daytona_sandbox_scope or "local").strip().lower()
