@@ -1,10 +1,31 @@
 # DeepSupport OS
 
-**DeepSupport OS is an open-source enterprise IT support agent harness powered by Deep Agents.**
+<div align="center">
 
-DeepSupport OS 是一个基于 Deep Agents Harness 的开源企业 IT 技术支持智能体。面向 Microsoft 365 企业 IT Help Desk，用 **Local Tool Adapter（Mock 企业数据）** 与可选 **Remote MCP** 模拟企业系统，突出长任务规划、文件工作区、Skills、Subagents、Memory、Checkpoint 与人工审批。
+![Python](https://img.shields.io/badge/Python-3.12+-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.141+-009688?logo=fastapi&logoColor=white)
+![Vue 3](https://img.shields.io/badge/Vue_3-3.5-4FC08D?logo=vuedotjs&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white)
+![Deep Agents](https://img.shields.io/badge/Deep_Agents-Harness-1C3C5C)
+![LangGraph](https://img.shields.io/badge/LangGraph-1.2+-1C3C5C?logo=langchain&logoColor=white)
+![MCP](https://img.shields.io/badge/MCP-Local%20%2B%20Remote-0B57D0)
+![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-D71F00?logo=sqlalchemy&logoColor=white)
+![DeepSeek](https://img.shields.io/badge/DeepSeek-API%20(default)-4D6BFE)
+![Ollama](https://img.shields.io/badge/Ollama-optional%20local-000000?logo=ollama&logoColor=white)
+![RAGLab](https://img.shields.io/badge/RAGLab-Knowledge%20API-FF6A00)
+![Daytona](https://img.shields.io/badge/Daytona-Sandbox%20sidecar-00C7B7)
+![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-> 详细实施清单见 [plan.md](./plan.md)。
+**开源的企业 IT Help Desk Agent Harness**：长任务规划、Skills / Subagents、HITL 审批、文件工作区与可评测闭环。  
+面向 Microsoft 365 场景；用 **Local Tool Adapter（SQLite Mock）** 与可选 **Remote MCP** 模拟企业系统，知识侧对接 [RAGLab](https://github.com/daetz-coder/RAGLab)（`kb=deepsupport`）。
+
+[快速开始](#快速开始) · [界面预览](#界面预览) · [评测](#评测automated-eval) · [知识管线](#知识管线本地语料--raglab-kb) · [文档地图](#文档地图) · [贡献](CONTRIBUTING.md) · [安全](SECURITY.md)
+
+![DeepSupport OS 架构总览](./docs/demo-screenshots/DeepSupport-OS.png)
+
+> **License：** 代码为 [MIT](LICENSE)。演示账号 / 工单为 Mock（如 `contoso.com`）；仓库**不附带**已爬取的 Microsoft 支持语料本体（见 `data/knowledge/` gitignore），请自行抓取并遵守来源站点条款。
+
+</div>
 
 ## 架构概览
 
@@ -25,14 +46,16 @@ Deep Agents Harness
 
 ## 技术栈
 
-| 层 | 选型 |
-|---|---|
-| 前端 | Vue 3 + Vite + Element Plus |
-| 后端 | uv + FastAPI |
-| Agent | Deep Agents + LangGraph + LangChain |
-| RAG | 调用本地 [RAGLab](../RAGLab) HTTP API |
-| 企业系统 | Local Tool Adapter（SQLite Mock）+ 可选 Remote MCP |
-| 默认 LLM | DeepSeek（可切换 Ollama） |
+
+| 层      | 选型                                             |
+| ------ | ---------------------------------------------- |
+| 前端     | Vue 3 + Vite + Element Plus                    |
+| 后端     | uv + FastAPI                                   |
+| Agent  | Deep Agents + LangGraph + LangChain            |
+| RAG    | 调用本地 [RAGLab](../RAGLab) HTTP API              |
+| 企业系统   | Local Tool Adapter（SQLite Mock）+ 可选 Remote MCP |
+| 默认 LLM | DeepSeek（可切换 Ollama）                           |
+
 
 ## 快速开始
 
@@ -74,11 +97,13 @@ npm install                          # 首次
 npm run dev
 ```
 
-| 服务 | 地址 |
-|---|---|
-| DeepSupport UI | http://localhost:5173 |
-| DeepSupport API | http://localhost:8000/docs |
-| RAGLab API | http://localhost:8001/docs |
+
+| 服务              | 地址                                                       |
+| --------------- | -------------------------------------------------------- |
+| DeepSupport UI  | [http://localhost:5173](http://localhost:5173)           |
+| DeepSupport API | [http://localhost:8000/docs](http://localhost:8000/docs) |
+| RAGLab API      | [http://localhost:8001/docs](http://localhost:8001/docs) |
+
 
 打开 UI 后顶部会显示 **后端 / LLM**（`/health` 秒回）以及 **RAGLab / Sandbox**（`/api/health/deps`）；可点「检查依赖」刷新。未启 RAGLab 时 Knowledge 回退本地 Markdown；Sandbox 未配置时本地 Skills/工作区仍可用。
 
@@ -95,13 +120,15 @@ docker compose up --build
 
 **实测记录（2026-08-05 · Windows 10 + Docker Desktop 29.5 / Compose v5.1）**
 
-| 项 | 结果 |
-|---|---|
-| `docker compose up --build -d` | 成功；首次构建约 3–4 分钟 |
-| `api` | `healthy`；`GET /health` → `{"status":"ok"}` |
-| `frontend` | 启动正常；`GET /` → 200；经 nginx 代理 `GET /health`、`GET /api/meta/skills` → 200 |
-| 卷挂载 | 容器内 `root_dir=/app`；`data` / `skills` / `config` / `memory` 可读 |
-| RAGLab | compose 将 `RAGLAB_BASE_URL` 指到 `host.docker.internal:8001`（宿主机未启 RAGLab 时 Knowledge 回退本地 Markdown） |
+
+| 项                              | 结果                                                                                                 |
+| ------------------------------ | -------------------------------------------------------------------------------------------------- |
+| `docker compose up --build -d` | 成功；首次构建约 3–4 分钟                                                                                    |
+| `api`                          | `healthy`；`GET /health` → `{"status":"ok"}`                                                        |
+| `frontend`                     | 启动正常；`GET /` → 200；经 nginx 代理 `GET /health`、`GET /api/meta/skills` → 200                           |
+| 卷挂载                            | 容器内 `root_dir=/app`；`data` / `skills` / `config` / `memory` 可读                                     |
+| RAGLab                         | compose 将 `RAGLAB_BASE_URL` 指到 `host.docker.internal:8001`（宿主机未启 RAGLab 时 Knowledge 回退本地 Markdown） |
+
 
 说明：远程 MCP（`127.0.0.1:8100`）与 Ollama 同理需跑在宿主机；远程开关以 `config/extensions.json`（或 UI「MCP」）为准，不是仅改 `.env` 的 `MCP_REMOTE_ENABLED`。
 
@@ -128,6 +155,24 @@ cd backend && uv run python ../scripts/test_remote_mcp.py
 
 第三方/公开 MCP：在 `mcp_servers.json` 增加 `url` + `transport`（`streamable_http` / `sse`）即可，无需改代码。
 
+## 界面预览
+
+演示数据均为 Mock（`contoso.com` / `E001` / `T1009`），不含真实账号密钥。筛选说明见 [docs/demo-screenshots/README.md](./docs/demo-screenshots/README.md)。
+
+| 对话完成态（规划 / 子代理 / 工具） | ask_user 澄清（暂停待答） |
+|---|---|
+| ![对话](./docs/demo-screenshots/01-chat-outlook.png) | ![ask_user](./docs/demo-screenshots/07-ask-user.png) |
+
+| HITL 升级工单审批 | Skills 管理 |
+|---|---|
+| ![HITL](./docs/demo-screenshots/08-hitl-escalate.png) | ![Skills](./docs/demo-screenshots/05-skills.png) |
+
+| MCP（本地 Mock + 远程配置） |
+|---|---|
+| ![MCP](./docs/demo-screenshots/06-mcp.png) |
+
+> UI 截图若发糊：聊天附件会被压到约 1024px；请用浏览器 100% 整窗截图直接覆盖 `docs/demo-screenshots/`。主图 `DeepSupport-OS.png` 为仓库原图，清晰。
+
 ## 一次运行链路（示例：Outlook 登录失败）
 
 ```text
@@ -153,19 +198,21 @@ cd backend && uv run python ../scripts/test_remote_mcp.py
 
 ### 当前指标快照（已跑完 50 案，排除未续跑的余额失败）
 
-| 指标 | 值 | 说明 |
-|---|---:|---|
-| `pass_rate` | **0.60** | 30/50 通过 |
-| `tool_hit_rate` | 0.90 | 工具期望命中 |
-| `hitl_hit_rate` | 0.95 | HITL 写工具命中 |
-| `planning_hit_rate` | 1.00 | 长任务/复合题 todos |
-| `write_safety_rate` | 1.00 | 未绕过 HITL 直接关单/升级 |
-| `grounding_rate` | 1.00 | grounding 标签证据工具 |
-| `offload_hit_rate` | 0.95 | 工作区 offload |
-| `subagent_hit_rate` | **0.00** | 子代理委派短板 |
-| `long_task_pass_rate` | 0.29 | 长任务整案通过偏低 |
-| `error_rate` | 0.24 | 硬错误（多为递归上限） |
-| `p50` / `p95` ms | 16s / 77s | 耗时分布 |
+
+| 指标                    | 值         | 说明               |
+| --------------------- | --------- | ---------------- |
+| `pass_rate`           | **0.60**  | 30/50 通过         |
+| `tool_hit_rate`       | 0.90      | 工具期望命中           |
+| `hitl_hit_rate`       | 0.95      | HITL 写工具命中       |
+| `planning_hit_rate`   | 1.00      | 长任务/复合题 todos    |
+| `write_safety_rate`   | 1.00      | 未绕过 HITL 直接关单/升级 |
+| `grounding_rate`      | 1.00      | grounding 标签证据工具 |
+| `offload_hit_rate`    | 0.95      | 工作区 offload      |
+| `subagent_hit_rate`   | **0.00**  | 子代理委派短板          |
+| `long_task_pass_rate` | 0.29      | 长任务整案通过偏低        |
+| `error_rate`          | 0.24      | 硬错误（多为递归上限）      |
+| `p50` / `p95` ms      | 16s / 77s | 耗时分布             |
+
 
 Offline schema：**150/150**。Pytest：**61 passed**。完整表格与 `by_tag` 见 [docs/eval-results.md](./docs/eval-results.md)。
 （含 `--fast`：Skill/RAGLab 路径被简化，`skill_hit` 偏乐观，不宜当作生产全量分。）
@@ -185,18 +232,20 @@ uv run python ../scripts/migrate_ms_kb.py
 
 ## 文档地图
 
-| 文档 | 内容 |
-|---|---|
-| [docs/architecture.md](./docs/architecture.md) | 架构分层 + 模块地图 + 线程生命周期 |
-| [架构图](./docs/architecture/deepsupport-os-architecture.svg) | 系统架构图（draw.io 源在 `.drawio-tmp/`，本地交付物） |
-| [案例图](./docs/architecture/case-*.svg) | Outlook+HITL 审批 / ask_user 多轮 / 在线评测 / Docker 拓扑 |
-| [docs/api.md](./docs/api.md) | HTTP API |
-| [docs/testing.md](./docs/testing.md) | 评测指标与落库 |
-| [docs/baselines.md](./docs/baselines.md) | 评测基线设计 |
-| [docs/eval-results.md](./docs/eval-results.md) | 评测指标快照 |
-| [docs/adr/](./docs/adr/) | 架构决策记录 |
-| [fix.md](./fix.md) | 架构债 backlog |
-| [plan.md](./plan.md) | 产品待办 |
+
+| 文档                                                         | 内容                                               |
+| ---------------------------------------------------------- | ------------------------------------------------ |
+| [docs/architecture.md](./docs/architecture.md)             | 架构分层 + 模块地图 + 线程生命周期                             |
+| [架构图](./docs/architecture/deepsupport-os-architecture.svg) | 系统架构图（draw.io 源在 `.drawio-tmp/`，本地交付物）           |
+| [案例图](./docs/architecture/case-*.svg)                      | Outlook+HITL 审批 / ask_user 多轮 / 在线评测 / Docker 拓扑 |
+| [docs/api.md](./docs/api.md)                               | HTTP API                                         |
+| [docs/testing.md](./docs/testing.md)                       | 评测指标与落库                                          |
+| [docs/baselines.md](./docs/baselines.md)                   | 评测基线设计                                           |
+| [docs/eval-results.md](./docs/eval-results.md)             | 评测指标快照                                           |
+| [docs/adr/](./docs/adr/)                                   | 架构决策记录                                           |
+| [fix.md](./fix.md)                                         | 架构债 backlog                                      |
+| [plan.md](./plan.md)                                       | 产品待办                                             |
+
 
 ## 仓库结构
 
