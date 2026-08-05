@@ -20,17 +20,18 @@ OpenAPI：[/docs](http://127.0.0.1:8000/docs)
 | GET | `/api/tasks` | List recent tasks (runs) |
 | GET | `/api/tasks/threads` | List conversations (thread → nested runs) |
 | POST | `/api/tasks` | Sync harness turn（可传 `thread_id` 续聊） |
-| POST | `/api/tasks/stream` | SSE turn |
-| POST | `/api/tasks/resume` | 续跑：`interrupt_type=ask` + `answer`，或 HITL `approved` |
+| POST | `/api/tasks/stream` | SSE turn（含 `token`） |
+| POST | `/api/tasks/resume` | 同步续跑：`interrupt_type=ask` + `answer`，或 HITL `approved` |
+| POST | `/api/tasks/resume/stream` | SSE 续跑（与 `/stream` 相同事件：`token` / `interrupt` / `done`） |
 | GET | `/api/tasks/{task_id}` | Task snapshot（含 `trace` / `overview` / `manifest` / `metrics`） |
 | GET | `/api/tasks/{task_id}/trace` | Structured execution trace |
 | GET | `/api/tasks/{task_id}/artifacts` | Workspace file list |
 | GET | `/api/tasks/{task_id}/artifacts/{path}` | Artifact content |
 | GET | `/api/tasks/meta/audit` | Recent tool audit log |
 
-### SSE events (`POST /api/tasks/stream`)
+### SSE events (`POST /api/tasks/stream` · `POST /api/tasks/resume/stream`)
 
-`status` · `tool_start` · `tool_end` · `subagent` · `context_offload` · `message` · `todos` · `interrupt` · `error` · `done`
+`status` · `token` · `tool_start` · `tool_end` · `subagent` · `context_offload` · `message` · `todos` · `interrupt` · `error` · `done`
 
 `done` payload includes `manifest`（`workspace/{tid}/manifest.json`）与 `metrics`（`metrics.json`）。
 

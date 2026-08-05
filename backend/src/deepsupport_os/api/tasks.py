@@ -307,47 +307,21 @@ class ResumeRequest(BaseModel):
 
 @router.post("/resume")
 def resume_task(body: ResumeRequest):
-    """Resume after ask_user answer or HITL write approval."""
-    agent = get_agent(body.thread_id)
-    config = {"configurable": {"thread_id": body.thread_id}}
+    """Resume after ask_user answer or HITL write approval (sync). Prefer /resume/stream for UI."""
+    from langgraph.types import Command
+
     ws = ensure_thread_workspace(body.thread_id)
     timer = TurnTimer()
-
-    pre_state = agent.get_state(config)
-    pre_messages = (getattr(pre_state, "values", None) or {}).get("messages") or []
-    interrupt_before = extract_interrupt_info(agent, config) or {}
-    itype = (body.interrupt_type or interrupt_before.get("type") or "hitl").strip().lower()
-
-    applied: list[dict[str, Any]] = []
-    if itype == "ask":
-        answer = (body.answer if body.answer is not None else body.note) or ""
-        if not str(answer).strip():
-            raise HTTPException(status_code=400, detail="answer required for ask resume")
-        resume_payload: Any = str(answer).strip()
-    else:
-        pending = collect_pending_writes(
-            pre_messages,
-            pending=interrupt_before.get("pending_writes"),
-        )
-        if body.approved and pending:
-            applied = apply_approved_writes(pending, task_id=body.task_id or body.thread_id)
-        resume_payload = {"decisions": [{"type": "approve" if body.approved else "reject"}]}
+    resume_payload, applied, fallback, itype, agent, config = _prepare_resume(body)
 
     try:
-        from langgraph.types import Command
-
         result = agent.invoke(Command(resume=resume_payload), config=config)
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"resume failed: {exc}") from exc
 
     messages = result.get("messages", [])
     interrupt = extract_interrupt_info(agent, config)
-    if interrupt:
-        status = "interrupted"
-    elif itype == "ask":
-        status = "completed"
-    else:
-        status = "approved" if body.approved else "rejected"
+    status = "interrupted" if interrupt else fallback
     task_id = body.task_id or str(uuid.uuid4())
     record = _build_record(
         task_id=task_id,
@@ -397,6 +371,229 @@ def _message_text(content: Any) -> str:
     return str(content)
 
 
+def _iter_agent_sse(
+    *,
+    agent: Any,
+    config: dict,
+    stream_input: Any,
+    task_id: str,
+    thread_id: str,
+    workspace_path: str,
+    timer: TurnTimer,
+    applied: list[dict[str, Any]] | None = None,
+    fallback_status: str = "completed",
+) -> Iterator[dict[str, str]]:
+    """Shared SSE loop for new turns and ask/HITL resume."""
+    yield {
+        "event": "status",
+        "data": json.dumps(
+            {
+                "task_id": task_id,
+                "thread_id": thread_id,
+                "status": "running",
+                "workspace_path": workspace_path,
+            },
+            ensure_ascii=False,
+        ),
+    }
+    final_messages: list[Any] = []
+    last_todos: list[dict[str, Any]] = []
+    interrupt: Any = None
+    try:
+        for item in agent.stream(
+            stream_input,
+            config=config,
+            stream_mode=["updates", "messages"],
+        ):
+            mode = "updates"
+            chunk: Any = item
+            if isinstance(item, tuple) and len(item) == 2 and item[0] in {"updates", "messages"}:
+                mode, chunk = item[0], item[1]
+
+            if mode == "messages":
+                msg_chunk = chunk[0] if isinstance(chunk, tuple) and chunk else chunk
+                name = type(msg_chunk).__name__
+                msg_type = str(getattr(msg_chunk, "type", "") or "")
+                is_ai = "AI" in name or msg_type in {"ai", "AIMessageChunk"}
+                if not is_ai:
+                    continue
+                text = _message_text(getattr(msg_chunk, "content", None))
+                if text:
+                    yield {
+                        "event": "token",
+                        "data": json.dumps({"text": text}, ensure_ascii=False),
+                    }
+                continue
+
+            if not isinstance(chunk, dict):
+                continue
+            if "__interrupt__" in chunk:
+                continue
+            for _node, update in chunk.items():
+                if _node == "__interrupt__":
+                    continue
+                if isinstance(update, dict) and "todos" in update:
+                    todos_update = extract_todos(
+                        agent, config, result=update if isinstance(update, dict) else None
+                    )
+                    if todos_update != last_todos:
+                        last_todos = todos_update
+                        yield {
+                            "event": "todos",
+                            "data": json.dumps(
+                                {"todos": todos_update},
+                                ensure_ascii=False,
+                                default=str,
+                            ),
+                        }
+                if isinstance(update, dict) and "messages" in update:
+                    msgs = update.get("messages") or []
+                    normalized = []
+                    for m in msgs:
+                        if isinstance(m, tuple) and len(m) == 2:
+                            normalized.append(m[1])
+                        else:
+                            normalized.append(m)
+                    if normalized:
+                        final_messages.extend(normalized)
+                        step_trace = build_trace(normalized)
+                        for step in step_trace.get("steps") or []:
+                            kind = step.get("kind")
+                            if kind == "tool_call":
+                                yield {
+                                    "event": "tool_start",
+                                    "data": json.dumps(step, ensure_ascii=False, default=str),
+                                }
+                            elif kind == "subagent_dispatch":
+                                yield {
+                                    "event": "subagent",
+                                    "data": json.dumps(step, ensure_ascii=False, default=str),
+                                }
+                            elif kind == "context_offload":
+                                yield {
+                                    "event": "context_offload",
+                                    "data": json.dumps(step, ensure_ascii=False, default=str),
+                                }
+                            elif kind == "tool_result":
+                                yield {
+                                    "event": "tool_end",
+                                    "data": json.dumps(step, ensure_ascii=False, default=str),
+                                }
+                            elif kind in {"assistant", "user"}:
+                                yield {
+                                    "event": "message",
+                                    "data": json.dumps(step, ensure_ascii=False, default=str),
+                                }
+    except Exception as exc:  # noqa: BLE001
+        interrupt_on_err = extract_interrupt_info(agent, config)
+        if interrupt_on_err:
+            interrupt = interrupt_on_err
+            yield {
+                "event": "interrupt",
+                "data": json.dumps(
+                    _slim_interrupt(interrupt_on_err), ensure_ascii=False, default=str
+                ),
+            }
+        else:
+            yield {
+                "event": "error",
+                "data": json.dumps({"error": str(exc)}, ensure_ascii=False),
+            }
+            return
+
+    try:
+        state = agent.get_state(config)
+        state_msgs = (getattr(state, "values", None) or {}).get("messages") or []
+        if state_msgs:
+            final_messages = state_msgs
+    except Exception:  # noqa: BLE001
+        pass
+
+    interrupt = extract_interrupt_info(agent, config) or interrupt
+    status = "interrupted" if interrupt else fallback_status
+    if interrupt:
+        yield {
+            "event": "interrupt",
+            "data": json.dumps(_slim_interrupt(interrupt), ensure_ascii=False, default=str),
+        }
+
+    try:
+        record = _build_record(
+            task_id=task_id,
+            thread_id=thread_id,
+            messages=final_messages,
+            interrupt=interrupt,
+            status=status,
+            applied=applied,
+            workspace_path=workspace_path,
+            agent=agent,
+            config=config,
+            duration_ms=timer.ms(),
+        )
+        if record.get("todos") and record["todos"] != last_todos:
+            yield {
+                "event": "todos",
+                "data": json.dumps({"todos": record["todos"]}, ensure_ascii=False, default=str),
+            }
+        _persist(record)
+        yield {
+            "event": "done",
+            "data": json.dumps(_sse_done_payload(record), ensure_ascii=False, default=str),
+        }
+    except Exception as exc:  # noqa: BLE001
+        if not interrupt:
+            yield {
+                "event": "error",
+                "data": json.dumps({"error": str(exc)}, ensure_ascii=False),
+            }
+        else:
+            yield {
+                "event": "done",
+                "data": json.dumps(
+                    {
+                        "task_id": task_id,
+                        "thread_id": thread_id,
+                        "status": "interrupted",
+                        "interrupt": _slim_interrupt(interrupt),
+                        "workspace_path": workspace_path,
+                        "messages": serialize_messages(final_messages),
+                    },
+                    ensure_ascii=False,
+                    default=str,
+                ),
+            }
+
+
+def _prepare_resume(
+    body: ResumeRequest,
+) -> tuple[Any, list[dict[str, Any]], str, str, Any, dict]:
+    """Validate resume request → (payload, applied, fallback_status, itype, agent, config)."""
+    agent = get_agent(body.thread_id)
+    config = {"configurable": {"thread_id": body.thread_id}}
+    pre_state = agent.get_state(config)
+    pre_messages = (getattr(pre_state, "values", None) or {}).get("messages") or []
+    interrupt_before = extract_interrupt_info(agent, config) or {}
+    itype = (body.interrupt_type or interrupt_before.get("type") or "hitl").strip().lower()
+
+    applied: list[dict[str, Any]] = []
+    if itype == "ask":
+        answer = (body.answer if body.answer is not None else body.note) or ""
+        if not str(answer).strip():
+            raise HTTPException(status_code=400, detail="answer required for ask resume")
+        resume_payload: Any = str(answer).strip()
+        fallback = "completed"
+    else:
+        pending = collect_pending_writes(
+            pre_messages,
+            pending=interrupt_before.get("pending_writes"),
+        )
+        if body.approved and pending:
+            applied = apply_approved_writes(pending, task_id=body.task_id or body.thread_id)
+        resume_payload = {"decisions": [{"type": "approve" if body.approved else "reject"}]}
+        fallback = "approved" if body.approved else "rejected"
+    return resume_payload, applied, fallback, itype, agent, config
+
+
 @router.post("/stream")
 async def stream_task(body: TaskCreateRequest):
     """SSE: status / token / tool / message / interrupt / done."""
@@ -408,184 +605,40 @@ async def stream_task(body: TaskCreateRequest):
     timer = TurnTimer()
 
     def event_gen() -> Iterator[dict[str, str]]:
-        yield {
-            "event": "status",
-            "data": json.dumps(
-                {
-                    "task_id": task_id,
-                    "thread_id": thread_id,
-                    "status": "running",
-                    "workspace_path": str(ws),
-                },
-                ensure_ascii=False,
-            ),
-        }
-        final_messages: list[Any] = []
-        last_todos: list[dict[str, Any]] = []
-        try:
-            for item in agent.stream(
-                {"messages": [{"role": "user", "content": body.message}]},
-                config=config,
-                stream_mode=["updates", "messages"],
-            ):
-                mode = "updates"
-                chunk: Any = item
-                if isinstance(item, tuple) and len(item) == 2 and item[0] in {"updates", "messages"}:
-                    mode, chunk = item[0], item[1]
+        yield from _iter_agent_sse(
+            agent=agent,
+            config=config,
+            stream_input={"messages": [{"role": "user", "content": body.message}]},
+            task_id=task_id,
+            thread_id=thread_id,
+            workspace_path=str(ws),
+            timer=timer,
+        )
 
-                if mode == "messages":
-                    msg_chunk = chunk[0] if isinstance(chunk, tuple) and chunk else chunk
-                    name = type(msg_chunk).__name__
-                    msg_type = str(getattr(msg_chunk, "type", "") or "")
-                    # Only stream assistant token deltas (skip human/tool noise)
-                    is_ai = "AI" in name or msg_type in {"ai", "AIMessageChunk"}
-                    if not is_ai:
-                        continue
-                    text = _message_text(getattr(msg_chunk, "content", None))
-                    if text:
-                        yield {
-                            "event": "token",
-                            "data": json.dumps({"text": text}, ensure_ascii=False),
-                        }
-                    continue
+    return EventSourceResponse(event_gen())
 
-                if not isinstance(chunk, dict):
-                    continue
-                # Interrupt surface as a synthetic updates chunk
-                if "__interrupt__" in chunk:
-                    continue
-                for _node, update in chunk.items():
-                    if _node == "__interrupt__":
-                        continue
-                    if isinstance(update, dict) and "todos" in update:
-                        todos_update = extract_todos(
-                            agent, config, result=update if isinstance(update, dict) else None
-                        )
-                        if todos_update != last_todos:
-                            last_todos = todos_update
-                            yield {
-                                "event": "todos",
-                                "data": json.dumps(
-                                    {"todos": todos_update},
-                                    ensure_ascii=False,
-                                    default=str,
-                                ),
-                            }
-                    if isinstance(update, dict) and "messages" in update:
-                        msgs = update.get("messages") or []
-                        normalized = []
-                        for m in msgs:
-                            if isinstance(m, tuple) and len(m) == 2:
-                                normalized.append(m[1])
-                            else:
-                                normalized.append(m)
-                        if normalized:
-                            final_messages.extend(normalized)
-                            step_trace = build_trace(normalized)
-                            for step in step_trace.get("steps") or []:
-                                kind = step.get("kind")
-                                if kind == "tool_call":
-                                    yield {
-                                        "event": "tool_start",
-                                        "data": json.dumps(step, ensure_ascii=False, default=str),
-                                    }
-                                elif kind == "subagent_dispatch":
-                                    yield {
-                                        "event": "subagent",
-                                        "data": json.dumps(step, ensure_ascii=False, default=str),
-                                    }
-                                elif kind == "context_offload":
-                                    yield {
-                                        "event": "context_offload",
-                                        "data": json.dumps(step, ensure_ascii=False, default=str),
-                                    }
-                                elif kind == "tool_result":
-                                    yield {
-                                        "event": "tool_end",
-                                        "data": json.dumps(step, ensure_ascii=False, default=str),
-                                    }
-                                elif kind in {"assistant", "user"}:
-                                    yield {
-                                        "event": "message",
-                                        "data": json.dumps(step, ensure_ascii=False, default=str),
-                                    }
-        except Exception as exc:  # noqa: BLE001
-            # Still try to surface interrupt if the run paused for ask/HITL
-            interrupt_on_err = extract_interrupt_info(agent, config)
-            if interrupt_on_err:
-                yield {
-                    "event": "interrupt",
-                    "data": json.dumps(
-                        _slim_interrupt(interrupt_on_err), ensure_ascii=False, default=str
-                    ),
-                }
-            else:
-                yield {
-                    "event": "error",
-                    "data": json.dumps({"error": str(exc)}, ensure_ascii=False),
-                }
-                return
 
-        try:
-            state = agent.get_state(config)
-            state_msgs = (getattr(state, "values", None) or {}).get("messages") or []
-            if state_msgs:
-                final_messages = state_msgs
-        except Exception:  # noqa: BLE001
-            pass
+@router.post("/resume/stream")
+async def resume_task_stream(body: ResumeRequest):
+    """SSE resume after ask_user / HITL — same event contract as /stream."""
+    from langgraph.types import Command
 
-        interrupt = extract_interrupt_info(agent, config)
-        status = "interrupted" if interrupt else "completed"
-        if interrupt:
-            yield {
-                "event": "interrupt",
-                "data": json.dumps(_slim_interrupt(interrupt), ensure_ascii=False, default=str),
-            }
+    ws = ensure_thread_workspace(body.thread_id)
+    timer = TurnTimer()
+    resume_payload, applied, fallback, _itype, agent, config = _prepare_resume(body)
+    task_id = body.task_id or str(uuid.uuid4())
 
-        try:
-            record = _build_record(
-                task_id=task_id,
-                thread_id=thread_id,
-                messages=final_messages,
-                interrupt=interrupt,
-                status=status,
-                workspace_path=str(ws),
-                agent=agent,
-                config=config,
-                duration_ms=timer.ms(),
-            )
-            if record.get("todos") and record["todos"] != last_todos:
-                yield {
-                    "event": "todos",
-                    "data": json.dumps({"todos": record["todos"]}, ensure_ascii=False, default=str),
-                }
-            _persist(record)
-            yield {
-                "event": "done",
-                "data": json.dumps(_sse_done_payload(record), ensure_ascii=False, default=str),
-            }
-        except Exception as exc:  # noqa: BLE001
-            # Interrupt already yielded above when present; still close the stream cleanly
-            if not interrupt:
-                yield {
-                    "event": "error",
-                    "data": json.dumps({"error": str(exc)}, ensure_ascii=False),
-                }
-            else:
-                yield {
-                    "event": "done",
-                    "data": json.dumps(
-                        {
-                            "task_id": task_id,
-                            "thread_id": thread_id,
-                            "status": "interrupted",
-                            "interrupt": _slim_interrupt(interrupt),
-                            "workspace_path": str(ws),
-                            "messages": serialize_messages(final_messages),
-                        },
-                        ensure_ascii=False,
-                        default=str,
-                    ),
-                }
+    def event_gen() -> Iterator[dict[str, str]]:
+        yield from _iter_agent_sse(
+            agent=agent,
+            config=config,
+            stream_input=Command(resume=resume_payload),
+            task_id=task_id,
+            thread_id=body.thread_id,
+            workspace_path=str(ws),
+            timer=timer,
+            applied=applied,
+            fallback_status=fallback,
+        )
 
     return EventSourceResponse(event_gen())
