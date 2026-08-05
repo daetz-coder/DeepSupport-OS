@@ -14,7 +14,90 @@ from deepsupport_os.core.extensions import ext_bool
 
 _SKIP_DIR_NAMES = frozenset({"imported", "references", "__pycache__"})
 _RAW = "https://raw.githubusercontent.com/{repo}/main/{path}/{file}"
-_ALLOWED_SKILL_HOSTS = frozenset({"raw.githubusercontent.com"})
+_GITHUB_API_CONTENTS = "https://api.github.com/repos/{repo}/contents/{path}?ref={ref}"
+_ALLOWED_SKILL_HOSTS = frozenset({"raw.githubusercontent.com", "api.github.com"})
+_MAX_SKILL_FILES = 200
+_MAX_SKILL_BYTES = 10 * 1024 * 1024
+
+
+def _http_bytes(url: str, *, headers: dict[str, str] | None = None, timeout: int = 30) -> bytes:
+    """Fetch a URL, refusing non-HTTPS / non-GitHub hosts (SSRF guard)."""
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or parsed.hostname not in _ALLOWED_SKILL_HOSTS:
+        raise ValueError(f"refusing skill download from untrusted URL host: {parsed.hostname}")
+    req = urllib.request.Request(url, headers=headers or {"User-Agent": "deepsupport-os"})
+    with urllib.request.urlopen(req, timeout=timeout) as resp:  # noqa: S310
+        return resp.read()
+
+
+def _normalize_repo_path(dir_path: str, target: str) -> str:
+    """Resolve a GitHub symlink target relative to its parent directory."""
+    parts = [p for p in str(dir_path).split("/") if p] + [p for p in str(target).split("/") if p]
+    stack: list[str] = []
+    for p in parts:
+        if p == "..":
+            if stack:
+                stack.pop()
+        elif p != ".":
+            stack.append(p)
+    return "/".join(stack)
+
+
+def _download_skill_tree(repo: str, base_path: str, dest: Path, *, ref: str = "main", depth: int = 0) -> int:
+    """Recursively download a GitHub directory into dest, preserving structure."""
+    if depth > 6:
+        return 0
+    dest.mkdir(parents=True, exist_ok=True)
+    api_url = _GITHUB_API_CONTENTS.format(repo=repo, path=base_path.rstrip("/"), ref=ref)
+    raw = _http_bytes(api_url, headers={"Accept": "application/vnd.github+json"})
+    items = json.loads(raw.decode("utf-8"))
+    if not isinstance(items, list):
+        raise ValueError(f"GitHub path is not a directory: {base_path}")
+    count = 0
+    for item in items:
+        if count >= _MAX_SKILL_FILES:
+            break
+        name = str(item.get("name") or "")
+        itype = str(item.get("type") or "")
+        if not name or name in {".git", "__pycache__"}:
+            continue
+        if itype == "dir":
+            sub = dest / name
+            sub.mkdir(parents=True, exist_ok=True)
+            count += _download_skill_tree(
+                repo, f"{base_path.rstrip('/')}/{name}", sub, ref=ref, depth=depth + 1
+            )
+        elif itype == "file":
+            dl = item.get("download_url")
+            if not dl:
+                continue
+            data = _http_bytes(str(dl))
+            if len(data) > _MAX_SKILL_BYTES:
+                raise ValueError(f"skill file too large: {name}")
+            (dest / name).write_bytes(data)
+            count += 1
+        elif itype == "symlink":
+            data = _fetch_symlink_target(repo, base_path, name, str(item.get("target") or ""))
+            if data is not None:
+                (dest / name).write_bytes(data)
+                count += 1
+    return count
+
+
+def _fetch_symlink_target(repo: str, symlink_dir: str, name: str, target: str) -> bytes | None:
+    """Best-effort fetch of a symlink target (repo-root-relative, then dir-relative)."""
+    for t in {target, _normalize_repo_path(symlink_dir, target)}:
+        t = t.strip("/")
+        if not t:
+            continue
+        path, _, file = t.rpartition("/")
+        if not file:
+            continue
+        try:
+            return _http_bytes(_RAW.format(repo=repo, path=path, file=file))
+        except Exception:  # noqa: BLE001 - broken / dir symlinks are skipped
+            continue
+    return None
 
 
 def skills_root() -> Path:
@@ -187,22 +270,27 @@ def import_catalog_skill(catalog_id: str, *, accept_license: bool = False) -> di
     base_path = str(entry.get("path") or "").strip().strip("/")
     if ".." in base_path.split("/"):
         raise ValueError(f"invalid catalog path: {base_path!r}")
-    url = _RAW.format(repo=repo, path=base_path, file="SKILL.md")
-    parsed = urlparse(url)
-    if parsed.scheme != "https" or parsed.hostname not in _ALLOWED_SKILL_HOSTS:
-        raise ValueError(f"refusing skill download from untrusted URL host: {parsed.hostname}")
-    with urllib.request.urlopen(url, timeout=30) as resp:  # noqa: S310
-        skill_md = resp.read().decode("utf-8", errors="replace")
-    (dest / "SKILL.md").write_text(skill_md, encoding="utf-8")
+
+    try:
+        file_count = _download_skill_tree(repo, base_path, dest)
+    except Exception:  # noqa: BLE001 - network / GitHub errors surface as 502
+        shutil.rmtree(dest, ignore_errors=True)
+        raise
+    if not (dest / "SKILL.md").exists():
+        shutil.rmtree(dest, ignore_errors=True)
+        raise ValueError("downloaded skill has no SKILL.md")
+
     notice = (
         f"# Imported skill: {entry['name']}\n\n"
         f"- Source: https://github.com/{repo}/tree/main/{base_path}\n"
         f"- License: {license_note}\n"
         f"- Catalog id: {entry['id']}\n"
+        f"- Files: {file_count}\n"
     )
     (dest / "NOTICE.md").write_text(notice, encoding="utf-8")
     return {
         "ok": True,
+        "files": file_count,
         "path": str(dest.relative_to(skills_root())).replace("\\", "/"),
         "skill": next(
             (i for i in skill_index() if i["dir_name"] == dest.name),
