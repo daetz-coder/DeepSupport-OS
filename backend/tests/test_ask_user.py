@@ -81,3 +81,33 @@ def test_list_threads_groups_runs(fresh_db):
     a = next(t for t in threads if t["thread_id"] == "th-a")
     assert a["run_count"] == 2
     assert a["latest_task_id"] in {"r1", "r2"}
+
+
+def test_delete_thread_removes_runs(fresh_db):
+    reset_engine()
+    task_store.save_task(
+        {
+            "task_id": "d1",
+            "thread_id": "th-del",
+            "status": "completed",
+            "messages": [{"role": "user", "content": "bye"}],
+            "metrics": {"duration_ms": 10},
+        }
+    )
+    task_store.save_task(
+        {
+            "task_id": "d2",
+            "thread_id": "th-del",
+            "status": "completed",
+            "messages": [{"role": "user", "content": "bye"}],
+            "metrics": {"duration_ms": 20},
+        }
+    )
+    assert task_store.count_thread_runs("th-del") == 2
+    assert task_store.sum_thread_duration_ms("th-del") == 30
+    deleted = task_store.delete_thread("th-del")
+    assert deleted == 2
+    assert task_store.count_thread_runs("th-del") == 0
+    assert task_store.list_threads(limit=10) == [] or all(
+        t["thread_id"] != "th-del" for t in task_store.list_threads(limit=10)
+    )

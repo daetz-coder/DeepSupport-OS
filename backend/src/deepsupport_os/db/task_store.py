@@ -99,6 +99,63 @@ def _preview_from_messages(messages: list[Any] | None) -> str:
     return ""
 
 
+def delete_thread(thread_id: str) -> int:
+    """Delete all task rows for a conversation thread. Returns deleted count."""
+    init_db()
+    tid = (thread_id or "").strip()
+    if not tid:
+        return 0
+    with _lock:
+        Session = get_session_factory()
+        with Session() as s:
+            rows = list(
+                s.scalars(select(TaskRecord).where(TaskRecord.thread_id == tid)).all()
+            )
+            for row in rows:
+                s.delete(row)
+            s.commit()
+            return len(rows)
+
+
+def count_thread_runs(thread_id: str) -> int:
+    init_db()
+    tid = (thread_id or "").strip()
+    if not tid:
+        return 0
+    with _lock:
+        Session = get_session_factory()
+        with Session() as s:
+            rows = s.scalars(select(TaskRecord).where(TaskRecord.thread_id == tid)).all()
+            return len(list(rows))
+
+
+def sum_thread_duration_ms(thread_id: str, *, exclude_task_id: str | None = None) -> float:
+    """Sum metrics.duration_ms across persisted runs for a thread."""
+    init_db()
+    tid = (thread_id or "").strip()
+    if not tid:
+        return 0.0
+    total = 0.0
+    with _lock:
+        Session = get_session_factory()
+        with Session() as s:
+            rows = s.scalars(select(TaskRecord).where(TaskRecord.thread_id == tid)).all()
+            for row in rows:
+                if exclude_task_id and row.task_id == exclude_task_id:
+                    continue
+                try:
+                    payload = json.loads(row.payload_json)
+                except json.JSONDecodeError:
+                    continue
+                metrics = payload.get("metrics") if isinstance(payload, dict) else None
+                if isinstance(metrics, dict) and metrics.get("duration_ms") is not None:
+                    try:
+                        total += float(metrics["duration_ms"])
+                    except (TypeError, ValueError):
+                        pass
+    return total
+
+
 def list_tasks(limit: int = 50) -> list[dict[str, Any]]:
     init_db()
     with _lock:
