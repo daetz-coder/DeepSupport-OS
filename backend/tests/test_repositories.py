@@ -32,6 +32,32 @@ def test_hitl_password_reset_apply(fresh_db):
     assert AccountRepo().get_account_status("wei.zhang@contoso.com")["status"] == "active"
 
 
+def test_apply_approved_writes_is_idempotent(fresh_db):
+    pending = [
+        {
+            "name": "request_password_reset",
+            "args": {"email": "wei.zhang@contoso.com"},
+        }
+    ]
+    first = apply_approved_writes(pending, task_id="idemp-1", thread_id="t1")
+    second = apply_approved_writes(pending, task_id="idemp-2", thread_id="t1")
+    assert first[0]["result"]["ok"] is True
+    assert second[0]["result"]["ok"] is True
+    assert second[0]["result"].get("already_applied") is True
+    assert AccountRepo().get_account_status("wei.zhang@contoso.com")["status"] == "active"
+
+
+def test_create_ticket_idempotency_key(fresh_db):
+    a = TicketRepo().create_ticket(
+        title="dup", description="d", category="Account", idempotency_key="k-1"
+    )
+    b = TicketRepo().create_ticket(
+        title="dup again", description="d2", category="Account", idempotency_key="k-1"
+    )
+    assert a["ticket_id"] == b["ticket_id"]
+    assert b.get("already_exists") is True
+
+
 def test_hitl_resume_apply_license_and_close(fresh_db):
     """Smoke: approved writes apply without needing a live LLM resume."""
     from deepsupport_os.db.repositories import AccountRepo, TicketRepo

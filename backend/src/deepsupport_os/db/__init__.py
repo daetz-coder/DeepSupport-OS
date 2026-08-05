@@ -1,5 +1,6 @@
 from deepsupport_os.db.models import (
     Account,
+    AppliedAction,
     Asset,
     AuditLog,
     Base,
@@ -19,6 +20,7 @@ from deepsupport_os.db.models import (
 
 __all__ = [
     "Account",
+    "AppliedAction",
     "Asset",
     "AuditLog",
     "Base",

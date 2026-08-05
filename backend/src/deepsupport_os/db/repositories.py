@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import uuid
 from typing import Any
 
 from sqlalchemy import desc, func, or_, select
+from sqlalchemy.exc import IntegrityError
 
 from deepsupport_os.db.models import (
     Account,
+    AppliedAction,
     Asset,
     AuditLog,
     Case,
@@ -27,6 +31,71 @@ def _emp_dict(e: Employee) -> dict[str, Any]:
         "role": e.role,
         "manager_id": e.manager_id,
     }
+
+
+def make_idempotency_key(tool: str, args: dict[str, Any] | None = None) -> str:
+    """Stable key for Exactly-Once write ledger entries."""
+    payload = json.dumps(args or {}, sort_keys=True, ensure_ascii=False, default=str)
+    digest = hashlib.sha256(f"{tool}:{payload}".encode("utf-8")).hexdigest()[:40]
+    return f"{tool}:{digest}"
+
+
+def lookup_applied_action(idempotency_key: str) -> dict[str, Any] | None:
+    Session = get_session_factory()
+    with Session() as s:
+        row = s.scalar(
+            select(AppliedAction).where(AppliedAction.idempotency_key == idempotency_key)
+        )
+        if not row:
+            return None
+        try:
+            result = json.loads(row.result_json or "{}")
+        except json.JSONDecodeError:
+            result = {}
+        return {
+            "idempotency_key": row.idempotency_key,
+            "tool": row.tool,
+            "thread_id": row.thread_id,
+            "task_id": row.task_id,
+            "result": result if isinstance(result, dict) else {"raw": result},
+        }
+
+
+def record_applied_action(
+    *,
+    tool: str,
+    args: dict[str, Any],
+    result: dict[str, Any],
+    task_id: str | None = None,
+    thread_id: str | None = None,
+    idempotency_key: str | None = None,
+) -> dict[str, Any]:
+    """Insert ledger row; on conflict return the existing result (Exactly Once)."""
+    key = idempotency_key or make_idempotency_key(tool, args)
+    existing = lookup_applied_action(key)
+    if existing:
+        return existing["result"]
+
+    Session = get_session_factory()
+    with Session() as s:
+        row = AppliedAction(
+            idempotency_key=key,
+            tool=tool,
+            args_json=json.dumps(args, ensure_ascii=False, default=str),
+            thread_id=thread_id,
+            task_id=task_id,
+            result_json=json.dumps(result, ensure_ascii=False, default=str),
+        )
+        s.add(row)
+        try:
+            s.commit()
+        except IntegrityError:
+            s.rollback()
+            again = lookup_applied_action(key)
+            if again:
+                return again["result"]
+            raise
+    return result
 
 
 class EmployeeRepo:
@@ -170,6 +239,14 @@ class AccountRepo:
             a = s.scalar(select(Account).where(Account.email == email))
             if not a:
                 return {"ok": False, "error": "account_not_found"}
+            if a.status == "active":
+                return {
+                    "ok": True,
+                    "already_applied": True,
+                    "email": email,
+                    "status": "active",
+                    "message": "password reset already applied",
+                }
             a.status = "active"
             s.commit()
             return {"ok": True, "email": email, "status": "active", "message": "password reset applied"}
@@ -180,8 +257,19 @@ class AccountRepo:
             a = s.scalar(select(Account).where(Account.email == email))
             if not a:
                 return {"ok": False, "error": "account_not_found"}
-            a.license_type = new_license_type or a.license_type
-            # Reactivate related licenses
+            target = new_license_type or a.license_type
+            if a.license_type == target:
+                rows = s.scalars(select(License).where(License.account_id == a.account_id)).all()
+                all_active = all(lic.status == "active" for lic in rows) if rows else True
+                if all_active:
+                    return {
+                        "ok": True,
+                        "already_applied": True,
+                        "email": email,
+                        "license_type": a.license_type,
+                        "message": "license already at target type",
+                    }
+            a.license_type = target
             rows = s.scalars(select(License).where(License.account_id == a.account_id)).all()
             for lic in rows:
                 lic.status = "active"
@@ -198,8 +286,24 @@ class TicketRepo:
     def create_ticket(self, **fields: Any) -> dict:
         Session = get_session_factory()
         with Session() as s:
-            count = s.scalar(select(func.count()).select_from(Ticket)) or 0
-            tid = f"T{1000 + count + 1}"
+            key = (fields.get("idempotency_key") or "").strip() or None
+            if key:
+                existing = s.scalar(select(Ticket).where(Ticket.idempotency_key == key))
+                if existing:
+                    out = self._to_dict(existing)
+                    out["ok"] = True
+                    out["already_exists"] = True
+                    return out
+
+            # Prefer UUID suffix to avoid count+1 races under concurrency.
+            for _ in range(5):
+                tid = f"T{uuid.uuid4().hex[:8].upper()}"
+                if s.get(Ticket, tid) is None:
+                    break
+            else:
+                count = s.scalar(select(func.count()).select_from(Ticket)) or 0
+                tid = f"T{1000 + int(count) + 1}"
+
             t = Ticket(
                 ticket_id=tid,
                 employee_id=fields.get("employee_id"),
@@ -210,10 +314,24 @@ class TicketRepo:
                 title=fields["title"],
                 description=fields.get("description", ""),
                 resolution=None,
+                idempotency_key=key,
             )
             s.add(t)
-            s.commit()
-            return self._to_dict(t)
+            try:
+                s.commit()
+            except IntegrityError:
+                s.rollback()
+                if key:
+                    existing = s.scalar(select(Ticket).where(Ticket.idempotency_key == key))
+                    if existing:
+                        out = self._to_dict(existing)
+                        out["ok"] = True
+                        out["already_exists"] = True
+                        return out
+                raise
+            out = self._to_dict(t)
+            out["ok"] = True
+            return out
 
     def get_ticket(self, ticket_id: str) -> dict | None:
         Session = get_session_factory()
@@ -261,6 +379,9 @@ class TicketRepo:
             "title": t.title,
             "description": t.description,
             "resolution": t.resolution,
+            "idempotency_key": t.idempotency_key,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "updated_at": t.updated_at.isoformat() if t.updated_at else None,
         }
 
 

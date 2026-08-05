@@ -128,12 +128,30 @@ def apply_approved_writes(
     writes: list[dict[str, Any]],
     *,
     task_id: str = "hitl",
+    thread_id: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Execute side effects for approved write tools."""
+    """Execute side effects for approved write tools (Single Executor + Exactly Once)."""
+    from deepsupport_os.db.repositories import (
+        lookup_applied_action,
+        make_idempotency_key,
+        record_applied_action,
+    )
+
     results: list[dict[str, Any]] = []
     for w in writes:
         name = w.get("name")
         args = _parse_args(w.get("args"))
+        key = make_idempotency_key(str(name or ""), args)
+        prior = lookup_applied_action(key)
+        if prior and isinstance(prior.get("result"), dict):
+            result = dict(prior["result"])
+            result.setdefault("ok", True)
+            result.setdefault("already_applied", True)
+            result.setdefault("idempotency_key", key)
+            write_audit(task_id, f"hitl_apply:{name}", args, result)
+            results.append({"tool": name, "args": args, "result": result})
+            continue
+
         result: dict[str, Any]
         if name == "request_password_reset":
             email = args.get("email") or ""
@@ -145,27 +163,65 @@ def apply_approved_writes(
         elif name == "close_ticket":
             ticket_id = args.get("ticket_id") or ""
             resolution = args.get("resolution") or "Closed after approval"
-            updated = _ticket.update_ticket(
-                ticket_id,
-                allow_terminal=True,
-                status="closed",
-                resolution=resolution,
-            )
-            result = {"ok": bool(updated) and updated.get("status") == "closed", "ticket": updated, "action": "close_ticket"}
+            current = _ticket.get_ticket(ticket_id)
+            if current and current.get("status") == "closed":
+                result = {
+                    "ok": True,
+                    "already_applied": True,
+                    "ticket": current,
+                    "action": "close_ticket",
+                }
+            else:
+                updated = _ticket.update_ticket(
+                    ticket_id,
+                    allow_terminal=True,
+                    status="closed",
+                    resolution=resolution,
+                )
+                result = {
+                    "ok": bool(updated) and updated.get("status") == "closed",
+                    "ticket": updated,
+                    "action": "close_ticket",
+                }
         elif name == "escalate_ticket":
             ticket_id = args.get("ticket_id") or ""
             reason = args.get("reason") or "Escalated after approval"
-            updated = _ticket.update_ticket(
-                ticket_id,
-                allow_terminal=True,
-                status="escalated",
-                priority="P1",
-                assignee="L2 Support",
-                resolution=f"Escalation reason: {reason}",
-            )
-            result = {"ok": bool(updated) and updated.get("status") == "escalated", "ticket": updated, "action": "escalate_ticket"}
+            current = _ticket.get_ticket(ticket_id)
+            if current and current.get("status") == "escalated":
+                result = {
+                    "ok": True,
+                    "already_applied": True,
+                    "ticket": current,
+                    "action": "escalate_ticket",
+                }
+            else:
+                updated = _ticket.update_ticket(
+                    ticket_id,
+                    allow_terminal=True,
+                    status="escalated",
+                    priority="P1",
+                    assignee="L2 Support",
+                    resolution=f"Escalation reason: {reason}",
+                )
+                result = {
+                    "ok": bool(updated) and updated.get("status") == "escalated",
+                    "ticket": updated,
+                    "action": "escalate_ticket",
+                }
         else:
             result = {"ok": False, "error": f"unsupported_write:{name}"}
+
+        if result.get("ok"):
+            result = record_applied_action(
+                tool=str(name),
+                args=args,
+                result=result,
+                task_id=task_id,
+                thread_id=thread_id,
+                idempotency_key=key,
+            )
+            result.setdefault("idempotency_key", key)
+
         write_audit(task_id, f"hitl_apply:{name}", args, result)
         results.append({"tool": name, "args": args, "result": result})
     return results

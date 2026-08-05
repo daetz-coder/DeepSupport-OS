@@ -90,6 +90,10 @@ class Ticket(Base):
     title: Mapped[str] = mapped_column(String(256), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     resolution: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Optional client key so create_ticket retries do not duplicate rows.
+    idempotency_key: Mapped[str | None] = mapped_column(
+        String(128), unique=True, nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=_utcnow, onupdate=_utcnow
@@ -126,6 +130,21 @@ class AuditLog(Base):
     arguments: Mapped[str] = mapped_column(Text, default="")
     result: Mapped[str] = mapped_column(Text, default="")
     timestamp: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
+
+
+class AppliedAction(Base):
+    """Idempotency ledger for HITL / write side effects (Exactly Once)."""
+
+    __tablename__ = "applied_actions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    idempotency_key: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    tool: Mapped[str] = mapped_column(String(128), nullable=False, index=True)
+    args_json: Mapped[str] = mapped_column(Text, default="{}")
+    thread_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    task_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
+    result_json: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_utcnow)
 
 
 class TaskRecord(Base):
