@@ -85,6 +85,8 @@ F-13 … F-20 仍后置（见原建议）。F-16 部分被 F-03/F-09 覆盖（ma
 - **[x]** Step 4：Skill 路径识别 + MCP/local/knowledge 来源埋点（`tool_provenance` + `overview`）  
 - **[x]** SSE：尾帧 flush + 即时 `interrupt`/`token`；LLM `streaming=True`（ask 无需手动点会话刷新）  
 - **[x]** SSE：CRLF 分帧规范化（修复 `done` 多段 data 拼接解析失败）+ 精简 `done` 载荷（去 audit）  
+- **[x]** ask 回复走 `/resume/stream` 流式；提问留在对话气泡，回复后移除「需要你回答」横幅；禁止重复索要已答字段  
+- **[x]** 对话 UX：合并连续 Agent 气泡；ask 答案进用户气泡；右侧互动记录；审批/回复不跳工作区；侧栏按 Thread 标题稳定  
 
 ## 建议落地顺序（下一迭代）
 
