@@ -20,6 +20,14 @@ import type {
   TraceStep,
 } from './types'
 
+type InteractionItem = {
+  id: string
+  kind: 'ask' | 'answer' | 'hitl' | 'decision'
+  title: string
+  detail?: string
+  at: string
+}
+
 const question = ref('我的 Outlook 一直登录不上')
 const loading = ref(false)
 const useStream = ref(true)
@@ -59,6 +67,26 @@ const openStages = ref<Record<string, boolean>>({})
 const metrics = ref<Record<string, unknown> | null>(null)
 const streamingText = ref('')
 const chatScrollEl = ref<HTMLElement | null>(null)
+const interactionLog = ref<InteractionItem[]>([])
+let interactionSeq = 0
+
+function pushInteraction(
+  kind: InteractionItem['kind'],
+  title: string,
+  detail?: string,
+) {
+  interactionSeq += 1
+  interactionLog.value = [
+    {
+      id: `ix-${interactionSeq}`,
+      kind,
+      title,
+      detail,
+      at: new Date().toLocaleTimeString(),
+    },
+    ...interactionLog.value,
+  ].slice(0, 40)
+}
 
 const {
   skillsInstalled,
@@ -218,6 +246,7 @@ function newThread() {
   metrics.value = null
   openStages.value = {}
   stagesPanelOpen.value = false
+  interactionLog.value = []
   viewMode.value = 'chat'
   lastError.value = null
   question.value = ''
@@ -280,8 +309,9 @@ async function openArtifact(item: ArtifactItem) {
     const data = await res.json()
     artifactFocus.value = item.path
     artifactContent.value = data.content || ''
-    viewMode.value = 'workspace'
-    activeTab.value = 'artifacts'
+    // Stay on the conversation page — workspace is opt-in via toolbar
+    viewMode.value = 'chat'
+    ElMessage.success(`已加载 ${item.name}（可点「工作区」查看全文）`)
   } catch (e) {
     ElMessage.error(e instanceof Error ? e.message : String(e))
   }
@@ -353,7 +383,26 @@ function handleSseEvent(event: string, data: string) {
       ]
       streamingText.value = ''
     }
-    steps.value = [...steps.value, payload as unknown as TraceStep]
+    const step = payload as unknown as TraceStep
+    steps.value = [...steps.value, step]
+    // Keep ask_user question in the transcript immediately (survives after interrupt clears)
+    if (event === 'tool_start' && step.name === 'ask_user') {
+      const args = (step.args || {}) as { question?: string }
+      const q = String(args.question || '').trim()
+      if (q) {
+        const last = messages.value[messages.value.length - 1]
+        if (!(last?.role === 'assistant' && last.content === q)) {
+          messages.value = [
+            ...messages.value,
+            {
+              role: 'assistant',
+              content: q,
+              tool_calls: [{ name: 'ask_user', args: { question: q } }],
+            },
+          ]
+        }
+      }
+    }
     return
   }
 
@@ -364,7 +413,19 @@ function handleSseEvent(event: string, data: string) {
       streamingText.value = ''
       const content = String(step.content)
       const last = messages.value[messages.value.length - 1]
-      if (!(last?.role === 'assistant' && last.content === content)) {
+      const lastText = String(last?.content || '')
+      if (last?.role === 'assistant') {
+        if (lastText === content) {
+          /* noop */
+        } else if (content.includes(lastText) && content.length >= lastText.length) {
+          messages.value = [...messages.value.slice(0, -1), { ...last, content }]
+        } else if (!lastText.includes(content)) {
+          messages.value = [
+            ...messages.value.slice(0, -1),
+            { ...last, content: `${lastText}\n\n${content}` },
+          ]
+        }
+      } else {
         messages.value = [...messages.value, { role: 'assistant', content }]
       }
       void scrollChatToBottom()
@@ -385,8 +446,32 @@ function handleSseEvent(event: string, data: string) {
       ]
       streamingText.value = ''
     }
-    interrupt.value = payload as InterruptInfo
+    const info = payload as InterruptInfo
+    if (info.type === 'ask' && info.question) {
+      const q = info.question.trim()
+      const last = messages.value[messages.value.length - 1]
+      const lastText = String(last?.content || '')
+      if (q && !(last?.role === 'assistant' && (lastText === q || lastText.includes(q)))) {
+        messages.value = [
+          ...messages.value,
+          {
+            role: 'assistant',
+            content: q,
+            tool_calls: [{ name: 'ask_user', args: { question: q } }],
+          },
+        ]
+      }
+      pushInteraction('ask', 'Agent 提问', q.slice(0, 160))
+    } else if (info.type === 'hitl' || (info.type !== 'ask' && info.pending_preview?.length)) {
+      const labels = (info.pending_preview || [])
+        .map((p) => p.label || p.name)
+        .filter(Boolean)
+        .join('、')
+      pushInteraction('hitl', '待人工审批', labels || '高风险写操作')
+    }
+    interrupt.value = info
     status.value = 'interrupted'
+    viewMode.value = 'chat'
     void scrollChatToBottom()
     return
   }
@@ -411,20 +496,7 @@ function handleSseEvent(event: string, data: string) {
   }
 }
 
-async function submitStream() {
-  liveEvents.value = []
-  steps.value = []
-  streamingText.value = ''
-  // Keep conversation history; only clear run-local interrupt until stream updates it
-  interrupt.value = null
-  const res = await fetch(`${API}/api/tasks/stream`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
-    body: JSON.stringify({
-      message: question.value,
-      thread_id: threadId.value,
-    }),
-  })
+async function consumeSseResponse(res: Response) {
   if (!res.ok || !res.body) {
     const err = await res.json().catch(() => ({}))
     throw new Error(err.detail || res.statusText)
@@ -447,7 +519,6 @@ async function submitStream() {
           continue
         }
         if (raw.startsWith('data:')) {
-          // SSE: optional space after "data:"; multiple data lines join with \n
           const piece = raw.startsWith('data: ') ? raw.slice(6) : raw.slice(5)
           data = data ? `${data}\n${piece}` : piece
         }
@@ -457,7 +528,6 @@ async function submitStream() {
     }
   }
 
-  /** sse-starlette frames with CRLF (`\r\n\r\n`); normalize so `\n\n` splits work. */
   const takeFrames = (finalize: boolean) => {
     const normalized = buffer.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
     const parts = normalized.split('\n\n')
@@ -484,6 +554,23 @@ async function submitStream() {
   }
 }
 
+async function submitStream() {
+  liveEvents.value = []
+  steps.value = []
+  streamingText.value = ''
+  // Keep conversation history; only clear run-local interrupt until stream updates it
+  interrupt.value = null
+  const res = await fetch(`${API}/api/tasks/stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+    body: JSON.stringify({
+      message: question.value,
+      thread_id: threadId.value,
+    }),
+  })
+  await consumeSseResponse(res)
+}
+
 async function resumeAsk() {
   if (!threadId.value) return
   const answer = question.value.trim()
@@ -493,27 +580,52 @@ async function resumeAsk() {
   }
   loading.value = true
   lastError.value = null
+  // Drop pending banner immediately; question stays in transcript as a normal bubble
+  interrupt.value = null
+  status.value = 'running'
+  viewMode.value = 'chat'
+  liveEvents.value = []
+  steps.value = []
+  streamingText.value = ''
   messages.value = [...messages.value, { role: 'user', content: answer }]
+  pushInteraction('answer', '你的回复', answer.slice(0, 160))
   const sent = answer
   question.value = ''
   try {
-    const res = await fetch(`${API}/api/tasks/resume`, {
-      method: 'POST',
-      headers: apiHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
-        thread_id: threadId.value,
-        task_id: taskId.value,
-        interrupt_type: 'ask',
-        answer: sent,
-      }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err.detail || res.statusText)
+    if (useStream.value) {
+      const res = await fetch(`${API}/api/tasks/resume/stream`, {
+        method: 'POST',
+        headers: apiHeaders({
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+        }),
+        body: JSON.stringify({
+          thread_id: threadId.value,
+          task_id: taskId.value,
+          interrupt_type: 'ask',
+          answer: sent,
+        }),
+      })
+      await consumeSseResponse(res)
+    } else {
+      const res = await fetch(`${API}/api/tasks/resume`, {
+        method: 'POST',
+        headers: apiHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          thread_id: threadId.value,
+          task_id: taskId.value,
+          interrupt_type: 'ask',
+          answer: sent,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || res.statusText)
+      }
+      applyRecord(await res.json())
     }
-    const data = await res.json()
-    applyRecord(data)
-    ElMessage.success('已回复并继续')
+    viewMode.value = 'chat'
+    ElMessage.success(status.value === 'interrupted' ? '等待你的操作' : '已回复并继续')
     await Promise.all([refreshThreads(), refreshAudit(), refreshArtifacts()])
   } catch (e) {
     lastError.value = e instanceof Error ? e.message : String(e)
@@ -551,6 +663,7 @@ async function submit() {
       await submitSync()
     }
     question.value = ''
+    viewMode.value = 'chat'
     ElMessage.success(status.value === 'interrupted' ? '等待你的操作' : '本轮已完成')
     await Promise.all([refreshThreads(), refreshAudit(), refreshArtifacts()])
   } catch (e) {
@@ -580,24 +693,49 @@ async function resume(approved: boolean) {
   if (!threadId.value || isAskInterrupt.value) return
   loading.value = true
   lastError.value = null
+  viewMode.value = 'chat'
+  pushInteraction('decision', approved ? '已批准写操作' : '已拒绝写操作')
   try {
-    const res = await fetch(`${API}/api/tasks/resume`, {
-      method: 'POST',
-      headers: apiHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
-        thread_id: threadId.value,
-        task_id: taskId.value,
-        interrupt_type: 'hitl',
-        approved,
-      }),
-    })
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}))
-      throw new Error(err.detail || res.statusText)
+    if (useStream.value) {
+      liveEvents.value = []
+      steps.value = []
+      streamingText.value = ''
+      interrupt.value = null
+      status.value = 'running'
+      const res = await fetch(`${API}/api/tasks/resume/stream`, {
+        method: 'POST',
+        headers: apiHeaders({
+          'Content-Type': 'application/json',
+          Accept: 'text/event-stream',
+        }),
+        body: JSON.stringify({
+          thread_id: threadId.value,
+          task_id: taskId.value,
+          interrupt_type: 'hitl',
+          approved,
+        }),
+      })
+      await consumeSseResponse(res)
+    } else {
+      const res = await fetch(`${API}/api/tasks/resume`, {
+        method: 'POST',
+        headers: apiHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({
+          thread_id: threadId.value,
+          task_id: taskId.value,
+          interrupt_type: 'hitl',
+          approved,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.detail || res.statusText)
+      }
+      const data = await res.json()
+      applyRecord(data)
+      interrupt.value = (data.interrupt as InterruptInfo) || null
     }
-    const data = await res.json()
-    applyRecord(data)
-    interrupt.value = (data.interrupt as InterruptInfo) || null
+    viewMode.value = 'chat'
     ElMessage.success(approved ? '已批准并落库' : '已拒绝')
     await Promise.all([refreshThreads(), refreshAudit(), refreshArtifacts()])
   } catch (e) {
@@ -734,7 +872,7 @@ onMounted(async () => {
         <div class="side-head">
           <h3>会话</h3>
           <div class="side-actions">
-            <el-button size="small" type="primary" @click="newThread">新建</el-button>
+            <el-button size="small" type="primary" @click="newThread">新建对话</el-button>
             <el-button size="small" plain @click="refreshThreads">刷新</el-button>
           </div>
         </div>
@@ -749,7 +887,7 @@ onMounted(async () => {
         >
           <div class="task-meta">
             <el-tag size="small" effect="plain">{{ item.latest_status }}</el-tag>
-            <span>{{ item.run_count }} 轮</span>
+            <span>{{ item.run_count }} 次运行</span>
           </div>
           <div class="task-preview">{{ shortThreadLabel(item.thread_id, item.preview) }}</div>
           <div class="task-meta muted">{{ item.updated_at?.slice(0, 19) || '' }}</div>
@@ -786,9 +924,9 @@ onMounted(async () => {
           <el-alert
             v-if="isAskInterrupt"
             class="panel-alert ask-banner"
-            title="未结束 · Agent 正在等你回复后继续"
+            title="未结束 · 请直接回复上方提问（答案会进入对话上下文）"
             type="warning"
-            :description="interrupt?.question || '请在下方输入框回复，然后点「发送回复」。'"
+            description="回复后提问条会消失，问题与答案保留在对话气泡中。"
             show-icon
             :closable="false"
           />
@@ -936,8 +1074,59 @@ onMounted(async () => {
           </button>
         </div>
         <template v-if="overviewOpen">
-          <div v-if="!overview && !taskId" class="empty-hint">提交任务后显示本轮统计</div>
+          <div v-if="!overview && !taskId && !interactionLog.length" class="empty-hint">提交任务后显示本轮统计</div>
           <template v-else>
+            <div
+              v-if="isAskInterrupt || isHitlInterrupt || interactionLog.length"
+              class="ov-block ov-action"
+            >
+              <div class="ov-title">待你处理 / 互动</div>
+              <div v-if="isAskInterrupt" class="ix-card is-ask">
+                <el-tag type="warning" size="small">提问中</el-tag>
+                <p>{{ interrupt?.question || '请在下方回复' }}</p>
+              </div>
+              <div v-if="isHitlInterrupt" class="ix-card is-hitl">
+                <el-tag type="danger" size="small">待审批</el-tag>
+                <ul v-if="pendingPreview.length" class="ix-list">
+                  <li v-for="(p, i) in pendingPreview" :key="i">
+                    <strong>{{ p.label || p.name }}</strong>
+                    <span v-for="(h, j) in p.highlights.slice(0, 3)" :key="j" class="muted">
+                      {{ h.key }}={{ h.value }}
+                    </span>
+                  </li>
+                </ul>
+                <div class="ix-actions">
+                  <el-button type="success" size="small" :loading="loading" @click="resume(true)">
+                    批准
+                  </el-button>
+                  <el-button type="danger" size="small" plain :loading="loading" @click="resume(false)">
+                    拒绝
+                  </el-button>
+                </div>
+              </div>
+              <div v-if="interactionLog.length" class="ix-log">
+                <div class="ov-subtitle">本会话记录</div>
+                <div v-for="ix in interactionLog" :key="ix.id" class="ix-row">
+                  <el-tag
+                    size="small"
+                    :type="
+                      ix.kind === 'ask' || ix.kind === 'hitl'
+                        ? 'warning'
+                        : ix.kind === 'decision'
+                          ? 'success'
+                          : 'info'
+                    "
+                  >
+                    {{ ix.kind }}
+                  </el-tag>
+                  <div class="ix-body">
+                    <strong>{{ ix.title }}</strong>
+                    <p v-if="ix.detail" class="muted">{{ ix.detail }}</p>
+                    <span class="muted">{{ ix.at }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
             <div class="ov-block">
               <div class="ov-title">Meta</div>
               <p><span class="meta-k">状态</span> {{ overview?.status || status || '—' }}</p>
@@ -2086,6 +2275,68 @@ pre {
   font-size: 0.82rem;
   margin-bottom: 6px;
   color: var(--ds-ink-soft);
+}
+
+.ov-subtitle {
+  font-size: 0.75rem;
+  color: var(--ds-muted);
+  margin: 8px 0 4px;
+}
+
+.ix-card {
+  border: 1px solid var(--ds-line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  background: var(--ds-surface-solid);
+  font-size: 0.84rem;
+}
+
+.ix-card.is-ask {
+  border-color: #fbbf24;
+  background: #fffbeb;
+}
+
+.ix-card.is-hitl {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
+.ix-card p {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+}
+
+.ix-list {
+  margin: 6px 0 0;
+  padding-left: 1.1rem;
+}
+
+.ix-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.ix-log {
+  margin-top: 8px;
+}
+
+.ix-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 6px 0;
+  font-size: 0.8rem;
+}
+
+.ix-body {
+  min-width: 0;
+}
+
+.ix-body p {
+  margin: 2px 0;
+  word-break: break-word;
 }
 
 .ov-row {
