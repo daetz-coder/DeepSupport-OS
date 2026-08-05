@@ -26,6 +26,7 @@ const {
   raglabLabel,
   sandboxOk,
   sandboxLabel,
+  healthChecking,
   checkHealth,
 } = useHealth()
 const threadId = ref<string | null>(null)
@@ -392,36 +393,63 @@ onMounted(async () => {
           <p class="tagline">企业 IT 支持智能体控制台 · Deep Agents Harness</p>
         </div>
       </div>
-      <div class="status-rail">
-        <span
-          class="status-chip"
-          :class="health.includes('正常') ? 'is-ok' : 'is-idle'"
-        >
-          <i class="dot" />{{ health }}
-        </span>
-        <span
-          v-if="llmConfigured !== null"
-          class="status-chip"
-          :class="llmConfigured ? 'is-ok' : 'is-bad'"
-        >
-          <i class="dot" />{{ llmConfigured ? 'LLM 就绪' : 'LLM 未配置' }}
-        </span>
-        <span
-          class="status-chip"
-          :class="raglabOk === true ? 'is-ok' : raglabOk === false ? 'is-warn' : 'is-idle'"
-          :title="raglabLabel"
-        >
-          <i class="dot" />{{ raglabLabel }}
-        </span>
-        <span
-          class="status-chip"
-          :class="sandboxOk === true ? 'is-ok' : sandboxOk === false ? 'is-warn' : 'is-idle'"
-          :title="sandboxLabel"
-        >
-          <i class="dot" />{{ sandboxLabel }}
-        </span>
-        <span v-if="status" class="status-chip is-run"><i class="dot" />{{ status }}</span>
-        <span v-if="useStream" class="status-chip is-stream"><i class="dot" />SSE</span>
+      <div class="deps-bar">
+        <div class="deps-copy">
+          <span class="deps-label">运行依赖</span>
+          <span class="deps-hint">后端 / LLM / 知识库 / 沙箱；点右侧可重新探测</span>
+        </div>
+        <div class="status-rail" role="status" aria-live="polite">
+          <span
+            class="status-chip"
+            :class="health.includes('正常') ? 'is-ok' : health.includes('无法') || health.includes('异常') ? 'is-bad' : 'is-idle'"
+            title="DeepSupport API 存活（/health）"
+          >
+            <i class="dot" />{{ health }}
+          </span>
+          <span
+            v-if="llmConfigured !== null"
+            class="status-chip"
+            :class="llmConfigured ? 'is-ok' : 'is-bad'"
+            title="是否已配置 DEEPSEEK_API_KEY"
+          >
+            <i class="dot" />{{ llmConfigured ? 'LLM 就绪' : 'LLM 未配置' }}
+          </span>
+          <span
+            class="status-chip"
+            :class="raglabOk === true ? 'is-ok' : raglabOk === false ? 'is-warn' : 'is-idle'"
+            :title="`${raglabLabel} · 外部知识检索（:8001）`"
+          >
+            <i class="dot" />{{ raglabLabel }}
+          </span>
+          <span
+            class="status-chip"
+            :class="sandboxOk === true ? 'is-ok' : sandboxOk === false ? 'is-warn' : 'is-idle'"
+            :title="`${sandboxLabel} · Daytona 沙箱`"
+          >
+            <i class="dot" />{{ sandboxLabel }}
+          </span>
+          <span
+            v-if="useStream"
+            class="status-chip is-stream"
+            title="提交任务时使用 SSE 流式进度"
+          >
+            <i class="dot" />SSE
+          </span>
+          <button
+            type="button"
+            class="status-chip is-action"
+            :class="{ 'is-checking': healthChecking }"
+            :disabled="healthChecking"
+            title="重新检查后端、LLM、RAGLab、Sandbox"
+            @click="checkHealth"
+          >
+            <i class="dot" />{{ healthChecking ? '检查中…' : '检查依赖' }}
+          </button>
+        </div>
+        <div v-if="status" class="run-status-row">
+          <span class="deps-label soft">当前任务</span>
+          <span class="status-chip is-run"><i class="dot" />{{ status }}</span>
+        </div>
       </div>
     </header>
 
@@ -491,9 +519,10 @@ onMounted(async () => {
             placeholder="例如：我的 Outlook 一直登录不上，邮箱是 wei.zhang@contoso.com"
           />
           <div class="actions">
-            <el-checkbox v-model="useStream">流式进度 (SSE)</el-checkbox>
+            <el-checkbox v-model="useStream" title="开启后提交走 SSE 流式进度（顶部状态条也会显示 SSE）">
+              流式进度 (SSE)
+            </el-checkbox>
             <div class="actions-right">
-              <el-button plain @click="checkHealth">检查依赖</el-button>
               <el-button
                 v-if="lastError"
                 type="warning"
@@ -823,10 +852,57 @@ onMounted(async () => {
   font-size: 0.92rem;
 }
 
+.deps-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: var(--ds-radius);
+  border: 1px solid var(--ds-line);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(8px);
+  box-shadow: var(--ds-shadow);
+}
+
+.deps-copy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+}
+
+.deps-label {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ds-accent-deep);
+}
+
+.deps-label.soft {
+  color: var(--ds-muted);
+}
+
+.deps-hint {
+  font-size: 0.8rem;
+  color: var(--ds-muted);
+}
+
 .status-rail {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
+}
+
+.run-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--ds-line);
 }
 
 .status-chip {
@@ -889,6 +965,36 @@ onMounted(async () => {
   color: #0e7490;
   border-color: #a5f3fc;
   background: #ecfeff;
+}
+
+button.status-chip {
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  appearance: none;
+}
+
+button.status-chip:disabled {
+  cursor: wait;
+  opacity: 0.85;
+}
+
+.status-chip.is-action {
+  color: var(--ds-accent-deep);
+  border-color: #99f6e4;
+  background: #f0fdfa;
+  border-style: dashed;
+}
+
+.status-chip.is-action:hover:not(:disabled) {
+  border-style: solid;
+  background: #ccfbf1;
+}
+
+.status-chip.is-action.is-checking .dot {
+  opacity: 1;
+  animation: pulse-dot 0.9s ease-in-out infinite;
 }
 
 .status-chip.is-idle .dot {
