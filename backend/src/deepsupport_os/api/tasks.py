@@ -476,25 +476,32 @@ def _iter_agent_sse(
     fallback_status: str = "completed",
     hitl_notice: tuple[dict[str, Any], bool] | None = None,
 ) -> Iterator[dict[str, str]]:
-    """Shared SSE loop for new turns and ask/HITL resume."""
-    from deepsupport_os.harness.runtime_context import reset_run_context, set_run_context
+    """Shared SSE loop for new turns and ask/HITL resume.
 
-    tokens = set_run_context(thread_id=thread_id, task_id=task_id)
-    try:
-        yield from _iter_agent_sse_body(
-            agent=agent,
-            config=config,
-            stream_input=stream_input,
-            task_id=task_id,
-            thread_id=thread_id,
-            workspace_path=workspace_path,
-            timer=timer,
-            applied=applied,
-            fallback_status=fallback_status,
-            hitl_notice=hitl_notice,
-        )
-    finally:
-        reset_run_context(tokens)
+    Re-bind run context after every yield: EventSourceResponse advances the
+    sync generator via anyio.to_thread.run_sync, so each next() may run in a
+    fresh Context where prior ContextVar tokens are invalid / invisible.
+    """
+    from deepsupport_os.harness.runtime_context import set_run_context
+
+    def _bind() -> None:
+        set_run_context(thread_id=thread_id, task_id=task_id)
+
+    _bind()
+    for event in _iter_agent_sse_body(
+        agent=agent,
+        config=config,
+        stream_input=stream_input,
+        task_id=task_id,
+        thread_id=thread_id,
+        workspace_path=workspace_path,
+        timer=timer,
+        applied=applied,
+        fallback_status=fallback_status,
+        hitl_notice=hitl_notice,
+    ):
+        yield event
+        _bind()
 
 
 def _iter_agent_sse_body(

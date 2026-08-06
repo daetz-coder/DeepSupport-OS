@@ -27,8 +27,15 @@ def set_run_context(*, thread_id: str | None = None, task_id: str | None = None)
 
 def reset_run_context(tokens: tuple) -> None:
     t_thread, t_task = tokens
-    _thread_id.reset(t_thread)
-    _task_id.reset(t_task)
+    try:
+        _thread_id.reset(t_thread)
+        _task_id.reset(t_task)
+    except ValueError:
+        # Token was created in a different Context (common with Starlette SSE:
+        # sync generators are advanced via anyio threadpool, so each next() may
+        # run under a fresh copy_context()). Fall back to clearing values.
+        _thread_id.set(None)
+        _task_id.set(None)
 
 
 @contextmanager
