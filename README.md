@@ -16,16 +16,46 @@
 ![Daytona](https://img.shields.io/badge/Daytona-Sandbox%20sidecar-00C7B7)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-**开源的企业 IT Help Desk Agent Harness**：长任务规划、Skills / Subagents、HITL 审批、文件工作区与可评测闭环。  
-面向 Microsoft 365 场景；用 **Local Tool Adapter（SQLite Mock）** 与可选 **Remote MCP** 模拟企业系统，知识侧对接 [RAGLab](https://github.com/daetz-coder/RAGLab)（`kb=deepsupport`）。
+**切入场景：企业内部 Microsoft 365 IT Help Desk。**  
+员工报 Outlook / Teams / OneDrive / 激活许可等问题 → Agent 查人查账号、按 SOP 排障、必要时人工审批写操作 → 开单收尾。  
+不是通用客服机器人，而是把「可规划、可审批、可落盘、可评测」的企业支持 Agent 跑通。
 
-[快速开始](#快速开始) · [界面预览](#界面预览) · [评测](#评测automated-eval) · [知识管线](#知识管线本地语料--raglab-kb) · [文档地图](#文档地图) · [贡献](CONTRIBUTING.md) · [安全](SECURITY.md)
+[快速开始](#快速开始) · [业务定位](#业务定位) · [界面预览](#界面预览) · [评测](#评测automated-eval) · [知识管线](#知识管线本地语料--raglab-kb) · [文档地图](#文档地图) · [贡献](CONTRIBUTING.md) · [安全](SECURITY.md)
 
 ![DeepSupport OS 架构总览](./docs/demo-screenshots/DeepSupport-OS.png)
 
 > **License：** 代码为 [MIT](LICENSE)。演示账号 / 工单为 Mock（如 `contoso.com`）；仓库**不附带**已爬取的 Microsoft 支持语料本体（见 `data/knowledge/` gitignore），请自行抓取并遵守来源站点条款。
 
 </div>
+
+## 业务定位
+
+**我们选的切口：** Contoso 风格的企业内部 M365 技术支持（L1/L2 Help Desk），而不是 B2C 客服或跨域「万能 Agent」。
+
+典型工单形态（种子账号见 [docs/demo.md](./docs/demo.md)）：
+
+| 场景 | 示例用户 | Agent 要做的事 |
+|------|----------|----------------|
+| Outlook 登录失败 / 锁户 | `wei.zhang@contoso.com` | 诊断账号 → 提密码重置（HITL）→ 批准后落库 → 通知 / 开单 |
+| Teams 音频异常 | `na.li@contoso.com` | 环境诊断 + 产品 SOP + 知识检索 |
+| OneDrive 同步 | `qiang.wang@contoso.com` | 同上 |
+| Office 激活 / 许可 | `min.zhao@contoso.com` | 查许可 → 变更需 HITL |
+
+企业系统当前用 **SQLite Mock + Local Tool Adapter**（可选 Remote MCP）模拟；知识侧对接 [RAGLab](https://github.com/daetz-coder/RAGLab)（`kb=deepsupport`）。真实 AD / M365 / ServiceNow 接入见 [plan.md](./plan.md)。
+
+### 我们干了啥
+
+在 Deep Agents + LangGraph 上搭了一套 **IT 支持 Agent Harness**，并把 M365 Help Desk 主链路跑通：
+
+1. **对话控制台** — Vue3 UI + FastAPI SSE：规划步骤、工具轨迹、`ask_user` 澄清、HITL 审批同屏完成  
+2. **排障主链路** — 收集邮箱/症状 → `write_todos` → 查员工/账号/设备 → Skill SOP + 知识检索 → 解决或升级  
+3. **高风险写受控** — 密码重置、改许可、关单/升级先中断等人批，再 `apply_approved_writes`；禁止绕过 HITL 直写  
+4. **Skills / Subagents** — Outlook、Teams、OneDrive、Office、账号与工单等 builtin SOP；知识检索 / 环境诊断 / 工单操作可委派子代理  
+5. **工作区与记忆** — 每 thread 文件工作区（`manifest` / 结案产物）；组织事实 `/memory/org.md` + 会话记忆  
+6. **双轨工具** — 默认进程内 Mock 工具；可开 Remote MCP；Sandbox（Daytona）跑短命令  
+7. **可评测闭环** — 150 案 benchmark；offline schema 全过；online 样本可复现 HITL / 工具 / 规划等指标（见下方评测）
+
+一句话：**用 M365 Help Desk 验证「企业支持 Agent 怎么安全地干活」**——规划、审批、落盘、评测都在仓库里，而不是只做一个能聊天的 Demo。
 
 ## 架构概览
 
