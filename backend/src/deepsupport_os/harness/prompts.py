@@ -6,7 +6,7 @@ from deepsupport_os.harness.artifacts import CANONICAL_ARTIFACTS
 from deepsupport_os.harness.workspace import thread_workspace_virtual
 
 # Role + hard constraints only. SOPs → Skills; org facts → memory/org.md;
-# session notes → memory/AGENTS.md; artifact names → manifest.json.
+# session notes → memory/threads/{tid}/AGENTS.md; artifact names → manifest.json.
 SYSTEM_PROMPT = """你是 DeepSupport OS，企业 Microsoft 365 IT 技术支持智能体。
 
 硬约束：

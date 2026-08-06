@@ -38,25 +38,24 @@
 
 **【模块】** Memory / Multi-thread / Context  
 
-**【问题】**  
-`/memory/org.md` 与 `/memory/AGENTS.md` 是进程级全局文件（`harness/memory_files.py` → `MEMORY_PATHS`）。所有 `thread_id` 共享同一物理路径；Agent 可向 `AGENTS.md` 追加「会话笔记」，直接串线到其它会话。
+**【问题】**（已修复，见 R1-4）  
+曾用全局 `/memory/AGENTS.md` 作会话笔记，所有 `thread_id` 共享同一物理路径，会话笔记互相串线。
 
 **【原因】**  
-Deep Agents MemoryMiddleware 按虚拟路径注入；当前实现把「组织事实」与「会话记忆」都挂在固定全局路径，未做 `memory/{tid}/` 或 Store 分片。
+Deep Agents MemoryMiddleware 按虚拟路径注入；早期实现把「组织事实」与「会话记忆」都挂在固定全局路径。
 
 **【影响】**  
 - Thread A 的诊断结论污染 Thread B 的上下文  
 - 多用户并发时 Memory 成为隐式全局状态总线  
-- 「会话记忆」名义上是 Long-term，实际是跨租户脏共享
 
 **【为什么违反 Deep Agents / LangGraph 原则】**  
 - Deep Agents：Memory 应是 **可寻址、可作用域** 的长期知识；会话态应落 Checkpoint / Workspace  
 - LangGraph：`thread_id` 是隔离单元；跨 thread 可变共享态破坏 checkpoint 语义
 
-**【推荐修复】**  
-1. `org.md` → 真正只读 org Store（或 `/memory/org.md` 只读挂载）  
-2. `AGENTS.md` → `/memory/threads/{tid}/AGENTS.md` 或放弃文件 Memory，改用 Checkpoint + Workspace  
-3. 禁止 Agent 写 org；会话笔记写入 Workspace 或 per-thread Memory
+**【推荐修复】**（已落地）  
+1. `org.md` → `/memory/org.md` 只读挂载  
+2. 会话笔记 → `/memory/threads/{tid}/AGENTS.md`（`memory_paths_for_thread`）  
+3. 禁止 Agent 写 org；仅 `threads/` 前缀可写  
 
 **【是否属于架构问题】** 是  
 
@@ -428,7 +427,7 @@ SSE 是「尽力推送 + 尾帧权威」，未做事件序号 / 因果序。
 **【模块】** Context / Workspace  
 
 **【问题】**  
-Checkpoint 消息只增不减；Workspace 产物可无限 append；无 summarization / TTL / 配额。Memory `AGENTS.md` 亦可无限追加（且全局）。
+Checkpoint 消息只增不减；Workspace 产物可无限 append；无 summarization / TTL / 配额。Per-thread `AGENTS.md` 亦可无限追加。
 
 **【原因】**  
 缺 Context Budget 策略。

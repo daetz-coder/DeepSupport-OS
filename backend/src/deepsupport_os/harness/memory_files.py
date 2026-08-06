@@ -12,8 +12,6 @@ from deepsupport_os.harness.workspace import sanitize_thread_id
 
 # Virtual paths (CompositeBackend routes /memory/ → physical memory/)
 ORG_MEMORY_FILE = "/memory/org.md"
-# Legacy global session path — no longer injected; kept for docs/migrations.
-SESSION_MEMORY_FILE = "/memory/AGENTS.md"
 # Org-only constant; prefer memory_paths_for_thread(thread_id) at runtime.
 MEMORY_PATHS = (ORG_MEMORY_FILE,)
 

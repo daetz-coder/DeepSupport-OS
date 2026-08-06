@@ -14,7 +14,6 @@ from deepsupport_os.harness.builder import INTERRUPT_ON, HarnessBuilder, Runtime
 from deepsupport_os.harness.memory_files import (
     MEMORY_PATHS,
     ORG_MEMORY_FILE,
-    SESSION_MEMORY_FILE,
     ensure_memory_file,
     ensure_memory_files,
     memory_paths_for_thread,
@@ -24,7 +23,6 @@ from deepsupport_os.harness.prompts import SYSTEM_PROMPT, build_system_prompt
 
 # Re-exports for API / tests
 # INTERRUPT_ON (InterruptOnConfig with `when` guards) is defined in builder.py.
-MEMORY_FILE = SESSION_MEMORY_FILE
 
 _checkpointer: SqliteSaver | MemorySaver | None = None
 _sqlite_conn: sqlite3.Connection | None = None
@@ -126,10 +124,8 @@ def build_support_agent(
 
 
 __all__ = [
-    "MEMORY_FILE",
     "MEMORY_PATHS",
     "ORG_MEMORY_FILE",
-    "SESSION_MEMORY_FILE",
     "SYSTEM_PROMPT",
     "INTERRUPT_ON",
     "build_model",

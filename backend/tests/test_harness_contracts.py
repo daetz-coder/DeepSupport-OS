@@ -7,7 +7,6 @@ from deepsupport_os.harness.artifacts import (
 from deepsupport_os.harness.memory_files import (
     MEMORY_PATHS,
     ORG_MEMORY_FILE,
-    SESSION_MEMORY_FILE,
     ensure_memory_files,
 )
 from deepsupport_os.harness.metrics import summarize_trace, write_turn_metrics
@@ -37,13 +36,13 @@ def test_memory_layers_seeded():
     assert paths[0].name == "org.md"
     assert paths[1].name == "AGENTS.md"
     assert "threads" in str(paths[1]).replace("\\", "/")
-    assert ORG_MEMORY_FILE in MEMORY_PATHS
-    assert SESSION_MEMORY_FILE not in MEMORY_PATHS  # legacy; not injected globally
+    assert MEMORY_PATHS == (ORG_MEMORY_FILE,)
     from deepsupport_os.harness.memory_files import memory_paths_for_thread
 
     injected = memory_paths_for_thread("mem-t1")
     assert ORG_MEMORY_FILE in injected
     assert "/memory/threads/mem-t1/AGENTS.md" in injected
+    assert "/memory/AGENTS.md" not in injected
     assert "wei.zhang@contoso.com" in paths[0].read_text(encoding="utf-8")
 
 

@@ -9,5 +9,4 @@
 Do not put secrets in either file.
 
 Session notes are **thread-scoped** (`harness/memory_files.py`) so concurrent conversations
-cannot pollute each other. Stable facts stay in `org.md`. Legacy global `memory/AGENTS.md`
-is no longer injected (may still exist on disk from older runs).
+cannot pollute each other. Stable facts stay in `org.md`.

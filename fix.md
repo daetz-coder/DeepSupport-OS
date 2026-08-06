@@ -23,7 +23,7 @@
 
 ### F-04 Memory 仅单文件 AGENTS.md，无语义检索
 - **状态**：`[x]` 分层已落地（语义检索仍后置）
-- **产出**：`memory/org.md` + `memory/AGENTS.md`；`MEMORY_PATHS` 双路径注入；`harness/memory_files.py`
+- **产出**：`memory/org.md` + `memory/threads/{tid}/AGENTS.md`；`memory_paths_for_thread` 注入；`harness/memory_files.py`
 
 ### F-05 System Prompt 与 Skill/Memory 内容重叠
 - **状态**：`[x]`

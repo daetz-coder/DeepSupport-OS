@@ -10,7 +10,7 @@
 4. **知识**：`search_docs("Teams 音视频")` / `search_cases`；长文只落盘，消息里留路径。
 5. **自助建议**（基于工具结果，勿臆造）：网络、外围设备、经典 Teams vs 新 Teams、防火墙。
 6. **工单**：仍失败 → `create_ticket(category="Teams", …)`；复杂升级 → `escalate_ticket`（HITL）。
-7. **收尾**：`final_resolution.md`；必要时更新 `/memory/AGENTS.md` 会话记忆（脱敏）。
+7. **收尾**：`final_resolution.md`；必要时更新本 thread 的 `/memory/threads/{tid}/AGENTS.md` 会话记忆（脱敏）。
 
 ## 子代理
 
