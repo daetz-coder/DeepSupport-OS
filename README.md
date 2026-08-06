@@ -16,7 +16,7 @@
 ![Daytona](https://img.shields.io/badge/Daytona-Sandbox%20sidecar-00C7B7)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-**切入场景：企业内部 Microsoft 365 IT Help Desk。**  
+**DeepSupport OS — Enterprise IT Help Desk Agent Harness**
 员工报 Outlook / Teams / OneDrive / 激活许可等问题 → Agent 查人查账号、按 SOP 排障、必要时人工审批写操作 → 开单收尾。  
 不是通用客服机器人，而是把「可规划、可审批、可落盘、可评测」的企业支持 Agent 跑通。
 
@@ -30,7 +30,13 @@
 
 ## 业务定位
 
-**我们选的切口：** Contoso 风格的企业内部 M365 技术支持（L1/L2 Help Desk），而不是 B2C 客服或跨域「万能 Agent」。
+**产品形态：** DeepSupport OS 是 **Enterprise IT Help Desk Agent** 的开源 **Harness**，不是通用客服 Chatbot，也不是跨域「万能 Agent」。
+
+| 层 | 含义 |
+| --- | --- |
+| **Agent** | 面向 L1/L2 的 M365 技术支持智能体：诊断 → 检索 → 解决 / 升级 |
+| **Harness** | 规划、Skills、Subagents、HITL、Memory、Checkpoint、工作区、SSE 控制台、评测闭环 |
+| **切口** | Contoso 风格企业内部 Help Desk（Mock 企业系统 + RAGLab 知识库） |
 
 典型工单形态（种子账号见 [docs/demo.md](./docs/demo.md)）：
 
@@ -43,9 +49,9 @@
 
 企业系统当前用 **SQLite Mock + Local Tool Adapter**（可选 Remote MCP）模拟；知识侧对接 [RAGLab](https://github.com/daetz-coder/RAGLab)（`kb=deepsupport`）。真实 AD / M365 / ServiceNow 接入见 [plan.md](./plan.md)。
 
-### 我们干了啥
+### Harness
 
-在 Deep Agents + LangGraph 上搭了一套 **IT 支持 Agent Harness**，并把 M365 Help Desk 主链路跑通：
+在 Deep Agents + LangGraph 上搭好 **IT Help Desk Agent Harness**，并把 M365 主链路跑通：
 
 1. **对话控制台** — Vue3 UI + FastAPI SSE：规划步骤、工具轨迹、`ask_user` 澄清、HITL 审批同屏完成  
 2. **排障主链路** — 收集邮箱/症状 → `write_todos` → 查员工/账号/设备 → Skill SOP + 知识检索 → 解决或升级  
@@ -55,7 +61,7 @@
 6. **双轨工具** — 默认进程内 Mock 工具；可开 Remote MCP；Sandbox（Daytona）跑短命令  
 7. **可评测闭环** — 150 案 benchmark；offline schema 全过；online 样本可复现 HITL / 工具 / 规划等指标（见下方评测）
 
-一句话：**用 M365 Help Desk 验证「企业支持 Agent 怎么安全地干活」**——规划、审批、落盘、评测都在仓库里，而不是只做一个能聊天的 Demo。
+一句话：**DeepSupport OS = Enterprise IT Help Desk Agent + Harness**——用 M365 场景验证「企业支持智能体怎么安全地规划、审批、落盘、评测」。
 
 ## 架构概览
 
@@ -201,7 +207,6 @@ cd backend && uv run python ../scripts/test_remote_mcp.py
 | ------------------------------------------ |
 | ![MCP](./docs/demo-screenshots/06-mcp.png) |
 
-> UI 截图若发糊：聊天附件会被压到约 1024px；请用浏览器 100% 整窗截图直接覆盖 `docs/demo-screenshots/`。主图 `DeepSupport-v2.png` 为当前架构总览。
 
 ## 一次运行链路（示例：Outlook 登录失败）
 
