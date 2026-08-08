@@ -11,12 +11,17 @@ from langchain.agents.middleware import InterruptOnConfig, TodoListMiddleware
 
 from deepagents import FilesystemPermission, create_deep_agent
 from deepagents.middleware import create_summarization_tool_middleware
+from deepagents.middleware.memory import MemoryMiddleware
 
 from deepsupport_os.core.config import get_settings
 from deepsupport_os.db.repositories import AccountRepo, TicketRepo
 from deepsupport_os.harness.daytona_backend import build_hybrid_backend, run_sandbox_shell
 from deepsupport_os.harness.guard_middleware import support_guard_middleware
-from deepsupport_os.harness.memory_files import ensure_memory_files, memory_paths_for_thread
+from deepsupport_os.harness.memory_files import (
+    SUPPORT_MEMORY_SYSTEM_PROMPT,
+    ensure_memory_files,
+    memory_paths_for_thread,
+)
 from deepsupport_os.harness.prompts import build_system_prompt
 from deepsupport_os.harness.skills_registry import skill_source_paths
 from deepsupport_os.harness.subagents import build_mvp_subagents
@@ -202,6 +207,13 @@ class HarnessBuilder:
             tools.append(run_sandbox_shell)
 
         model = self.ports.model_factory()
+
+        memory = (
+            list(self.ports.memory_paths)
+            if self.ports.memory_paths is not None
+            else memory_paths_for_thread(thread_id)
+        )
+
         # On-demand context compaction. Auto-summarization is already in the
         # default stack; this adds a `compact_conversation` tool the model can
         # call when context gets long (gated at ~50% of the auto trigger).
@@ -214,9 +226,20 @@ class HarnessBuilder:
                 "压缩历史；短会话不要过早压缩。"
             ),
         )
+        # Hand-wired MemoryMiddleware so we can override the system_prompt
+        # (create_deep_agent(memory=...) always uses the default prompt that
+        # pushes generic edit_file learning). Org RO / session append-only /
+        # no secrets are enforced here AND by the read-only backend.
+        memory_mw = MemoryMiddleware(
+            backend=agent_backend,
+            sources=memory,
+            add_cache_control=True,
+            system_prompt=SUPPORT_MEMORY_SYSTEM_PROMPT,
+        )
         middleware = [
             TodoListMiddleware(system_prompt=""),
             *support_guard_middleware(),
+            memory_mw,
             summ_tool,
         ]
 
@@ -224,18 +247,11 @@ class HarnessBuilder:
         if cp is None and self.ports.checkpointer_factory is not None:
             cp = self.ports.checkpointer_factory()
 
-        memory = (
-            list(self.ports.memory_paths)
-            if self.ports.memory_paths is not None
-            else memory_paths_for_thread(thread_id)
-        )
-
         return create_deep_agent(
             model=model,
             tools=tools,
             system_prompt=build_system_prompt(thread_id=thread_id),
             skills=skills_dirs or None,
-            memory=memory,
             middleware=middleware,
             subagents=self.ports.subagents_factory(),
             interrupt_on=dict(self.ports.interrupt_on),
