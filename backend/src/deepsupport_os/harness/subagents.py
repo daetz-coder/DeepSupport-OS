@@ -65,6 +65,18 @@ _ACCOUNT_READ_TOOLS = [get_account_status, get_license]
 _TICKET_DRAFT_TOOLS = [create_ticket, get_ticket, update_ticket]
 
 
+def _subagent_skill_paths(*names: str) -> list[str]:
+    """Enabled builtin skill dirs as virtual /skills/<name>/ roots.
+
+    Attaching skills= to a subagent mounts the progressive-disclosure skill
+    index for its role. Missing / disabled skills are filtered out at build time.
+    """
+    from deepsupport_os.harness.skills_registry import list_skill_dirs
+
+    enabled = {d.name for d in list_skill_dirs(only_enabled=True, include_imported=False)}
+    return [f"/skills/{n}/" for n in names if n in enabled]
+
+
 def build_mvp_subagents() -> list[dict]:
     """Three MVP subagents by responsibility (not by product).
 
@@ -90,6 +102,13 @@ def build_mvp_subagents() -> list[dict]:
             ),
             "tools": KNOWLEDGE_TOOLS,
             "response_format": KnowledgeResearchOutput,
+            "skills": _subagent_skill_paths(
+                "outlook-troubleshooting",
+                "teams-troubleshooting",
+                "onedrive-sync",
+                "office-application",
+                "account-access",
+            ),
         },
         {
             "name": "environment-diagnosis",
@@ -108,6 +127,7 @@ def build_mvp_subagents() -> list[dict]:
             ),
             "tools": EMPLOYEE_TOOLS + _ACCOUNT_READ_TOOLS + ASSET_TOOLS,
             "response_format": EnvironmentDiagnosisOutput,
+            "skills": _subagent_skill_paths("account-access", "office-application"),
         },
         {
             "name": "ticket-operations",
@@ -126,6 +146,7 @@ def build_mvp_subagents() -> list[dict]:
             ),
             "tools": _TICKET_DRAFT_TOOLS,
             "response_format": TicketOperationsOutput,
+            "skills": _subagent_skill_paths("ticket-management", "escalation", "resolution-report"),
         },
     ]
     return filter_subagents(specs)
