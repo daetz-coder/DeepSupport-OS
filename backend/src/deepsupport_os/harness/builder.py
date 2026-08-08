@@ -9,7 +9,7 @@ from typing import Any, Callable
 
 from langchain.agents.middleware import InterruptOnConfig, TodoListMiddleware
 
-from deepagents import create_deep_agent
+from deepagents import FilesystemPermission, create_deep_agent
 
 from deepsupport_os.core.config import get_settings
 from deepsupport_os.db.repositories import AccountRepo, TicketRepo
@@ -25,6 +25,16 @@ from deepsupport_os.mcp.tools import all_agent_tools
 WRITE_TOOL_NAMES = frozenset(
     {"request_password_reset", "request_license_change", "close_ticket", "escalate_ticket"}
 )
+
+# Native tool-layer filesystem permissions (deepagents). Default mode is allow,
+# so only deny rules are needed: /skills/ and org memory stay read-only, while
+# per-thread session memory and workspace remain writable. This mirrors the
+# ReadOnlyFilesystemBackend wrapper at the tool layer; the wrapper stays as the
+# backend-layer backstop (permissions cannot block the `execute` shell tool).
+FILESYSTEM_PERMISSIONS = [
+    FilesystemPermission(operations=["write"], paths=["/skills/**"], mode="deny"),
+    FilesystemPermission(operations=["write"], paths=["/memory/org.md"], mode="deny"),
+]
 
 # Human resume must use reject | respond only (API is Single Executor for writes).
 # `approve` remains allowed so interrupt `when=False` auto-approve can still run
@@ -211,5 +221,6 @@ class HarnessBuilder:
             interrupt_on=dict(self.ports.interrupt_on),
             checkpointer=cp,
             backend=agent_backend,
+            permissions=FILESYSTEM_PERMISSIONS,
             name=self.ports.name,
         )
