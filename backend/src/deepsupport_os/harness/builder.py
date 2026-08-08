@@ -10,6 +10,7 @@ from typing import Any, Callable
 from langchain.agents.middleware import InterruptOnConfig, TodoListMiddleware
 
 from deepagents import FilesystemPermission, create_deep_agent
+from deepagents.middleware import create_summarization_tool_middleware
 
 from deepsupport_os.core.config import get_settings
 from deepsupport_os.db.repositories import AccountRepo, TicketRepo
@@ -200,6 +201,25 @@ class HarnessBuilder:
         if use_daytona and settings.daytona_enabled:
             tools.append(run_sandbox_shell)
 
+        model = self.ports.model_factory()
+        # On-demand context compaction. Auto-summarization is already in the
+        # default stack; this adds a `compact_conversation` tool the model can
+        # call when context gets long (gated at ~50% of the auto trigger).
+        # Shares the `_summarization_event` state with auto-summarization.
+        summ_tool = create_summarization_tool_middleware(
+            model,
+            agent_backend,
+            system_prompt=(
+                "上下文过长时（接近自动摘要阈值约一半）可调用 compact_conversation "
+                "压缩历史；短会话不要过早压缩。"
+            ),
+        )
+        middleware = [
+            TodoListMiddleware(system_prompt=""),
+            *support_guard_middleware(),
+            summ_tool,
+        ]
+
         cp = checkpointer
         if cp is None and self.ports.checkpointer_factory is not None:
             cp = self.ports.checkpointer_factory()
@@ -211,12 +231,12 @@ class HarnessBuilder:
         )
 
         return create_deep_agent(
-            model=self.ports.model_factory(),
+            model=model,
             tools=tools,
             system_prompt=build_system_prompt(thread_id=thread_id),
             skills=skills_dirs or None,
             memory=memory,
-            middleware=[TodoListMiddleware(system_prompt=""), *support_guard_middleware()],
+            middleware=middleware,
             subagents=self.ports.subagents_factory(),
             interrupt_on=dict(self.ports.interrupt_on),
             checkpointer=cp,
