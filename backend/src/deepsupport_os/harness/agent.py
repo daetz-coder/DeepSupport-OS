@@ -5,6 +5,11 @@ from __future__ import annotations
 import atexit
 import sqlite3
 
+from deepagents import (
+    GeneralPurposeSubagentProfile,
+    HarnessProfile,
+    register_harness_profile,
+)
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.checkpoint.sqlite import SqliteSaver
@@ -23,6 +28,23 @@ from deepsupport_os.harness.prompts import SYSTEM_PROMPT, build_system_prompt
 
 # Re-exports for API / tests
 # INTERRUPT_ON (InterruptOnConfig with `when` guards) is defined in builder.py.
+
+
+def _register_native_harness_profile() -> None:
+    """Disable the auto-added general-purpose subagent for the harness model.
+
+    `build_model` always returns a ``langchain_openai.ChatOpenAI`` (deepseek or
+    ollama via OpenAI-compatible endpoints), whose ``_get_ls_params`` provider
+    resolves to "openai", so the provider-level key covers both. With GP off,
+    the `task` tool still lists the three purpose-built MVP subagents.
+    """
+    register_harness_profile(
+        "openai",
+        HarnessProfile(general_purpose_subagent=GeneralPurposeSubagentProfile(enabled=False)),
+    )
+
+
+_register_native_harness_profile()
 
 _checkpointer: SqliteSaver | MemorySaver | None = None
 _sqlite_conn: sqlite3.Connection | None = None
