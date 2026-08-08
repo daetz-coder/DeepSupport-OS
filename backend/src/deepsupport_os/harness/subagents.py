@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pydantic import BaseModel, Field
+
 from deepsupport_os.mcp.tools import (
     ASSET_TOOLS,
     EMPLOYEE_TOOLS,
@@ -13,10 +15,48 @@ from deepsupport_os.mcp.tools import (
 )
 from deepsupport_os.rag.knowledge_tools import KNOWLEDGE_TOOLS
 
+
+# ---- Structured output contracts (native deepagents response_format) ----
+# Each subagent emits a validated JSON object the Main Agent can parse for
+# eval / artifact writing instead of free text. `error` carries `ERROR:` + 原因.
+
+
+class KnowledgeResearchOutput(BaseModel):
+    """knowledge-research 的结构化输出契约。"""
+
+    points: list[str] = Field(description="3–8 条要点，要点须含来源标题或 case_id")
+    sources: list[str] = Field(default_factory=list, description="来源标题或 case_id 列表")
+    suggested_file: str = Field(description="建议主 Agent 写入的文件名，通常为 retrieved_docs.md")
+    error: str | None = Field(default=None, description="失败时填 `ERROR:` + 原因；成功为 null")
+
+
+class EnvironmentDiagnosisOutput(BaseModel):
+    """environment-diagnosis 的结构化输出契约。"""
+
+    identity: str | None = Field(default=None, description="员工身份：姓名 / 邮箱 / employee_id")
+    account_status: str | None = Field(default=None, description="账号状态")
+    mfa: str | None = Field(default=None, description="MFA 状态")
+    license: str | None = Field(default=None, description="许可证情况")
+    device: str | None = Field(default=None, description="设备 OS / Office 激活情况")
+    points: list[str] = Field(description="3–8 条要点")
+    suggested_file: str = Field(description="建议主 Agent 写入的文件名，通常为 diagnosis.md")
+    error: str | None = Field(default=None, description="失败时填 `ERROR:` + 原因；成功为 null")
+
+
+class TicketOperationsOutput(BaseModel):
+    """ticket-operations 的结构化输出契约。"""
+
+    points: list[str] = Field(description="3–8 条要点")
+    ticket_id: str | None = Field(default=None, description="创建/更新的工单 id（如涉及）")
+    suggested_file: str = Field(description="建议主 Agent 写入的文件名，通常为 ticket_draft.md")
+    error: str | None = Field(default=None, description="失败时填 `ERROR:` + 原因；成功为 null")
+
+
 _CONTRACT_FOOTER = (
-    "\n\n输出契约：用简体中文；先给 3–8 条要点；再给建议主 Agent 写入的文件名"
+    "\n\n输出契约：结果必须落在本子代理的 `response_format` 结构化字段中，用简体中文；"
+    "points 填 3–8 条要点；suggested_file 填建议主 Agent 写入的文件名"
     "（retrieved_docs.md / diagnosis.md / ticket_draft.md 之一）；"
-    "若失败，第一行写 `ERROR:` + 原因，不要假装成功。"
+    "若失败，error 字段写 `ERROR:` + 原因，不要假装成功。"
 )
 
 # Read-only account tools — write intents stay on Main Agent + HITL apply.
@@ -49,6 +89,7 @@ def build_mvp_subagents() -> list[dict]:
                 + _CONTRACT_FOOTER
             ),
             "tools": KNOWLEDGE_TOOLS,
+            "response_format": KnowledgeResearchOutput,
         },
         {
             "name": "environment-diagnosis",
@@ -66,6 +107,7 @@ def build_mvp_subagents() -> list[dict]:
                 + _CONTRACT_FOOTER
             ),
             "tools": EMPLOYEE_TOOLS + _ACCOUNT_READ_TOOLS + ASSET_TOOLS,
+            "response_format": EnvironmentDiagnosisOutput,
         },
         {
             "name": "ticket-operations",
@@ -83,6 +125,7 @@ def build_mvp_subagents() -> list[dict]:
                 + _CONTRACT_FOOTER
             ),
             "tools": _TICKET_DRAFT_TOOLS,
+            "response_format": TicketOperationsOutput,
         },
     ]
     return filter_subagents(specs)
