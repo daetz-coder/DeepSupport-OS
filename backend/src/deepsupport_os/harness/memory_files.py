@@ -17,7 +17,8 @@ MEMORY_PATHS = (ORG_MEMORY_FILE,)
 
 _ORG_TEMPLATE = """# Organization Memory
 
-Stable tenant / demo facts. Prefer editing this file over session notes.
+Stable tenant / demo facts. This file is READ-ONLY for the agent; append
+session notes to the thread's AGENTS.md (`/memory/threads/{tid}/AGENTS.md`).
 
 ## Contoso (demo)
 
