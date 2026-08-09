@@ -428,9 +428,16 @@ def cleanup_daytona(*, stop: bool = False, delete: bool = False) -> None:
 
 
 def clear_thread_backends(thread_id: str | None = None) -> None:
-    """Drop cached CompositeBackends (all, or one thread)."""
+    """Drop cached backends (all, or one thread).
+
+    Also drops the per-thread Daytona sandbox references, otherwise
+    ``/delete_thread`` in ``scope=thread`` mode leaked ``_daytona_by_thread`` /
+    ``_sandbox_by_thread`` entries for every deleted conversation.
+    """
     if thread_id is None:
         _thread_backends.clear()
+        _daytona_by_thread.clear()
+        _sandbox_by_thread.clear()
         return
     from deepsupport_os.harness.workspace import sanitize_thread_id
 
@@ -438,6 +445,8 @@ def clear_thread_backends(thread_id: str | None = None) -> None:
     for key in list(_thread_backends):
         if key.startswith(f"{tid}:"):
             _thread_backends.pop(key, None)
+    _daytona_by_thread.pop(tid, None)
+    _sandbox_by_thread.pop(tid, None)
 
 
 def probe_sandbox_status() -> dict[str, Any]:
