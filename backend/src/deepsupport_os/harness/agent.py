@@ -82,7 +82,16 @@ def get_checkpointer():
     path = settings.resolve("data/checkpoints.sqlite")
     path.parent.mkdir(parents=True, exist_ok=True)
     try:
-        _sqlite_conn = sqlite3.connect(str(path), check_same_thread=False)
+        # Concurrency hardening: FastAPI serves agents from a thread pool, so the
+        # shared connection sees concurrent checkpoint writes. WAL + busy_timeout
+        # turn "database is locked" into bounded waits instead of hard failures;
+        # timeout=30 covers the block while a peer transaction commits.
+        _sqlite_conn = sqlite3.connect(
+            str(path), check_same_thread=False, timeout=30
+        )
+        _sqlite_conn.execute("PRAGMA journal_mode=WAL")
+        _sqlite_conn.execute("PRAGMA busy_timeout=30000")
+        _sqlite_conn.execute("PRAGMA synchronous=NORMAL")
         _checkpointer = SqliteSaver(_sqlite_conn)
         atexit.register(_close_checkpointer)
         return _checkpointer
