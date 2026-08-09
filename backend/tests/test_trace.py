@@ -132,6 +132,41 @@ def test_current_turn_messages_scopes_to_last_user():
     assert [m["role"] for m in current2] == ["assistant", "tool"]
 
 
+def test_extract_interrupt_info_keeps_all_pending_writes():
+    """Approval must never silently drop a write: >3 pending writes all survive."""
+    from deepsupport_os.api.trace import extract_interrupt_info
+
+    requests = [
+        {"name": "request_password_reset", "args": {"email": "a@contoso.com"}},
+        {"name": "request_license_change", "args": {"email": "a@contoso.com", "new_license_type": "E5"}},
+        {"name": "close_ticket", "args": {"ticket_id": "T1"}},
+        {"name": "escalate_ticket", "args": {"ticket_id": "T2"}},
+    ]
+
+    class FakeAgent:
+        def get_state(self, _config):
+            class Intr:
+                value = {"action_requests": requests}
+
+            class Snap:
+                next = ["tools"]
+                tasks = ()
+                interrupts = [Intr()]
+                values = {"messages": []}
+
+            return Snap()
+
+    info = extract_interrupt_info(FakeAgent(), {})
+    assert info["type"] == "hitl"
+    names = [w["name"] for w in info["pending_writes"]]
+    assert names == [
+        "request_password_reset",
+        "request_license_change",
+        "close_ticket",
+        "escalate_ticket",
+    ]
+
+
 def test_collect_pending_uses_exact_interrupt_writes():
     """resume must not re-add stale writes from the message history."""
     from deepsupport_os.harness.hitl_apply import collect_pending_writes

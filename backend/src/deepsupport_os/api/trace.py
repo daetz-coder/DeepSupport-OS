@@ -268,7 +268,11 @@ def extract_interrupt_info(agent: Any, config: dict) -> dict[str, Any] | None:
         }
 
     if hitl_actions:
-        pending: list[dict[str, Any]] = hitl_actions[-3:]
+        # Keep ALL pending writes: a former 3-item cap silently dropped the 4th+
+        # write even after human approval, so `apply_approved_writes` never
+        # persisted it. `collect_pending_writes` still dedupes by tool+args and
+        # filters out non-write actions, so length is safe to grow unbounded.
+        pending = collect_pending_writes(None, pending=hitl_actions)
     else:
         # Fallback (older checkpoints / middleware-style): scan only the current
         # turn so previously-approved writes do not reappear.
@@ -276,7 +280,6 @@ def extract_interrupt_info(agent: Any, config: dict) -> dict[str, Any] | None:
         msgs = _current_turn_messages(values.get("messages") or [])
         trace = build_trace(msgs, interrupt={"next": nxt})
         pending = collect_pending_writes(msgs, pending=trace.get("pending_writes"))
-        pending = pending[-3:]
 
     return {
         "type": "hitl",
