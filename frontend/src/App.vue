@@ -368,12 +368,12 @@ function formatArgs(args: unknown) {
   }
 }
 
-async function submitSync() {
+async function submitSync(message: string) {
   const res = await fetch(`${API}/api/tasks`, {
     method: 'POST',
     headers: apiHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
-      message: question.value,
+      message,
       thread_id: threadId.value,
     }),
   })
@@ -590,7 +590,7 @@ async function consumeSseResponse(res: Response) {
   }
 }
 
-async function submitStream() {
+async function submitStream(message: string) {
   liveEvents.value = []
   steps.value = []
   streamingText.value = ''
@@ -602,7 +602,7 @@ async function submitStream() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
     body: JSON.stringify({
-      message: question.value,
+      message,
       thread_id: threadId.value,
     }),
   })
@@ -690,25 +690,23 @@ async function submit() {
   lastError.value = null
   lastQuestion.value = question.value
   appliedWrites.value = []
-  messages.value = [...messages.value, { role: 'user', content: question.value.trim() }]
-  const outbound = question.value
+  const outbound = question.value.trim()
+  messages.value = [...messages.value, { role: 'user', content: outbound }]
   question.value = ''
   try {
-    // Restore outbound into request body helpers via lastQuestion
-    question.value = outbound
     if (useStream.value) {
-      await submitStream()
+      await submitStream(outbound)
     } else {
-      await submitSync()
+      await submitSync(outbound)
     }
-    question.value = ''
     viewMode.value = 'chat'
     ElMessage.success(status.value === 'interrupted' ? '等待你的操作' : '本轮已完成')
     await Promise.all([refreshThreads(), refreshAudit(), refreshArtifacts()])
   } catch (e) {
     lastError.value = e instanceof Error ? e.message : String(e)
     status.value = 'failed'
-    question.value = outbound
+    // Only restore on failure so an in-flight retry edits don't get clobbered.
+    if (!question.value.trim()) question.value = outbound
     ElMessage.error(`执行失败: ${lastError.value}`)
     endLiveOverview()
   } finally {
