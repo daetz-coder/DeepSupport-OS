@@ -104,6 +104,38 @@ def test_migrate_recreates_unique_index_for_added_column(tmp_path, monkeypatch):
     get_settings.cache_clear()
 
 
+def test_migrate_adds_not_null_column_with_default(tmp_path, monkeypatch):
+    """NOT NULL columns with a scalar model default migrate via ADD COLUMN."""
+    db_path = tmp_path / "legacy.db"
+    con = sqlite3.connect(str(db_path))
+    con.execute(
+        "CREATE TABLE eval_runs ("
+        "run_id TEXT PRIMARY KEY, mode TEXT NOT NULL, cases_path TEXT, "
+        "total INTEGER, passed INTEGER, failed INTEGER)"
+    )
+    con.execute("INSERT INTO eval_runs (run_id, mode) VALUES ('r1', 'offline')")
+    con.commit()
+    con.close()
+
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{db_path.as_posix()}")
+    get_settings.cache_clear()
+    reset_engine()
+    try:
+        init_db()
+
+        # use_daytona is Boolean NOT NULL default=False on the model — previously
+        # skipped, now added with a constant default.
+        cols = _cols(db_path, "eval_runs")
+        assert "use_daytona" in cols
+        con = sqlite3.connect(str(db_path))
+        row = con.execute("SELECT use_daytona FROM eval_runs WHERE run_id='r1'").fetchone()
+        con.close()
+        assert row == (0,)
+    finally:
+        reset_engine()
+        get_settings.cache_clear()
+
+
 def test_migrate_is_idempotent(tmp_path, monkeypatch):
     db_path = _make_env(tmp_path, monkeypatch)
     init_db()  # init_db already runs migrate_db internally

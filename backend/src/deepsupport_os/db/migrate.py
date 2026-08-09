@@ -10,9 +10,10 @@
 
 ``migrate_db`` runs after ``create_all`` and adds any *nullable* model column
 missing from an existing table, recreating the secondary / unique index that
-SQLite's ``ADD COLUMN`` cannot attach. Non-nullable additions are skipped with
-a warning: SQLite can only ``ADD COLUMN`` with a constant default, so those
-require a full table rebuild (out of scope for the current mock DB).
+SQLite's ``ADD COLUMN`` cannot attach. NOT NULL additions are allowed only when
+a constant default exists (a model ``server_default`` or a scalar ``column.default``);
+otherwise they are skipped with a warning, since SQLite can only ``ADD COLUMN``
+with a constant default and those would require a full table rebuild.
 """
 
 from __future__ import annotations
@@ -20,8 +21,34 @@ from __future__ import annotations
 import logging
 
 from sqlalchemy import text
+from sqlalchemy.sql.expression import literal
 
 logger = logging.getLogger(__name__)
+
+
+def _constant_default_sql(engine, column) -> str | None:
+    """Constant SQL literal usable in ``ADD COLUMN ... DEFAULT``, or None.
+
+    Prefers the model's ``server_default``; falls back to a scalar
+    ``column.default`` (e.g. ``default=True`` → ``NOT NULL DEFAULT 1``).
+    Callables (e.g. ``default=datetime.now``) and clause defaults are treated
+    as non-constant and skipped.
+    """
+    if column.server_default is not None:
+        return str(column.server_default.arg)
+    d = getattr(column, "default", None)
+    if d is None:
+        return None
+    arg = getattr(d, "arg", None)
+    if arg is None or callable(arg):
+        return None
+    try:
+        return literal(arg).compile(
+            dialect=engine.dialect,
+            compile_kwargs={"literal_binds": True},
+        ).string
+    except Exception:  # noqa: BLE001 - unrenderable literal → treat as unavailable
+        return None
 
 
 def migrate_db() -> list[str]:
@@ -38,7 +65,7 @@ def migrate_db() -> list[str]:
             for column in table.columns:
                 if column.name in existing:
                     continue
-                if column.nullable is not True:
+                if column.nullable is not True and _constant_default_sql(engine, column) is None:
                     logger.warning(
                         "migrate skip %s.%s: NOT NULL without constant default — needs table rebuild",
                         table.name,
@@ -59,8 +86,10 @@ def _column_ddl(engine, column) -> str:
     """SQLite-compatible ``name TYPE [NOT NULL DEFAULT ...]`` for one column."""
     col_type = column.type.compile(engine.dialect)
     ddl = f"{column.name} {col_type}"
-    if column.nullable is False and column.server_default is not None:
-        ddl += f" NOT NULL DEFAULT {column.server_default.arg}"
+    if column.nullable is False:
+        default = _constant_default_sql(engine, column)
+        if default is not None:
+            ddl += f" NOT NULL DEFAULT {default}"
     return ddl
 
 
