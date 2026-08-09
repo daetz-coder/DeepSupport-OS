@@ -52,13 +52,20 @@ def hitl_resume_decisions(
     applied: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     """Build HITL resume decisions (respond/reject only — never approve)."""
-    n = max(len(pending), 1)
     if not approved:
-        msg = (
+        if not pending:
+            payload = {
+                "ok": False,
+                "error": "no_pending_writes",
+                "hitl": "reject_skipped",
+                "message": "用户拒绝了该操作，但当前无待执行写操作。请勿继续尝试写入；向用户确认并继续。",
+            }
+            return [{"type": "respond", "message": json.dumps(payload, ensure_ascii=False)}]
+        reject_msg = (
             "用户拒绝了该写操作。请勿再次调用同一写工具；"
             "改用其它方案，或向用户确认下一步。"
         )
-        return [{"type": "reject", "message": msg} for _ in range(n)]
+        return [{"type": "reject", "message": reject_msg} for _ in pending]
 
     if not pending:
         payload = {

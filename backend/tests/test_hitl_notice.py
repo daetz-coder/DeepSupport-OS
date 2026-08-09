@@ -51,6 +51,17 @@ def test_hitl_resume_reject_and_apply_failure_uses_respond():
     assert payload["hitl"] == "approved_but_apply_failed"
 
 
+def test_hitl_resume_reject_with_no_pending_is_respond_not_reject():
+    """Reject with zero pending must not fabricate a misleading decision."""
+    decisions = _hitl_resume_decisions(approved=False, pending=[], applied=[])
+    assert len(decisions) == 1
+    assert decisions[0]["type"] == "respond"
+    payload = json.loads(decisions[0]["message"])
+    assert payload["ok"] is False
+    assert payload["hitl"] == "reject_skipped"
+    assert payload["error"] == "no_pending_writes"
+
+
 def test_hitl_resume_partial_apply_reports_per_tool():
     pending = [
         {"name": "escalate_ticket", "args": {"ticket_id": "T1"}},
