@@ -184,7 +184,7 @@ def update_ticket(
 ) -> dict:
     """更新工单：状态 / 优先级 / 处理人 / 解决方案。
 
-    - status 仅允许：open / in_progress / pending / resolved（不可写 P1–P4）
+    - status 仅允许：open / in_progress / pending / resolved（P1–P4 属 priority，不写进 status）
     - priority 仅允许：P1 / P2 / P3 / P4（降级或调优优先级用此字段，不要塞进 status）
     - 不可直接设为 closed/escalated；关闭用 close_ticket，升级用 escalate_ticket（需审批）
     """
