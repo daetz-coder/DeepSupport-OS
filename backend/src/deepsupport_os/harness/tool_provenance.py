@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 # name -> {"source": "local"|"knowledge"|"remote", "server": str|None}
 _REGISTRY: dict[str, dict[str, Any]] = {}
+# Lock around every registry op: parallel agent builds (each tool list is tagged
+# at build time) otherwise race reads/writes of the shared module-level dict.
+_lock = threading.RLock()
 
 
 def clear_tool_provenance() -> None:
-    _REGISTRY.clear()
+    with _lock:
+        _REGISTRY.clear()
 
 
 def register_tool_provenance(
@@ -20,7 +25,8 @@ def register_tool_provenance(
 ) -> None:
     if not name:
         return
-    _REGISTRY[name] = {"source": source, "server": server}
+    with _lock:
+        _REGISTRY[name] = {"source": source, "server": server}
 
 
 def tag_tool(tool: Any, *, source: str, server: str | None = None) -> Any:
@@ -39,7 +45,8 @@ def tag_tool(tool: Any, *, source: str, server: str | None = None) -> Any:
 def lookup_tool_provenance(name: str | None) -> dict[str, Any]:
     if not name:
         return {"source": "unknown", "server": None}
-    hit = _REGISTRY.get(name)
+    with _lock:
+        hit = _REGISTRY.get(name)
     if hit:
         return dict(hit)
     # Heuristic fallbacks when registry not yet warmed
@@ -55,4 +62,5 @@ def lookup_tool_provenance(name: str | None) -> dict[str, Any]:
 
 
 def provenance_snapshot() -> dict[str, dict[str, Any]]:
-    return {k: dict(v) for k, v in _REGISTRY.items()}
+    with _lock:
+        return {k: dict(v) for k, v in _REGISTRY.items()}

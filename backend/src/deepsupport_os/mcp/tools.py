@@ -387,10 +387,13 @@ def all_agent_tools():
     """Combine in-process mock tools + knowledge + optional remote MCP tools."""
     from deepsupport_os.core.extensions import ext_bool
     from deepsupport_os.harness.capability_registry import filter_tools
-    from deepsupport_os.harness.tool_provenance import clear_tool_provenance, tag_tool
+    from deepsupport_os.harness.tool_provenance import tag_tool
     from deepsupport_os.rag.knowledge_tools import KNOWLEDGE_TOOLS
 
-    clear_tool_provenance()
+    # Do NOT call clear_tool_provenance() here: each build registers the same
+    # tool names and register_tool_provenance overwrites per name, so clearing
+    # the shared registry on every build just races concurrent builds of other
+    # threads and drops their tags.
     tools: list = []
     if ext_bool("mcp_local_tools"):
         for t in ALL_MOCK_TOOLS:
