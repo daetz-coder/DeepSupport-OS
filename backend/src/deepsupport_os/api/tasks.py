@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 import uuid
 from typing import Any, Iterator
 
@@ -32,28 +33,35 @@ logger = logging.getLogger(__name__)
 
 # One compiled agent per thread so system prompt workspace path stays correct.
 _agents: dict[str, Any] = {}
+_agents_lock = threading.Lock()
 _MAX_CACHED_AGENTS = 48
 
 
 def get_agent(thread_id: str | None = None):
-    """Per-thread agent: prompt embeds `/workspace/<thread_id>/` for that session."""
+    """Per-thread agent: prompt embeds `/workspace/<thread_id>/` for that session.
+
+    Locked so concurrent requests for the same thread cannot build two agents in
+    parallel and race the shared checkpointer / backend caches.
+    """
     tid = (thread_id or "").strip() or "default"
-    agent = _agents.get(tid)
-    if agent is not None:
+    with _agents_lock:
+        agent = _agents.get(tid)
+        if agent is not None:
+            return agent
+        if len(_agents) >= _MAX_CACHED_AGENTS:
+            # Drop an arbitrary oldest entry (dict preserves insertion order).
+            _agents.pop(next(iter(_agents)), None)
+        agent = build_support_agent(thread_id=tid, use_daytona=True)
+        _agents[tid] = agent
         return agent
-    if len(_agents) >= _MAX_CACHED_AGENTS:
-        # Drop an arbitrary oldest entry (dict preserves insertion order).
-        _agents.pop(next(iter(_agents)), None)
-    agent = build_support_agent(thread_id=tid, use_daytona=True)
-    _agents[tid] = agent
-    return agent
 
 
 def reset_agents() -> None:
     """Drop cached agents (e.g. after Skills/MCP config changes)."""
     from deepsupport_os.harness.daytona_backend import clear_thread_backends
 
-    _agents.clear()
+    with _agents_lock:
+        _agents.clear()
     clear_thread_backends()
 
 
@@ -273,7 +281,8 @@ def delete_thread(thread_id: str):
     if not tid:
         raise HTTPException(status_code=400, detail="thread_id required")
     deleted = task_store.delete_thread(tid)
-    _agents.pop(tid, None)
+    with _agents_lock:
+        _agents.pop(tid, None)
     checkpoint_purged = False
     try:
         import shutil
@@ -666,7 +675,8 @@ def _prepare_resume(
     """API adapter around harness.hitl_runtime.prepare_resume."""
 
     def _drop(tid: str) -> None:
-        _agents.pop(tid, None)
+        with _agents_lock:
+            _agents.pop(tid, None)
 
     return prepare_resume(
         body,

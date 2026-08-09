@@ -11,6 +11,31 @@ def test_get_agent_is_per_thread():
     reset_agents()
 
 
+def test_get_agent_concurrent_same_thread_single_instance():
+    """Concurrent requests for one thread must not build two agents."""
+
+    import threading
+
+    reset_agents()
+    seen: list = []
+    seen_lock = threading.Lock()
+
+    def worker():
+        a = get_agent("thread-conc")
+        with seen_lock:
+            seen.append(a)
+
+    threads = [threading.Thread(target=worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(seen) == 8
+    assert all(a is seen[0] for a in seen)
+    reset_agents()
+
+
 def test_purge_thread_checkpoint_calls_delete():
     from deepsupport_os.harness import agent as ag
 
