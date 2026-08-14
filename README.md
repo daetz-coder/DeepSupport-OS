@@ -150,7 +150,8 @@ npm run dev
 ```bash
 # 需已配置 .env；RAGLab 仍建议宿主机单独运行（容器经 host.docker.internal:8001 访问）
 docker compose up --build
-# API http://localhost:8000  · 前端 http://localhost:5173（nginx → api）
+# API http://localhost:18000（容器内仍为 :8000）· 前端 http://localhost:5173（nginx → api）
+# 面试公网：powershell -ExecutionPolicy Bypass -File scripts\demo-public.ps1
 # 停止：docker compose down
 ```
 

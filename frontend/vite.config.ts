@@ -15,9 +15,20 @@ export default defineConfig({
     },
   },
   server: {
+    // Public demo: npm run with VITE_API_BASE= so browser hits same origin; proxy to API.
+    host: true,
+    port: 5173,
     proxy: {
-      '/api': 'http://127.0.0.1:8000',
-      '/health': 'http://127.0.0.1:8000',
+      '/api': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+        timeout: 3_600_000,
+        proxyTimeout: 3_600_000,
+      },
+      '/health': {
+        target: 'http://127.0.0.1:8000',
+        changeOrigin: true,
+      },
     },
   },
 })

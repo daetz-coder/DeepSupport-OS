@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, create_engine
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, create_engine, event
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship, sessionmaker
 
 from deepsupport_os.core.config import get_settings
@@ -243,8 +243,20 @@ def get_engine():
             path = settings.resolve(db_url.replace("sqlite:///", "", 1))
             path.parent.mkdir(parents=True, exist_ok=True)
             db_url = f"sqlite:///{path.as_posix()}"
-        _engine = create_engine(db_url, future=True)
+        connect_args = {"timeout": 30} if db_url.startswith("sqlite") else {}
+        _engine = create_engine(db_url, future=True, connect_args=connect_args)
         _SessionLocal = sessionmaker(bind=_engine, autoflush=False, autocommit=False)
+
+        if db_url.startswith("sqlite"):
+
+            @event.listens_for(_engine, "connect")
+            def _sqlite_pragma(dbapi_connection, connection_record):  # noqa: ARG001
+                # WAL + busy_timeout reduce lock stalls on Docker bind-mount volumes
+                # (audit writes in knowledge tools run synchronously).
+                cursor = dbapi_connection.cursor()
+                cursor.execute("PRAGMA journal_mode=WAL")
+                cursor.execute("PRAGMA busy_timeout=30000")
+                cursor.close()
     return _engine
 
 

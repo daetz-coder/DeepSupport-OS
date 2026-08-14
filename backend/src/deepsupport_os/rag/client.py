@@ -18,7 +18,7 @@ class RAGLabClient:
         self,
         base_url: str | None = None,
         kb: str | None = None,
-        timeout: float = 120.0,
+        timeout: float = 30.0,
     ):
         settings = get_settings()
         self.base_url = (base_url or settings.raglab_base_url).rstrip("/")

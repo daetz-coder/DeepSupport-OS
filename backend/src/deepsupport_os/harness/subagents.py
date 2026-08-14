@@ -97,7 +97,8 @@ def build_mvp_subagents() -> list[dict]:
                 "输入：用户症状 + 可选邮箱/产品。\n"
                 "只使用检索类工具（search_docs / get_document / search_cases）。\n"
                 "禁止：改账号、关单、重置密码、写无关文件。\n"
-                "成功时要点须含来源标题或 case_id；建议主 Agent 写入 retrieved_docs.md。"
+                "成功时要点须含来源标题或 case_id；建议主 Agent 写入 retrieved_docs.md。\n"
+                "硬性停止条件：每个检索工具最多调用一次、合计不超过 3 次；检索完成后立即输出最终结构化答案，禁止重复调用检索工具。"
                 + _CONTRACT_FOOTER
             ),
             "tools": KNOWLEDGE_TOOLS,
@@ -122,7 +123,8 @@ def build_mvp_subagents() -> list[dict]:
                 "查询员工/账号/设备/许可证，输出结构化诊断"
                 "（身份、账号状态、MFA、许可证、设备 OS/Office）。\n"
                 "禁止：重置密码、改许可证、关单、升级工单；本子代理无写工具。\n"
-                "建议主 Agent 写入 diagnosis.md。"
+                "建议主 Agent 写入 diagnosis.md。\n"
+                "硬性停止条件：每类查询工具最多调用一次、合计不超过 3 次；查询完毕后立即输出最终结构化诊断，禁止重复查询。"
                 + _CONTRACT_FOOTER
             ),
             "tools": EMPLOYEE_TOOLS + _ACCOUNT_READ_TOOLS + ASSET_TOOLS,
@@ -141,7 +143,8 @@ def build_mvp_subagents() -> list[dict]:
                 "根据上下文创建或更新工单；可用 update_ticket 调整 priority（P1–P4）做升降优先级。\n"
                 "禁止：调用 escalate_ticket / close_ticket / 密码重置 / 许可证变更"
                 "（终态与高风险写由主 Agent + HITL 执行）。\n"
-                "建议主 Agent 写入 ticket_draft.md（含 ticket_id）。"
+                "建议主 Agent 写入 ticket_draft.md（含 ticket_id）。\n"
+                "硬性停止条件：每个工单工具最多调用一次、合计不超过 3 次；操作完成后立即输出最终结构化结果，禁止重复操作。"
                 + _CONTRACT_FOOTER
             ),
             "tools": _TICKET_DRAFT_TOOLS,

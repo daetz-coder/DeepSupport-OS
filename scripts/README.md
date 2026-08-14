@@ -6,11 +6,20 @@
 
 | 文件 | 作用 |
 |------|------|
+| `demo-public.ps1` | 面试公网演示：`docker compose`（或 `-LocalDev`）+ Cloudflare Tunnel；只暴露 UI `:5173`（同源反代 API） |
 | `run_outlook_demo.py` | 无 HTTP：Outlook 登录失败场景直调 harness |
 | `run_hitl_demo.py` | HITL 批准 + 密码重置落库 + 开单演示 |
 | `smoke_checkpoint.py` | Checkpointer 最小冒烟（新建 thread `get_state`） |
 | `test_remote_mcp.py` | 远程 MCP（Employee HTTP）连通性冒烟 |
 | `seed_mock_data.py` | CLI 入口：调用 `db.seed.main` 写入 Mock 企业数据 |
+
+```powershell
+# 仓库根目录：起服务并打印 https://*.trycloudflare.com
+powershell -ExecutionPolicy Bypass -File scripts\demo-public.ps1
+# Docker 不可用时加 -LocalDev
+```
+
+Compose 宿主机 API 映射为 **18000→8000**（Windows 上 8000 常落在 Hyper-V 排除端口段）；对外演示只隧道 **5173**。
 
 ## 评测与基线
 
