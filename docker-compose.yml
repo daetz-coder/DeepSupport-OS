@@ -1,9 +1,82 @@
+# DeepSupport OS + RAGLab (sibling ../RAGLab) — all-in-Docker stack.
+# UI :5173 (nginx → api) · API host :18000 · RAGLab host :18001 · Qdrant :6333
+# Internal: api → http://raglab:8000  (same compose network)
+
 services:
+  raglab-qdrant:
+    image: qdrant/qdrant:v1.13.2
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      # Reuse the sibling RAGLab project's qdrant volume (raglab_qdrant_data) so the
+      # already-ingested vectors (kb=deepsupport / huawei) are available without re-ingest.
+      # Fresh machines: run `cd ../RAGLab && docker compose up -d qdrant` once (creates the
+      # volume), or re-ingest via scripts/ingest_to_raglab.py.
+      - raglab_qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  raglab:
+    build:
+      # Slim context — avoid GB-scale data/models/*.whl from RAGLab root
+      context: ../RAGLab/backend
+      dockerfile: Dockerfile.context
+    ports:
+      # Host 8000/8001 often in Windows Hyper-V excluded ranges
+      - "18001:8000"
+    env_file:
+      - ../RAGLab/.env
+    environment:
+      QDRANT_URL: http://raglab-qdrant:6333
+      QDRANT_PATH: /data/qdrant
+      DATABASE_URL: sqlite:////data/raglab.db
+      UPLOAD_DIR: /data/uploads
+      HUAWEI_KB_PATH: /data/huawei_kb
+      HUAWEI_QA_PATH: /data/huawei_kb/qa.jsonl
+      CORPUS_QA_PATH: /data/huawei_kb/qa.jsonl
+      EMBEDDING_MODEL_PATH: /models/bge-small-zh-v1.5
+      RERANKER_MODEL_PATH: /models/bge-reranker-v2-m3
+      EMBEDDING_DEVICE: ${EMBEDDING_DEVICE:-cpu}
+      RERANKER_DEVICE: ${RERANKER_DEVICE:-cpu}
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173,http://localhost:18080,http://127.0.0.1:18080
+      HF_HOME: /cache/huggingface
+    volumes:
+      - ../RAGLab/data:/data
+      # NOTE: model dirs must be REAL directories — NTFS junctions (e.g. pointing into
+      # %USERPROFILE%\.cache\huggingface) resolve to host-only paths inside the container
+      # and SentenceTransformer fails with "Path ... not found".
+      - ../RAGLab/models:/models:ro
+      - raglab_hf_cache:/cache/huggingface
+    depends_on:
+      - raglab-qdrant
+    # Alias "backend" so RAGLab frontend nginx.conf (proxy_pass http://backend:8000) works
+    networks:
+      default:
+        aliases:
+          - backend
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 24
+      start_period: 240s
+
+  raglab-frontend:
+    build:
+      context: ../RAGLab/frontend
+      dockerfile: Dockerfile.context
+    ports:
+      - "18080:80"
+    depends_on:
+      raglab:
+        condition: service_healthy
+    restart: unless-stopped
+
   api:
     build:
       context: ./backend
     ports:
-      # Host 8000 is often in Windows Hyper-V excluded ranges; keep container :8000.
       - "18000:8000"
     env_file:
       - .env
@@ -18,12 +91,14 @@ services:
       - WORKSPACE_DIR=workspace
       - MCP_SERVERS_CONFIG=config/mcp_servers.json
       - API_HOST=0.0.0.0
-      # Reach host-side RAGLab / Ollama from the container (Docker Desktop)
-      # Host RAGLab on 18001 (Windows often excludes :8001 via Hyper-V)
-      - RAGLAB_BASE_URL=http://host.docker.internal:18001
+      # Same-compose DNS — do not use host.docker.internal for RAGLab
+      - RAGLAB_BASE_URL=http://raglab:8000
       - OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      raglab:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
       interval: 10s
@@ -39,3 +114,9 @@ services:
     depends_on:
       api:
         condition: service_healthy
+
+volumes:
+  raglab_qdrant_data:
+    external: true
+    name: raglab_qdrant_data
+  raglab_hf_cache:

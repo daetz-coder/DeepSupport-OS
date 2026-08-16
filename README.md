@@ -97,77 +97,58 @@ Deep Agents Harness
 
 ### 前置
 
-- Python 3.12+、[uv](https://github.com/astral-sh/uv)、Node.js 20+
-- 本地已有 [RAGLab](../RAGLab) 与 BGE 模型（默认路径 `D:\2026AppDev\RAGLab\models`）
+- Docker Desktop / Compose；sibling [RAGLab](../RAGLab) 与 BGE 模型（默认 `D:\2026AppDev\RAGLab\models`；**模型目录必须是真实文件，不能是 NTFS junction**，否则 Docker 容器内不可见）
 - DeepSeek API Key（或本地 Ollama）；可选 `DAYTONA_API_KEY`（Sandbox）
+- 开发热重载可选：Python 3.12+、[uv](https://github.com/astral-sh/uv)、Node.js 20+
 
 ### 1. 配置
 
 ```bash
 cp .env.example .env
 cp config/mcp_servers.example.json config/mcp_servers.json   # 若尚无
-# 编辑 .env：DEEPSEEK_API_KEY、可选 DAYTONA_API_KEY、RAGLAB_BASE_URL=http://127.0.0.1:8001、RAGLAB_KB=deepsupport
-# 可选 ADMIN_TOKEN（非空时管理接口需 Header X-Admin-Token；前端可设 VITE_ADMIN_TOKEN）
+# 编辑 .env：DEEPSEEK_API_KEY、可选 DAYTONA_API_KEY；Docker 内 RAGLab 由 compose 设为 http://raglab:8000
+# 同步准备 ../RAGLab/.env（见其 .env.example）与 models/
 ```
 
-### 2. 本地三进程启动（推荐）
+### 2. Docker Compose（推荐 · 全栈）
 
-开 **三个终端**（均用 `uv`，无需 `activate`）：
-
-```bash
-# 终端 A — RAGLab（外部知识；端口 8001，避免与本仓库 8000 冲突）
-cd ../RAGLab
-docker compose up -d qdrant          # 首次 / 需要时
-cd backend
-uv run --python .venv uvicorn app.main:app --reload --host 0.0.0.0 --port 8001
-
-# 终端 B — DeepSupport 后端
-cd backend
-uv sync
-uv run deepsupport-os
-# 或: uv run uvicorn deepsupport_os.main:app --reload --port 8000
-
-# 终端 C — DeepSupport 前端
-cd frontend
-npm install                          # 首次
-npm run dev
-```
-
-
-| 服务            | 地址                                                     |
-| --------------- | -------------------------------------------------------- |
-| DeepSupport UI  | [http://localhost:5173](http://localhost:5173)           |
-| DeepSupport API | [http://localhost:8000/docs](http://localhost:8000/docs) |
-| RAGLab API      | [http://localhost:8001/docs](http://localhost:8001/docs) |
-
-
-打开 UI 后顶部会显示 **后端 / LLM**（`/health` 秒回）以及 **RAGLab / Sandbox**（`/api/health/deps`）；可点「检查依赖」刷新。未启 RAGLab 时 Knowledge 回退本地 Markdown；Sandbox 未配置时本地 Skills/工作区仍可用。
-
-默认 API 绑定 `127.0.0.1`（不暴露局域网）。Docker 通过 `API_HOST=0.0.0.0` 对外映射。
-
-### 3. Docker Compose（可选）
+需 sibling 仓库 [`../RAGLab`](../RAGLab)（含 `models/` 与 `.env`）。本仓库 compose 一并拉起 **Qdrant + RAGLab + DeepSupport API/UI**。
 
 ```bash
-# 需已配置 .env；RAGLab 仍建议宿主机单独运行（容器经 host.docker.internal:8001 访问）
-docker compose up --build
-# API http://localhost:18000（容器内仍为 :8000）· 前端 http://localhost:5173（nginx → api）
+# 两边都要有 .env（本仓库至少 DEEPSEEK_API_KEY；RAGLab 同其 .env.example）
+docker compose up --build -d
 # 面试公网：powershell -ExecutionPolicy Bypass -File scripts\demo-public.ps1
+#   （默认 Cloudflare quick tunnel 自动打印公网 URL；-TunnelMode localtunnel/none 可选）
 # 停止：docker compose down
 ```
 
-**实测记录（2026-08-05 · Windows 10 + Docker Desktop 29.5 / Compose v5.1）**
+| 服务 | 地址 |
+| --- | --- |
+| DeepSupport UI | [http://localhost:5173](http://localhost:5173) |
+| DeepSupport API | [http://localhost:18000/docs](http://localhost:18000/docs) |
+| RAGLab API | [http://localhost:18001/docs](http://localhost:18001/docs) |
+| RAGLab UI | [http://localhost:18080](http://localhost:18080) |
+| 依赖探测 | [http://localhost:18000/api/health/deps](http://localhost:18000/api/health/deps)（`raglab.ok`） |
 
+容器内 `api` 经 **`http://raglab:8000`** 访问 RAGLab（同源网络，不再走 `host.docker.internal`）。RAGLab 首次加载 BGE 模型可能需数分钟。
 
-| 项                             | 结果                                                                                                              |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `docker compose up --build -d` | 成功；首次构建约 3–4 分钟                                                                                         |
-| `api`                          | `healthy`；`GET /health` → `{"status":"ok"}`                                                                      |
-| `frontend`                     | 启动正常；`GET /` → 200；经 nginx 代理 `GET /health`、`GET /api/meta/skills` → 200                                |
-| 卷挂载                         | 容器内 `root_dir=/app`；`data` / `skills` / `config` / `memory` 可读                                              |
-| RAGLab                         | compose 将 `RAGLAB_BASE_URL` 指到 `host.docker.internal:8001`（宿主机未启 RAGLab 时 Knowledge 回退本地 Markdown） |
+打开 UI 后顶部会显示 **后端 / LLM**（`/health`）以及 **RAGLab / Sandbox**（`/api/health/deps`）。未就绪时 Knowledge 仍可回退本地 Markdown。
 
+说明：远程 MCP（`127.0.0.1:8100`）与 Ollama 仍需宿主机；远程开关以 `config/extensions.json`（或 UI「MCP」）为准。
 
-说明：远程 MCP（`127.0.0.1:8100`）与 Ollama 同理需跑在宿主机；远程开关以 `config/extensions.json`（或 UI「MCP」）为准，不是仅改 `.env` 的 `MCP_REMOTE_ENABLED`。
+### 3. 本地三进程（可选 · 开发热重载）
+
+```bash
+# 终端 A — RAGLab（端口 8001 / 18001，避免与本仓库冲突）
+cd ../RAGLab && docker compose up -d qdrant
+cd backend && uv run --python .venv uvicorn app.main:app --reload --host 0.0.0.0 --port 18001
+
+# 终端 B — DeepSupport 后端
+cd backend && uv sync && uv run deepsupport-os
+
+# 终端 C — DeepSupport 前端
+cd frontend && npm install && npm run dev
+```
 
 ### Skills（渐进披露 + 持续接入）
 

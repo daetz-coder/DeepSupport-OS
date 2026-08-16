@@ -6,7 +6,7 @@
 
 | 文件 | 作用 |
 |------|------|
-| `demo-public.ps1` | 面试公网演示：`docker compose`（或 `-LocalDev`）+ Cloudflare Tunnel；只暴露 UI `:5173`（同源反代 API） |
+| `demo-public.ps1` | 面试公网演示：全 Docker（DeepSupport + RAGLab）+ tunnel；只暴露 UI `:5173`（同源反代 API）。`-TunnelMode cloudflare\|localtunnel\|none`（默认 `cloudflare`） |
 | `run_outlook_demo.py` | 无 HTTP：Outlook 登录失败场景直调 harness |
 | `run_hitl_demo.py` | HITL 批准 + 密码重置落库 + 开单演示 |
 | `smoke_checkpoint.py` | Checkpointer 最小冒烟（新建 thread `get_state`） |
@@ -14,12 +14,21 @@
 | `seed_mock_data.py` | CLI 入口：调用 `db.seed.main` 写入 Mock 企业数据 |
 
 ```powershell
-# 仓库根目录：起服务并打印 https://*.trycloudflare.com
+# 仓库根目录：起全栈并穿透（需 ../RAGLab 与两边 .env）
 powershell -ExecutionPolicy Bypass -File scripts\demo-public.ps1
-# Docker 不可用时加 -LocalDev
+# 只起栈、不穿透：
+powershell -ExecutionPolicy Bypass -File scripts\demo-public.ps1 -TunnelMode none
 ```
 
-Compose 宿主机 API 映射为 **18000→8000**（Windows 上 8000 常落在 Hyper-V 排除端口段）；对外演示只隧道 **5173**。
+隧道模式（`-TunnelMode`）：
+
+| 模式 | 公网地址 | 说明 |
+| --- | --- | --- |
+| `cloudflare`（默认） | `https://<随机>.trycloudflare.com` | Cloudflare quick tunnel：无需账号、无拦截页，脚本自动解析并打印公网 URL |
+| `localtunnel` | `https://deepsupport-os.loca.lt` | 品牌域名；访客可能看到 loca.lt 密码页（需填本机公网 IP），子域名可能被占用 |
+| `none`（旧 `-SkipTunnel`） | — | 只起栈，自行对 5173 穿透 |
+
+Compose 宿主机映射：**UI 5173**、**API 18000→8000**、**RAGLab 18001→8000**、**RAGLab UI 18080**；容器内 `api` 经 `http://raglab:8000` 访问 RAGLab。对外演示只隧道 **5173**（nginx 同源反代 `/api` 与 `/health`，SSE 已关缓冲）。
 
 ## 评测与基线
 
