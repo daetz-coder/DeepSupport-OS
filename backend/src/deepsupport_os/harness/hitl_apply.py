@@ -14,6 +14,7 @@ _ticket = TicketRepo()
 WRITE_TOOLS = {
     "request_password_reset",
     "request_license_change",
+    "create_ticket",
     "close_ticket",
     "escalate_ticket",
 }
@@ -21,6 +22,7 @@ WRITE_TOOLS = {
 WRITE_LABELS = {
     "request_password_reset": "密码重置",
     "request_license_change": "许可证变更",
+    "create_ticket": "创建工单",
     "close_ticket": "关闭工单",
     "escalate_ticket": "升级工单",
 }
@@ -28,6 +30,7 @@ WRITE_LABELS = {
 _HIGHLIGHT_KEYS = (
     ("email", "邮箱"),
     ("ticket_id", "工单 ID"),
+    ("title", "标题"),
     ("new_license_type", "新许可证"),
     ("license_type", "许可证"),
     ("resolution", "处理说明"),
@@ -160,6 +163,28 @@ def apply_approved_writes(
             email = args.get("email") or ""
             new_type = args.get("new_license_type") or args.get("license_type") or ""
             result = _account.apply_license_change(email, new_type)
+        elif name == "create_ticket":
+            created = _ticket.create_ticket(
+                title=str(args.get("title") or "Support ticket"),
+                description=str(args.get("description") or ""),
+                category=str(args.get("category") or "General"),
+                priority=str(args.get("priority") or "P3"),
+                employee_id=args.get("employee_id") or None,
+                idempotency_key=args.get("idempotency_key") or None,
+            )
+            if isinstance(created, dict) and created.get("ticket_id"):
+                result = {
+                    "ok": True,
+                    "ticket": created,
+                    "action": "create_ticket",
+                    "ticket_id": created.get("ticket_id"),
+                }
+            else:
+                result = {
+                    "ok": False,
+                    "error": "create_ticket_failed",
+                    "detail": created,
+                }
         elif name == "close_ticket":
             ticket_id = args.get("ticket_id") or ""
             resolution = args.get("resolution") or "Closed after approval"

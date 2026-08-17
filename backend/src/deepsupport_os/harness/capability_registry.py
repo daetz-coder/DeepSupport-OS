@@ -32,7 +32,7 @@ TOOL_CATALOG: list[dict[str, Any]] = [
         "risk": "hitl_write",
         "affinity_skills": ["account-access"],
     },
-    {"name": "create_ticket", "group": "ticket", "risk": "write", "affinity_skills": ["ticket-management"]},
+    {"name": "create_ticket", "group": "ticket", "risk": "hitl_write", "affinity_skills": ["ticket-management"]},
     {"name": "get_ticket", "group": "ticket", "risk": "read", "affinity_skills": ["ticket-management"]},
     {"name": "update_ticket", "group": "ticket", "risk": "write", "affinity_skills": ["ticket-management"]},
     {
@@ -80,8 +80,8 @@ SUBAGENT_CATALOG: list[dict[str, Any]] = [
     },
     {
         "name": "ticket-operations",
-        "description": "创建/更新工单（非终态）",
-        "tool_names": ["create_ticket", "get_ticket", "update_ticket"],
+        "description": "查询/更新工单（非终态）；开单由主 Agent + HITL",
+        "tool_names": ["get_ticket", "update_ticket"],
         "default_enabled": True,
     },
 ]

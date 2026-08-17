@@ -29,7 +29,13 @@ from deepsupport_os.harness.workspace import ensure_thread_workspace
 from deepsupport_os.mcp.tools import main_agent_tools
 
 WRITE_TOOL_NAMES = frozenset(
-    {"request_password_reset", "request_license_change", "close_ticket", "escalate_ticket"}
+    {
+        "request_password_reset",
+        "request_license_change",
+        "create_ticket",
+        "close_ticket",
+        "escalate_ticket",
+    }
 )
 
 # Native tool-layer filesystem permissions (deepagents). Default mode is allow,
@@ -93,6 +99,18 @@ def _needs_license_change(req) -> bool:
         return True
 
 
+def _needs_create_ticket(req) -> bool:
+    try:
+        from deepsupport_os.db.repositories import lookup_applied_action, make_idempotency_key
+
+        args = _tool_call_args(req)
+        if lookup_applied_action(make_idempotency_key("create_ticket", args)):
+            return False
+        return True
+    except Exception:  # noqa: BLE001
+        return True
+
+
 def _needs_close(req) -> bool:
     try:
         from deepsupport_os.db.repositories import lookup_applied_action, make_idempotency_key
@@ -135,6 +153,9 @@ def build_interrupt_on() -> dict[str, bool | InterruptOnConfig]:
         ),
         "request_license_change": InterruptOnConfig(
             allowed_decisions=list(_HITL_DECISIONS), when=_needs_license_change
+        ),
+        "create_ticket": InterruptOnConfig(
+            allowed_decisions=list(_HITL_DECISIONS), when=_needs_create_ticket
         ),
         "close_ticket": InterruptOnConfig(
             allowed_decisions=list(_HITL_DECISIONS), when=_needs_close

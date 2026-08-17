@@ -140,26 +140,31 @@ def create_ticket(
     employee_id: str = "",
     idempotency_key: str = "",
 ) -> dict:
-    """创建 IT 支持工单。传入 idempotency_key 可避免重复开单。"""
-    result = _ticket.create_ticket(
-        title=title,
-        description=description,
-        category=category,
-        priority=priority,
-        employee_id=employee_id or None,
-        idempotency_key=idempotency_key or None,
-    )
-    return _audit(
-        "create_ticket",
-        {
-            "title": title,
-            "category": category,
-            "priority": priority,
-            "employee_id": employee_id,
-            "idempotency_key": idempotency_key,
-        },
-        result,
-    )
+    """创建 IT 支持工单（需人工审批；批准后才会真正写入）。"""
+    from deepsupport_os.db.repositories import lookup_applied_action, make_idempotency_key
+
+    args = {
+        "title": title,
+        "description": description,
+        "category": category,
+        "priority": priority,
+        "employee_id": employee_id,
+        "idempotency_key": idempotency_key,
+    }
+    prior = lookup_applied_action(make_idempotency_key("create_ticket", args))
+    if prior and isinstance(prior.get("result"), dict):
+        result = dict(prior["result"])
+        result.setdefault("ok", True)
+        result.setdefault("already_applied", True)
+        return _audit("create_ticket", args, result)
+
+    result = {
+        "ok": True,
+        "pending_approval": True,
+        "action": "create_ticket",
+        **args,
+    }
+    return _audit("create_ticket", args, result)
 
 
 @tool
@@ -391,7 +396,8 @@ def main_agent_tools():
     - Read-only knowledge retrieval tools
     - Policy checks (check_action_permission)
     - User interaction (ask_user, notify_user)
-    - HITL write operations (request_password_reset, request_license_change, close_ticket, escalate_ticket)
+    - HITL write operations (request_password_reset, request_license_change,
+      create_ticket, close_ticket, escalate_ticket)
     
     Note: Complex multi-step operations can still be delegated to subagents for parallel processing.
     """
@@ -401,10 +407,9 @@ def main_agent_tools():
     from deepsupport_os.rag.knowledge_tools import KNOWLEDGE_TOOLS
 
     # Main agent should have access to all read-only tools for diagnosis
-    # Only filter out tools that create/modify tickets (except HITL writes)
+    # update_ticket stays on ticket-operations; create_ticket is HITL on main.
     agent_only_tools = {
-        # Ticket creation/modification (non-terminal) - delegate to ticket-operations
-        "create_ticket", "update_ticket",
+        "update_ticket",
     }
     
     tools: list = []
