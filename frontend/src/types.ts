@@ -30,6 +30,9 @@ export type InterruptInfo = {
   next?: string[]
   pending_writes?: TraceStep[]
   pending_preview?: HitlPreview[]
+  /** Raw LangGraph action_requests (may include already-applied); used to clear stale HITL. */
+  action_requests?: TraceStep[]
+  stale?: boolean
   tasks?: string[]
 }
 

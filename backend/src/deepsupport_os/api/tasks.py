@@ -16,8 +16,6 @@ from deepsupport_os.db.repositories import list_audit
 from deepsupport_os.harness.agent import agent_run_config, build_support_agent
 from deepsupport_os.harness.artifacts import list_artifacts, read_artifact, write_manifest
 from deepsupport_os.harness.hitl_runtime import (
-    hitl_notice_text as _hitl_notice_text,
-    hitl_resume_decisions as _hitl_resume_decisions,
     inject_hitl_notice as _inject_hitl_notice,
     prepare_resume,
 )

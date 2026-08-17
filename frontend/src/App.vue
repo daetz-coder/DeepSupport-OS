@@ -103,8 +103,30 @@ const {
 
 const hasInterrupt = computed(() => Boolean(interrupt.value))
 const isAskInterrupt = computed(() => interrupt.value?.type === 'ask')
+
+const pendingPreview = computed<HitlPreview[]>(() => {
+  if (isAskInterrupt.value) return []
+  const fromInterrupt = interrupt.value?.pending_preview
+  if (fromInterrupt?.length) return fromInterrupt
+  const writes = interrupt.value?.pending_writes || []
+  return writes
+    .filter((w) => w.name)
+    .map((w) => ({
+      name: w.name as string,
+      label: w.name as string,
+      highlights: Object.entries((w.args as Record<string, unknown>) || {})
+        .filter(([, v]) => v !== null && v !== undefined && v !== '')
+        .map(([k, v]) => ({ key: k, value: String(v) })),
+      args: (w.args as Record<string, unknown>) || {},
+    }))
+})
+
+/** Only treat as HITL when there are real approval cards (empty = stale graph interrupt). */
 const isHitlInterrupt = computed(
-  () => hasInterrupt.value && interrupt.value?.type !== 'ask',
+  () =>
+    hasInterrupt.value &&
+    interrupt.value?.type !== 'ask' &&
+    pendingPreview.value.length > 0,
 )
 const chatBubbles = computed(() =>
   buildChatBubbles(messages.value, interrupt.value),
@@ -133,22 +155,6 @@ async function scrollChatToBottom() {
 const submitLabel = computed(() =>
   isAskInterrupt.value ? '发送回复' : '发送 / 继续',
 )
-const pendingPreview = computed<HitlPreview[]>(() => {
-  if (isAskInterrupt.value) return []
-  const fromInterrupt = interrupt.value?.pending_preview
-  if (fromInterrupt?.length) return fromInterrupt
-  const writes = interrupt.value?.pending_writes || []
-  return writes
-    .filter((w) => w.name)
-    .map((w) => ({
-      name: w.name as string,
-      label: w.name as string,
-      highlights: Object.entries((w.args as Record<string, unknown>) || {})
-        .filter(([, v]) => v !== null && v !== undefined && v !== '')
-        .map(([k, v]) => ({ key: k, value: String(v) })),
-      args: (w.args as Record<string, unknown>) || {},
-    }))
-})
 
 const stageBuckets = computed<StageBucket[]>(() => {
   if (displayOverview.value?.stages?.length) return displayOverview.value.stages
@@ -511,6 +517,7 @@ function handleSseEvent(event: string, data: string) {
     status.value = 'interrupted'
     viewMode.value = 'chat'
     void scrollChatToBottom()
+    void clearStaleHitlIfNeeded()
     return
   }
 
@@ -518,6 +525,7 @@ function handleSseEvent(event: string, data: string) {
     streamingText.value = ''
     applyRecord(payload)
     void scrollChatToBottom()
+    void clearStaleHitlIfNeeded()
     return
   }
 
@@ -771,17 +779,8 @@ async function resume(approved: boolean) {
   lastError.value = null
   viewMode.value = 'chat'
   const labels = pendingPreview.value.map((p) => p.label || p.name).filter(Boolean).join('、')
-  // Show the decision immediately; the backend also persists it as a SystemMessage in the
-  // checkpoint transcript (survives refresh), and the final SSE `done` replaces this local copy.
-  messages.value = [
-    ...messages.value,
-    {
-      role: 'system',
-      content: approved
-        ? `已批准写操作${labels ? `：${labels}` : ''}`
-        : `已拒绝写操作${labels ? `：${labels}` : ''}`,
-    },
-  ]
+  // Do not inject a local system bubble here — backend persists one SystemMessage;
+  // optimistic + checkpoint caused duplicate「已批准写操作」rows.
   try {
     if (useStream.value) {
       liveEvents.value = []
@@ -824,7 +823,9 @@ async function resume(approved: boolean) {
       interrupt.value = (data.interrupt as InterruptInfo) || null
     }
     viewMode.value = 'chat'
-    ElMessage.success(approved ? '已批准并落库' : '已拒绝')
+    if (labels && !clearingStaleHitl) {
+      ElMessage.success(approved ? '已批准并落库' : '已拒绝')
+    }
     await Promise.all([refreshThreads(), refreshAudit(), refreshArtifacts()])
   } catch (e) {
     lastError.value = e instanceof Error ? e.message : String(e)
@@ -832,6 +833,23 @@ async function resume(approved: boolean) {
     endLiveOverview()
   } finally {
     loading.value = false
+  }
+  await clearStaleHitlIfNeeded()
+}
+
+/** Graph still interrupted but no UI cards → auto-approve to clear action_requests. */
+let clearingStaleHitl = false
+async function clearStaleHitlIfNeeded() {
+  const info = interrupt.value
+  if (!info || info.type === 'ask' || clearingStaleHitl || loading.value) return
+  const hasCards = (info.pending_preview?.length || 0) > 0 || (info.pending_writes?.length || 0) > 0
+  const hasRaw = (info.action_requests?.length || 0) > 0 || Boolean(info.stale)
+  if (hasCards || !hasRaw) return
+  clearingStaleHitl = true
+  try {
+    await resume(true)
+  } finally {
+    clearingStaleHitl = false
   }
 }
 

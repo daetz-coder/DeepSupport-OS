@@ -216,7 +216,11 @@ def _current_turn_messages(messages: list[Any]) -> list[Any]:
 
 
 def extract_interrupt_info(agent: Any, config: dict) -> dict[str, Any] | None:
-    from deepsupport_os.harness.hitl_apply import collect_pending_writes, preview_pending_writes
+    from deepsupport_os.harness.hitl_apply import (
+        actionable_pending_writes,
+        normalize_pending_writes,
+        preview_pending_writes,
+    )
 
     try:
         state = agent.get_state(config)
@@ -267,27 +271,29 @@ def extract_interrupt_info(agent: Any, config: dict) -> dict[str, Any] | None:
             "next": nxt,
             "pending_writes": [],
             "pending_preview": [],
+            "action_requests": [],
             "tasks": interrupts,
         }
 
     if hitl_actions:
-        # Keep ALL pending writes: a former 3-item cap silently dropped the 4th+
-        # write even after human approval, so `apply_approved_writes` never
-        # persisted it. `collect_pending_writes` still dedupes by tool+args and
-        # filters out non-write actions, so length is safe to grow unbounded.
-        pending = collect_pending_writes(None, pending=hitl_actions)
+        # Raw list must stay aligned with LangGraph action_requests for resume.
+        raw = normalize_pending_writes(pending=hitl_actions)
     else:
         # Fallback (older checkpoints / middleware-style): scan only the current
         # turn so previously-approved writes do not reappear.
         values = getattr(state, "values", None) or {}
         msgs = _current_turn_messages(values.get("messages") or [])
         trace = build_trace(msgs, interrupt={"next": nxt})
-        pending = collect_pending_writes(msgs, pending=trace.get("pending_writes"))
+        raw = normalize_pending_writes(msgs, pending=trace.get("pending_writes"))
 
+    # UI / apply list: drop already-applied and incoherent create+escalate.
+    pending = actionable_pending_writes(raw)
     return {
         "type": "hitl",
         "next": nxt,
+        "action_requests": raw,
         "pending_writes": pending,
         "pending_preview": preview_pending_writes(pending),
+        "stale": bool(raw) and not pending,
         "tasks": interrupts,
     }

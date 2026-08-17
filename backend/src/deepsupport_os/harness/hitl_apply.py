@@ -199,8 +199,10 @@ def preview_pending_writes(writes: list[dict[str, Any]] | None) -> list[dict[str
     return out
 
 
-def collect_pending_writes(messages: list[Any] | None = None, pending: list[dict] | None = None) -> list[dict[str, Any]]:
-    """Collect latest pending write tool calls (dedupe by semantic write identity)."""
+def normalize_pending_writes(
+    messages: list[Any] | None = None, pending: list[dict] | None = None
+) -> list[dict[str, Any]]:
+    """Dedupe write tool calls only — do not drop already-applied (resume needs full list)."""
     found: list[dict[str, Any]] = []
     seen: set[str] = set()
 
@@ -230,7 +232,6 @@ def collect_pending_writes(messages: list[Any] | None = None, pending: list[dict
                 if name in WRITE_TOOLS:
                     _add(str(name), args)
             continue
-        # Also recover from tool result payloads that marked pending_approval
         if getattr(m, "type", None) == "tool" and getattr(m, "name", None) in WRITE_TOOLS:
             try:
                 payload = json.loads(str(m.content))
@@ -244,9 +245,91 @@ def collect_pending_writes(messages: list[Any] | None = None, pending: list[dict
                 }
                 _add(str(m.name), args)
 
-    # Drop already-applied / no-op writes, then create vs escalate/close coherence.
-    needed = [w for w in found if write_needs_hitl(str(w["name"]), w.get("args"))]
+    return found
+
+
+def actionable_pending_writes(writes: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """Writes that still need human approval + DB apply (UI cards)."""
+    needed = [
+        w
+        for w in (writes or [])
+        if w.get("name") and write_needs_hitl(str(w["name"]), w.get("args"))
+    ]
     return _cohere_pending_writes(needed)
+
+
+def collect_pending_writes(messages: list[Any] | None = None, pending: list[dict] | None = None) -> list[dict[str, Any]]:
+    """Collect actionable pending writes (dedupe + drop already-applied / incoherent create)."""
+    return actionable_pending_writes(normalize_pending_writes(messages, pending))
+
+
+def resume_decision_for_write(
+    name: str,
+    args: dict[str, Any] | None,
+    *,
+    approved: bool,
+    applied_by_key: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """One LangGraph HITL decision for a single action_request."""
+    canon = canonicalize_write_args(name, args)
+    key = write_dedupe_key(name, canon)
+
+    if not approved:
+        return {
+            "type": "reject",
+            "message": (
+                "用户拒绝了该写操作。请勿再次调用同一写工具；"
+                "改用其它方案，或向用户确认下一步。"
+            ),
+        }
+
+    if key in applied_by_key and isinstance(applied_by_key[key].get("result"), dict):
+        result = dict(applied_by_key[key]["result"])
+        if result.get("ok"):
+            result.setdefault("hitl", "approved_and_applied")
+            result.setdefault(
+                "message",
+                "人工已批准，写操作已落库。勿再次调用同一写工具；继续收尾并回复用户。",
+            )
+        else:
+            result.setdefault("hitl", "approved_but_apply_failed")
+            result.setdefault(
+                "message",
+                "人工已批准但落库失败。请勿再次调用同一写工具；向用户说明错误并改用其它方案。",
+            )
+        return {"type": "respond", "message": json.dumps(result, ensure_ascii=False, default=str)}
+
+    if not write_needs_hitl(name, canon):
+        result = {
+            "ok": True,
+            "already_applied": True,
+            "hitl": "skipped_already_applied",
+            "action": name,
+            "args": canon,
+            "message": "该写操作已落库或无需再批；勿重复调用。",
+        }
+        return {"type": "respond", "message": json.dumps(result, ensure_ascii=False, default=str)}
+
+    # Coherence: create dropped while escalate/close of real ticket was approved.
+    if name == "create_ticket":
+        result = {
+            "ok": True,
+            "already_applied": True,
+            "skipped": "create_while_escalate_or_close",
+            "hitl": "skipped_coherent",
+            "message": "已有工单升级/关闭在本批处理；跳过重复 create_ticket。",
+        }
+        return {"type": "respond", "message": json.dumps(result, ensure_ascii=False, default=str)}
+
+    result = {
+        "ok": False,
+        "error": "apply_missing",
+        "hitl": "approved_but_apply_failed",
+        "tool": name,
+        "args": canon,
+        "message": "人工已批准但落库未执行。请勿再次调用同一写工具。",
+    }
+    return {"type": "respond", "message": json.dumps(result, ensure_ascii=False, default=str)}
 
 
 def apply_approved_writes(

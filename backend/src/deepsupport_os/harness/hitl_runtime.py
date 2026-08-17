@@ -8,7 +8,12 @@ from typing import Any, Callable
 
 from fastapi import HTTPException
 
-from deepsupport_os.harness.hitl_apply import collect_pending_writes
+from deepsupport_os.harness.hitl_apply import (
+    actionable_pending_writes,
+    normalize_pending_writes,
+    resume_decision_for_write,
+    write_dedupe_key,
+)
 from deepsupport_os.harness.runtime_context import run_context
 from deepsupport_os.harness.unit_of_work import WriteUnitOfWork
 from deepsupport_os.harness.tracing import span
@@ -28,7 +33,10 @@ def hitl_notice_text(interrupt: dict[str, Any] | None, approved: bool) -> str:
     if not labels:
         writes = (interrupt or {}).get("pending_writes") or []
         labels = [str(w.get("name")) for w in writes if w.get("name")]
-    suffix = f"：{'、'.join(labels)}" if labels else ""
+    if not labels:
+        # Avoid empty "已批准写操作" noise (stale / filtered interrupts).
+        return ""
+    suffix = f"：{'、'.join(labels)}"
     return f"已批准写操作{suffix}" if approved else f"已拒绝写操作{suffix}"
 
 
@@ -48,66 +56,41 @@ def inject_hitl_notice(agent: Any, config: dict, interrupt: dict[str, Any], appr
 def hitl_resume_decisions(
     *,
     approved: bool,
-    pending: list[dict[str, Any]],
+    action_requests: list[dict[str, Any]],
     applied: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Build HITL resume decisions (respond/reject only — never approve)."""
-    if not approved:
-        if not pending:
-            payload = {
-                "ok": False,
-                "error": "no_pending_writes",
-                "hitl": "reject_skipped",
-                "message": "用户拒绝了该操作，但当前无待执行写操作。请勿继续尝试写入；向用户确认并继续。",
-            }
-            return [{"type": "respond", "message": json.dumps(payload, ensure_ascii=False)}]
-        reject_msg = (
-            "用户拒绝了该写操作。请勿再次调用同一写工具；"
-            "改用其它方案，或向用户确认下一步。"
-        )
-        return [{"type": "reject", "message": reject_msg} for _ in pending]
-
-    if not pending:
+    """Build one decision per LangGraph action_request (order-preserving)."""
+    if not action_requests:
         payload = {
             "ok": False,
             "error": "no_pending_writes",
-            "hitl": "apply_skipped",
-            "message": "人工已批准但无待写操作。请勿再次调用写工具；向用户说明并继续。",
+            "hitl": "reject_skipped" if not approved else "apply_skipped",
+            "message": (
+                "当前无待执行写操作。请勿继续尝试写入；向用户确认并继续。"
+                if not approved
+                else "人工已批准但无待写操作。请勿再次调用写工具；向用户说明并继续。"
+            ),
         }
         return [{"type": "respond", "message": json.dumps(payload, ensure_ascii=False)}]
 
-    decisions: list[dict[str, Any]] = []
-    for i, w in enumerate(pending):
-        if i < len(applied) and isinstance(applied[i].get("result"), dict):
-            result = dict(applied[i]["result"])
-            if result.get("ok"):
-                result.setdefault("hitl", "approved_and_applied")
-                result.setdefault(
-                    "message",
-                    "人工已批准，写操作已落库。勿再次调用同一写工具；继续收尾并回复用户。",
-                )
-            else:
-                result.setdefault("hitl", "approved_but_apply_failed")
-                result.setdefault(
-                    "message",
-                    "人工已批准但落库失败。请勿再次调用同一写工具；向用户说明错误并改用其它方案。",
-                )
-        else:
-            result = {
-                "ok": False,
-                "error": "apply_missing",
-                "hitl": "approved_but_apply_failed",
-                "tool": w.get("name"),
-                "args": w.get("args") or {},
-                "message": (
-                    "人工已批准但落库未执行。请勿再次调用同一写工具；"
-                    "向用户说明并改用其它方案。"
-                ),
-            }
-        decisions.append(
-            {"type": "respond", "message": json.dumps(result, ensure_ascii=False, default=str)}
+    applied_by_key: dict[str, dict[str, Any]] = {}
+    for item in applied or []:
+        name = str(item.get("tool") or item.get("name") or "")
+        args = item.get("args") or {}
+        if not name:
+            continue
+        applied_by_key[write_dedupe_key(name, args)] = item
+
+    return [
+        resume_decision_for_write(
+            str(w.get("name") or ""),
+            w.get("args"),
+            approved=approved,
+            applied_by_key=applied_by_key,
         )
-    return decisions
+        for w in action_requests
+        if w.get("name")
+    ]
 
 
 def prepare_resume(
@@ -140,8 +123,14 @@ def prepare_resume(
         resume_payload: Any = str(answer).strip()
         fallback = "completed"
     else:
-        pending = collect_pending_writes(None, pending=interrupt_before.get("pending_writes"))
-        if body.approved and pending:
+        # Decisions must match LangGraph action_requests 1:1 (not the filtered UI list).
+        action_requests = normalize_pending_writes(
+            pending=interrupt_before.get("action_requests")
+            or interrupt_before.get("pending_writes")
+            or []
+        )
+        to_apply = actionable_pending_writes(action_requests)
+        if body.approved and to_apply:
             with run_context(thread_id=tid, task_id=body.task_id or tid):
                 with span("hitl.prepare_resume", interrupt_type="hitl", approved=True):
                     uow = WriteUnitOfWork(
@@ -149,10 +138,12 @@ def prepare_resume(
                         task_id=body.task_id or body.thread_id,
                         thread_id=tid,
                     )
-                    applied = uow.run(pending)
+                    applied = uow.run(to_apply)
         resume_payload = {
             "decisions": hitl_resume_decisions(
-                approved=body.approved, pending=pending, applied=applied
+                approved=body.approved,
+                action_requests=action_requests,
+                applied=applied,
             )
         }
         fallback = "approved" if body.approved else "rejected"
