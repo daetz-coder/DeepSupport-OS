@@ -383,40 +383,6 @@ ALL_MOCK_TOOLS = (
 )
 
 
-def all_agent_tools():
-    """Combine in-process mock tools + knowledge + optional remote MCP tools."""
-    from deepsupport_os.core.extensions import ext_bool
-    from deepsupport_os.harness.capability_registry import filter_tools
-    from deepsupport_os.harness.tool_provenance import tag_tool
-    from deepsupport_os.rag.knowledge_tools import KNOWLEDGE_TOOLS
-
-    # Do NOT call clear_tool_provenance() here: each build registers the same
-    # tool names and register_tool_provenance overwrites per name, so clearing
-    # the shared registry on every build just races concurrent builds of other
-    # threads and drops their tags.
-    tools: list = []
-    if ext_bool("mcp_local_tools"):
-        for t in ALL_MOCK_TOOLS:
-            tools.append(tag_tool(t, source="local"))
-    for t in KNOWLEDGE_TOOLS:
-        tools.append(tag_tool(t, source="knowledge"))
-
-    if ext_bool("mcp_remote_enabled"):
-        from deepsupport_os.mcp.remote_client import load_remote_mcp_tools
-
-        existing = {getattr(t, "name", "") for t in tools}
-        for t in load_remote_mcp_tools():
-            name = getattr(t, "name", "")
-            if name and name not in existing:
-                # Prefer server hint from tool metadata when present
-                server = getattr(t, "_ds_server", None) or getattr(t, "metadata", {})
-                if isinstance(server, dict):
-                    server = server.get("server") or server.get("mcp_server")
-                tools.append(tag_tool(t, source="remote", server=str(server) if server else "remote"))
-                existing.add(name)
-    return filter_tools(tools)
-
-
 def main_agent_tools():
     """Tools available to the main agent (excludes subagent-only tools).
     
