@@ -54,15 +54,9 @@ workspace/**
 data/knowledge/microsoft/
 data/raw/microsoft/
 
-# Keep curated samples + eval benchmark
+# Keep curated knowledge samples
 !data/.gitkeep
 !data/knowledge/*.md
-!data/benchmark/**
-data/benchmark/last_eval.json
-data/benchmark/last_eval.*.json
-data/benchmark/last_baselines.json
-data/benchmark/online_eval*.txt
-data/benchmark/pytest_last.txt
 
 
 # IDE / OS
