@@ -59,11 +59,21 @@ def build_model() -> ChatOpenAI:
         base_url=base_url,
         temperature=0,
         streaming=True,
+        max_tokens=settings.llm_max_tokens,
         # Prevent LLM calls from hanging indefinitely (e.g., Ollama slow/unresponsive).
         # 120s should cover most inference scenarios; subagent tool budget + SSE
         # inactivity timeout provide additional safety nets.
         request_timeout=120.0,
     )
+
+
+def agent_run_config(thread_id: str) -> dict:
+    """LangGraph invoke/stream config: thread + recursion hard-stop."""
+    settings = get_settings()
+    return {
+        "configurable": {"thread_id": thread_id},
+        "recursion_limit": settings.agent_recursion_limit,
+    }
 
 
 def _close_checkpointer() -> None:
@@ -163,6 +173,7 @@ __all__ = [
     "ORG_MEMORY_FILE",
     "SYSTEM_PROMPT",
     "INTERRUPT_ON",
+    "agent_run_config",
     "build_model",
     "build_support_agent",
     "build_system_prompt",

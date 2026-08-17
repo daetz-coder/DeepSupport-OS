@@ -119,7 +119,9 @@ def prepare_resume(
 ) -> tuple[Any, list[dict[str, Any]], str, str, Any, dict, dict[str, Any]]:
     """Validate resume → payload, applied, status, itype, agent, config, interrupt_before."""
     tid = body.thread_id
-    config = {"configurable": {"thread_id": tid}}
+    from deepsupport_os.harness.agent import agent_run_config
+
+    config = agent_run_config(tid)
     agent = get_agent(tid)
     interrupt_before = extract_interrupt(agent, config) or {}
     itype = (body.interrupt_type or interrupt_before.get("type") or "hitl").strip().lower()

@@ -13,7 +13,7 @@ from sse_starlette.sse import EventSourceResponse
 from deepsupport_os.api.trace import build_trace, extract_interrupt_info, serialize_messages
 from deepsupport_os.db import task_store
 from deepsupport_os.db.repositories import list_audit
-from deepsupport_os.harness.agent import build_support_agent
+from deepsupport_os.harness.agent import agent_run_config, build_support_agent
 from deepsupport_os.harness.artifacts import list_artifacts, read_artifact, write_manifest
 from deepsupport_os.harness.hitl_runtime import (
     hitl_notice_text as _hitl_notice_text,
@@ -64,6 +64,22 @@ def reset_agents() -> None:
     with _agents_lock:
         _agents.clear()
     clear_thread_backends()
+
+
+def _agent_run_config(thread_id: str) -> dict[str, Any]:
+    return agent_run_config(thread_id)
+
+
+def _format_agent_error(exc: BaseException) -> str:
+    """Map known hard-stops to stable error codes for API/SSE clients."""
+    name = type(exc).__name__
+    text = str(exc)
+    if "GraphRecursionError" in name or "recursion" in text.lower():
+        return (
+            "agent_recursion_limit: 本轮推理步数已达上限，已强制停止以防无限循环烧 Token。"
+            "请缩小问题范围后重试，或提高 AGENT_RECURSION_LIMIT。"
+        )
+    return text
 
 
 def _recent_audit(limit: int = 30, thread_id: str | None = None) -> list[dict[str, Any]]:
@@ -322,7 +338,7 @@ def create_task(body: TaskCreateRequest):
     task_id = str(uuid.uuid4())
     ws = ensure_thread_workspace(thread_id)
     agent = get_agent(thread_id)
-    config = {"configurable": {"thread_id": thread_id}}
+    config = _agent_run_config(thread_id)
     timer = TurnTimer()
 
     try:
@@ -332,7 +348,7 @@ def create_task(body: TaskCreateRequest):
                 config=config,
             )
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail=_format_agent_error(exc)) from exc
 
     messages = result.get("messages", [])
     interrupt = extract_interrupt_info(agent, config)
@@ -418,7 +434,7 @@ def resume_task(body: ResumeRequest):
             if itype == "hitl":
                 _inject_hitl_notice(agent, config, interrupt_before, body.approved)
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(status_code=500, detail=f"resume failed: {exc}") from exc
+        raise HTTPException(status_code=500, detail=f"resume failed: {_format_agent_error(exc)}") from exc
 
     messages = result.get("messages", [])
     interrupt = extract_interrupt_info(agent, config)
@@ -674,7 +690,7 @@ def _iter_agent_sse_body(
                         interrupt_emitted = True
                         yield seq.event("interrupt", _slim_interrupt(interrupt_on_err))
                 else:
-                    yield seq.event("error", {"error": str(exc)})
+                    yield seq.event("error", {"error": _format_agent_error(exc)})
                     worker.join(timeout=2)
                     return
                 continue
@@ -706,7 +722,7 @@ def _iter_agent_sse_body(
                 interrupt_emitted = True
                 yield seq.event("interrupt", _slim_interrupt(interrupt_on_err))
         else:
-            yield seq.event("error", {"error": str(exc)})
+            yield seq.event("error", {"error": _format_agent_error(exc)})
             return
     if hitl_notice is not None:
         _inject_hitl_notice(agent, config, hitl_notice[0], hitl_notice[1])
@@ -743,7 +759,7 @@ def _iter_agent_sse_body(
         yield seq.event("done", _sse_done_payload(record))
     except Exception as exc:  # noqa: BLE001
         if not interrupt:
-            yield seq.event("error", {"error": str(exc)})
+            yield seq.event("error", {"error": _format_agent_error(exc)})
         else:
             yield seq.event(
                 "done",
@@ -782,7 +798,7 @@ async def stream_task(body: TaskCreateRequest):
     task_id = str(uuid.uuid4())
     ws = ensure_thread_workspace(thread_id)
     agent = get_agent(thread_id)
-    config = {"configurable": {"thread_id": thread_id}}
+    config = _agent_run_config(thread_id)
     timer = TurnTimer()
     
     # Initialize timeline tracking for this task
