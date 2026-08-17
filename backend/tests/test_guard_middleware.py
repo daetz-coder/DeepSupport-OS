@@ -220,3 +220,59 @@ def test_subagent_budget_blocks_after_three_calls():
     payload = json.loads(out.content)
     assert payload["error"] == "subagent_tool_budget_exhausted"
     assert payload["max_calls"] == 3
+
+
+def test_main_agent_blocks_duplicate_tool_call():
+    called = {"n": 0}
+
+    def handler(_req):
+        called["n"] += 1
+        return "ok"
+
+    prior = [
+        _AIMsg(
+            [
+                {
+                    "name": "get_account_status",
+                    "args": {"email": "wei.zhang@contoso.com"},
+                    "id": "1",
+                }
+            ]
+        )
+    ]
+    out = apply_support_tool_guards(
+        _Req(
+            "get_account_status",
+            {"email": "wei.zhang@contoso.com"},
+            todos=[{"content": "diag", "status": "in_progress"}],
+            messages=prior,
+        ),
+        handler,
+    )
+    assert called["n"] == 0
+    payload = json.loads(out.content)
+    assert payload["error"] == "duplicate_tool_call"
+
+
+def test_main_agent_blocks_after_tool_budget():
+    def handler(_req):
+        return "should-not-run"
+
+    prior = [
+        _AIMsg([{"name": f"tool_{i}", "args": {"i": i}, "id": str(i)}])
+        for i in range(3)
+    ]
+    out = apply_support_tool_guards(
+        _Req(
+            "get_employee",
+            {"email": "a@b.c"},
+            todos=[{"content": "diag", "status": "in_progress"}],
+            messages=prior,
+        ),
+        handler,
+        max_calls=3,
+    )
+    payload = json.loads(out.content)
+    assert payload["error"] == "main_tool_budget_exhausted"
+    assert payload["max_calls"] == 3
+    assert payload["used_calls"] == 3

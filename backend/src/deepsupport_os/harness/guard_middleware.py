@@ -256,7 +256,9 @@ def _prior_tool_signatures(messages: list[Any], *, limit: int = 80) -> list[str]
 
 def apply_support_tool_guards(
     request: Any,
-    handler: Callable[[Any], Any]
+    handler: Callable[[Any], Any],
+    *,
+    max_calls: int | None = None,
 ) -> Any:
     """Block common Prompt-only rules with hard middleware checks."""
     name = _tool_name(request)
@@ -288,6 +290,42 @@ def apply_support_tool_guards(
                     "error": "ask_user_duplicate",
                     "hint": "该问题已提问过；请使用用户已提供的回答继续，勿重复 ask_user",
                     "question": question,
+                },
+            )
+
+    # 2b) Same-signature tool replay + per-turn tool budget (main agent).
+    if name:
+        args = _tool_args(request)
+        sig = _tool_signature(name, args)
+        prior_sigs = _prior_tool_signatures(messages)
+        if sig in prior_sigs:
+            return _deny(
+                request,
+                {
+                    "ok": False,
+                    "error": "duplicate_tool_call",
+                    "hint": (
+                        f"工具 {name} 已用相同参数调用过；请复用已有结果继续，"
+                        "禁止无效重复调用"
+                    ),
+                    "blocked_tool": name,
+                    "signature": sig,
+                },
+            )
+        limit = max_calls if max_calls is not None else _main_max_tool_calls()
+        if len(prior_sigs) >= limit:
+            return _deny(
+                request,
+                {
+                    "ok": False,
+                    "error": "main_tool_budget_exhausted",
+                    "hint": (
+                        f"主代理工具预算已用尽（最多 {limit} 次）；"
+                        "请基于已有结果给出结论或 ask_user，勿继续盲目调工具"
+                    ),
+                    "blocked_tool": name,
+                    "max_calls": limit,
+                    "used_calls": len(prior_sigs),
                 },
             )
 
@@ -340,6 +378,19 @@ def support_tool_guards(
 
 # Default budget for MVP subagents (matches prompt: ≤3 tool calls then stop).
 _SUBAGENT_MAX_TOOL_CALLS = 3
+# Fallback when settings unavailable (tests / import edge cases).
+_MAIN_MAX_TOOL_CALLS = 24
+
+
+def _main_max_tool_calls() -> int:
+    try:
+        from deepsupport_os.core.config import get_settings
+
+        return int(get_settings().agent_max_tool_calls)
+    except Exception:  # noqa: BLE001
+        return _MAIN_MAX_TOOL_CALLS
+
+
 def apply_subagent_tool_budget(
     request: Any,
     handler: Callable[[Any], Any],
