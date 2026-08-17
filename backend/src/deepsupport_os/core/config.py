@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     ollama_model: str = "qwen3:4b"
     ollama_api_key: str = "ollama"
 
+    # Cap single completion length (does not stop tool loops by itself).
+    llm_max_tokens: int = 2048
+    # LangGraph agent step cap (hard-stops infinite recursion).
+    agent_recursion_limit: int = 40
+    # Main-agent tool-call budget per turn (subagents use their own middleware).
+    agent_max_tool_calls: int = 24
+
     # RAGLab HTTP client (do not copy RAGLab source / local model paths)
     raglab_base_url: str = "http://127.0.0.1:8001"
     # Logical KB name on shared RAGLab instance (must match RAGLab KbName)
