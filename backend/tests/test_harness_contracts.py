@@ -20,7 +20,9 @@ def test_system_prompt_is_slim():
     assert "工作原则" not in SYSTEM_PROMPT
     assert "硬约束" in SYSTEM_PROMPT
     assert "/memory/org.md" in SYSTEM_PROMPT
-    assert len(SYSTEM_PROMPT) < 900
+    # Allow up to 1200 chars to include detailed workflow guidance
+    # that prevents premature HITL triggering
+    assert len(SYSTEM_PROMPT) < 1200
 
 
 def test_thread_prompt_binds_workspace():

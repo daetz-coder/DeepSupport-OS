@@ -384,41 +384,37 @@ ALL_MOCK_TOOLS = (
 
 
 def main_agent_tools():
-    """Tools available to the main agent (excludes subagent-only tools).
-    
-    Main agent should delegate these to subagents:
-    - Environment/account queries → environment-diagnosis
-    - Knowledge retrieval → knowledge-research
-    - Ticket CRUD → ticket-operations
+    """Tools available to the main agent.
     
     Main agent keeps:
-    - HITL write operations (request_password_reset, request_license_change, close_ticket, escalate_ticket)
+    - Read-only query tools (for diagnosis)
+    - Read-only knowledge retrieval tools
     - Policy checks (check_action_permission)
     - User interaction (ask_user, notify_user)
-    - Filesystem tools (from deepagents)
+    - HITL write operations (request_password_reset, request_license_change, close_ticket, escalate_ticket)
+    
+    Note: Complex multi-step operations can still be delegated to subagents for parallel processing.
     """
     from deepsupport_os.core.extensions import ext_bool
     from deepsupport_os.harness.capability_registry import filter_tools
     from deepsupport_os.harness.tool_provenance import tag_tool
+    from deepsupport_os.rag.knowledge_tools import KNOWLEDGE_TOOLS
 
-    # Tools that should ONLY be called by subagents
-    subagent_only_tools = {
-        # Knowledge retrieval → knowledge-research
-        "search_docs", "get_document", "search_cases", "search_similar_cases",
-        # Environment queries → environment-diagnosis
-        "get_employee", "get_department", "get_manager",
-        "get_device", "list_user_devices",
-        "get_account_status", "get_license",
-        # Ticket CRUD → ticket-operations
-        "create_ticket", "get_ticket", "update_ticket",
+    # Main agent should have access to all read-only tools for diagnosis
+    # Only filter out tools that create/modify tickets (except HITL writes)
+    agent_only_tools = {
+        # Ticket creation/modification (non-terminal) - delegate to ticket-operations
+        "create_ticket", "update_ticket",
     }
     
     tools: list = []
     if ext_bool("mcp_local_tools"):
         for t in ALL_MOCK_TOOLS:
             name = getattr(t, "name", "")
-            if name not in subagent_only_tools:
+            if name not in agent_only_tools:
                 tools.append(tag_tool(t, source="local"))
+    for t in KNOWLEDGE_TOOLS:
+        tools.append(tag_tool(t, source="knowledge"))
     
     if ext_bool("mcp_remote_enabled"):
         from deepsupport_os.mcp.remote_client import load_remote_mcp_tools
