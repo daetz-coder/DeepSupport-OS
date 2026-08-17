@@ -193,35 +193,23 @@ function applyRecord(data: Record<string, unknown>) {
   if (Array.isArray(data.artifacts)) {
     artifacts.value = data.artifacts as ArtifactItem[]
   }
-  if (data.overview && typeof data.overview === 'object') {
-    overview.value = data.overview as RunOverview
-  } else if (overviewLiveActive.value) {
-    // done 未带 overview 时，把本轮 live 统计落成当前概览
-    overview.value = mergeOverviews(
-      overviewBaseline.value,
-      buildLiveOverview(steps.value, todos.value, status.value),
-    )
-  }
   if (data.metrics && typeof data.metrics === 'object') {
     metrics.value = data.metrics as Record<string, unknown>
   }
   const trace = data.trace as Trace | undefined
   if (trace?.steps?.length) {
-    steps.value = trace.steps
+    steps.value = trace.steps as TraceStep[]
   }
-  if (!overview.value && trace?.stages?.length) {
-    overview.value = {
-      status: status.value,
-      stages: trace.stages,
-      skills: trace.skills_used || [],
-      plan: {
-        total: todos.value.length,
-        completed: todos.value.filter((t) => t.status === 'completed').length,
-        items: todos.value,
-      },
-    }
-  }
-  // Authoritative server overview replaces any live merge
+  // Rebuild stage bodies from steps. SSE `done` overview intentionally omits
+  // nested stage.steps; without this rebuild the chat fold goes empty after complete.
+  const slimOverview =
+    data.overview && typeof data.overview === 'object'
+      ? (data.overview as RunOverview)
+      : overviewBaseline.value
+  overview.value = mergeOverviews(
+    slimOverview,
+    buildLiveOverview(steps.value, todos.value, status.value || 'completed'),
+  )
   endLiveOverview()
 }
 
@@ -1494,11 +1482,6 @@ onMounted(async () => {
               </div>
               <pre>{{ a.result }}</pre>
             </div>
-          </el-tab-pane>
-
-          <el-tab-pane label="执行时间线" name="timeline">
-            <ExecutionTimeline v-if="taskId" :task-id="taskId" />
-            <div v-else class="empty-hint">请先提交任务以查看执行时间线</div>
           </el-tab-pane>
         </el-tabs>
         </div>

@@ -78,8 +78,24 @@ class SubagentProgressHandler(BaseCallbackHandler):
         self._current_subagent = "unknown"
         self._lock = threading.Lock()
         self._timeline = get_timeline_tracker()
-        self._agent_span_id: str | None = None
+        # Reuse root started by stream_task — do not create a second main_agent.
+        self._agent_span_id: str | None = self._timeline._root_span_id
         self._subagent_span_ids: dict[str, str] = {}
+        self._open_tool_spans: dict[str, str] = {}
+
+    def _ensure_agent_span(self) -> str | None:
+        if self._agent_span_id:
+            return self._agent_span_id
+        root = self._timeline._root_span_id
+        if root:
+            self._agent_span_id = root
+            return root
+        self._agent_span_id = self._timeline.start_span(
+            name="main_agent",
+            kind="agent",
+            parent_id=None,
+        )
+        return self._agent_span_id
 
     def _emit(self, payload: dict[str, Any]) -> None:
         payload = {**payload, "subagent": payload.get("subagent") or self._current_subagent}
@@ -115,30 +131,39 @@ class SubagentProgressHandler(BaseCallbackHandler):
                         or args.get("agent")
                         or self._current_subagent
                     )
-                    # Start timeline span for subagent
+                    parent = self._ensure_agent_span()
                     span_id = self._timeline.start_span(
                         name=self._current_subagent,
                         kind="subagent",
-                        parent_id=self._agent_span_id,
+                        parent_id=parent,
                         metadata={"args": args},
                     )
                     self._subagent_span_ids[self._current_subagent] = span_id
-            # Parent stream already emits subagent_dispatch; skip duplicate.
+            # Parent stream already emits subagent_dispatch; skip duplicate SSE.
             return
 
         nested = self._task_depth > 0 or _is_subagent_meta(metadata, tags)
-        if not nested:
-            return
-        
-        # Start timeline span for tool
-        parent_span_id = self._subagent_span_ids.get(self._current_subagent) if self._task_depth > 0 else self._agent_span_id
-        self._timeline.start_span(
+        parent_span_id = (
+            self._subagent_span_ids.get(self._current_subagent)
+            if self._task_depth > 0
+            else self._ensure_agent_span()
+        )
+        # Always record tools (main + nested) on the timeline tree.
+        kind = "skill" if name in {"read_file", "write_file", "edit_file"} and "/skills/" in str(
+            (args or {}).get("file_path") or (args or {}).get("path") or input_str or ""
+        ) else "tool"
+        span_id = self._timeline.start_span(
             name=name,
-            kind="tool",
+            kind=kind,
             parent_id=parent_span_id,
             metadata={"args": args if args is not None else input_str},
         )
-        
+        self._open_tool_spans[str(run_id)] = span_id
+
+        if not nested:
+            # Parent SSE already surfaces main-agent tools; timeline-only here.
+            return
+
         self._emit(
             {
                 "phase": "tool_start",
@@ -167,23 +192,25 @@ class SubagentProgressHandler(BaseCallbackHandler):
         if resolved == "task":
             with self._lock:
                 self._task_depth = max(0, self._task_depth - 1)
-                # End subagent timeline span
                 span_id = self._subagent_span_ids.get(self._current_subagent)
                 if span_id:
                     self._timeline.end_span(span_id, status="completed")
             return
 
+        span_id = self._open_tool_spans.pop(str(run_id), None)
+        if span_id:
+            self._timeline.end_span(span_id, status="completed")
+        else:
+            timeline = self._timeline.get_timeline()
+            for span in reversed(timeline):
+                if span["name"] == resolved and span["kind"] in {"tool", "skill"} and span["end_time"] is None:
+                    self._timeline.end_span(span["id"], status="completed")
+                    break
+
         nested = self._task_depth > 0 or _is_subagent_meta(metadata, tags)
         if not nested:
             return
-        
-        # End tool timeline span (find the most recent span with this name)
-        timeline = self._timeline.get_timeline()
-        for span in reversed(timeline):
-            if span["name"] == resolved and span["kind"] == "tool" and span["end_time"] is None:
-                self._timeline.end_span(span["id"], status="completed")
-                break
-        
+
         self._emit(
             {
                 "phase": "tool_end",
@@ -203,18 +230,27 @@ class SubagentProgressHandler(BaseCallbackHandler):
         metadata: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> None:
+        name = str(kwargs.get("name") or "tool")
+        span_id = self._open_tool_spans.pop(str(run_id), None)
+        if span_id:
+            self._timeline.end_span(span_id, status="failed", metadata={"error": str(error)})
+        else:
+            timeline = self._timeline.get_timeline()
+            for span in reversed(timeline):
+                if (
+                    span["name"] == name
+                    and span["kind"] in {"tool", "skill"}
+                    and span["end_time"] is None
+                ):
+                    self._timeline.end_span(
+                        span["id"], status="failed", metadata={"error": str(error)}
+                    )
+                    break
+
         nested = self._task_depth > 0 or _is_subagent_meta(metadata, tags)
         if not nested:
             return
-        name = str(kwargs.get("name") or "tool")
-        
-        # End tool timeline span with error status
-        timeline = self._timeline.get_timeline()
-        for span in reversed(timeline):
-            if span["name"] == name and span["kind"] == "tool" and span["end_time"] is None:
-                self._timeline.end_span(span["id"], status="failed", metadata={"error": str(error)})
-                break
-        
+
         self._emit(
             {
                 "phase": "tool_error",
@@ -236,26 +272,23 @@ class SubagentProgressHandler(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         nested = self._task_depth > 0 or _is_subagent_meta(metadata, tags)
-        
-        # Start agent timeline span if this is the main agent
-        if not nested and self._agent_span_id is None:
-            self._agent_span_id = self._timeline.start_span(
-                name="main_agent",
-                kind="agent",
-                parent_id=None,
-            )
-        
+        self._ensure_agent_span()
+
         if not nested:
             return
-        
-        # Start LLM timeline span
-        parent_span_id = self._subagent_span_ids.get(self._current_subagent) if self._task_depth > 0 else self._agent_span_id
+
+        # Start LLM timeline span (subagent only — avoids flooding main LLM nodes)
+        parent_span_id = (
+            self._subagent_span_ids.get(self._current_subagent)
+            if self._task_depth > 0
+            else self._agent_span_id
+        )
         self._timeline.start_span(
             name="llm_call",
             kind="llm",
             parent_id=parent_span_id,
         )
-        
+
         self._emit(
             {
                 "phase": "llm_start",

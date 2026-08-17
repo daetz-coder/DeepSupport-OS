@@ -144,7 +144,6 @@ watch(isRunning, (running) => {
 <template>
   <div class="timeline-view">
     <div class="timeline-header">
-      <h3>执行时间线</h3>
       <div class="timeline-actions">
         <button @click="expandAll(timeline!)" :disabled="!timeline">全部展开</button>
         <button @click="collapseAll" :disabled="!timeline">全部折叠</button>
