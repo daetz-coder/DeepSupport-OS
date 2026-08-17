@@ -30,6 +30,65 @@ _WRITE_INTENT = frozenset(
     }
 )
 
+# Evidence that the agent (or env subagent) actually inspected account/ticket state.
+_ACCOUNT_DIAGNOSIS = frozenset({"get_account_status", "get_employee", "get_license"})
+_TICKET_DIAGNOSIS = frozenset({"get_ticket"})
+
+
+def _had_subagent_task(messages: list[Any], subagent_type: str) -> bool:
+    """True if a completed `task` tool call targeted this subagent_type."""
+    wanted = subagent_type.strip().lower()
+    pending_ids: set[str] = set()
+    for m in messages:
+        for tc in getattr(m, "tool_calls", None) or []:
+            if isinstance(tc, dict):
+                name = str(tc.get("name") or "")
+                args = tc.get("args") or {}
+                tc_id = str(tc.get("id") or "")
+            else:
+                name = str(getattr(tc, "name", "") or "")
+                args = getattr(tc, "args", None) or {}
+                tc_id = str(getattr(tc, "id", "") or "")
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except json.JSONDecodeError:
+                    args = {}
+            if not isinstance(args, dict):
+                args = {}
+            if name == "task" and str(args.get("subagent_type") or "").strip().lower() == wanted:
+                if tc_id:
+                    pending_ids.add(tc_id)
+                else:
+                    return True
+        if getattr(m, "type", None) == "tool" and getattr(m, "name", None) == "task":
+            tid = str(getattr(m, "tool_call_id", "") or "")
+            if tid and tid in pending_ids:
+                return True
+            # Fallback: content often embeds subagent output; accept any completed task
+            # if we already saw a matching dispatch without id.
+            if not pending_ids and wanted in str(getattr(m, "content", "") or "").lower():
+                return True
+    return False
+
+
+def _has_diagnosis_for_write(name: str, messages: list[Any]) -> bool:
+    seen = _recent_tool_names(messages)
+    if name == "request_password_reset":
+        return bool(seen & _ACCOUNT_DIAGNOSIS) or _had_subagent_task(
+            messages, "environment-diagnosis"
+        )
+    if name == "request_license_change":
+        return bool(seen & _ACCOUNT_DIAGNOSIS) or _had_subagent_task(
+            messages, "environment-diagnosis"
+        )
+    if name in {"close_ticket", "escalate_ticket"}:
+        return bool(seen & _TICKET_DIAGNOSIS) or _had_subagent_task(
+            messages, "ticket-operations"
+        )
+    return True
+
+
 # How far back to look for a passing check_action_permission result.
 _SCAN_WINDOW = 40
 
@@ -197,7 +256,7 @@ def _prior_tool_signatures(messages: list[Any], *, limit: int = 80) -> list[str]
 
 def apply_support_tool_guards(
     request: Any,
-    handler: Callable[[Any], Any],
+    handler: Callable[[Any], Any]
 ) -> Any:
     """Block common Prompt-only rules with hard middleware checks."""
     name = _tool_name(request)
@@ -232,7 +291,23 @@ def apply_support_tool_guards(
                 },
             )
 
-    # 3) High-risk writes need a *passing* policy check for THIS action (not just
+    # 3) High-risk writes require prior diagnosis evidence (block premature HITL).
+    if name in _WRITE_INTENT and not _has_diagnosis_for_write(name, messages):
+        return _deny(
+            request,
+            {
+                "ok": False,
+                "error": "diagnosis_required",
+                "hint": (
+                    "高风险写操作前必须先完成环境/工单诊断："
+                    "先 get_account_status（或委派 environment-diagnosis），"
+                    "再 check_action_permission，最后才可申请写操作"
+                ),
+                "blocked_tool": name,
+            },
+        )
+
+    # 4) High-risk writes need a *passing* policy check for THIS action (not just
     #    a call to check_action_permission for any action) — AR-15 / R3-1.
     if name in _WRITE_INTENT:
         expected = POLICY_ACTION_FOR_TOOL.get(name)
@@ -265,8 +340,6 @@ def support_tool_guards(
 
 # Default budget for MVP subagents (matches prompt: ≤3 tool calls then stop).
 _SUBAGENT_MAX_TOOL_CALLS = 3
-
-
 def apply_subagent_tool_budget(
     request: Any,
     handler: Callable[[Any], Any],

@@ -33,6 +33,13 @@ def test_allows_write_todos_without_plan():
     assert apply_support_tool_guards(_Req("write_todos", {"todos": []}), handler) == "planned"
 
 
+class _ToolResult:
+    def __init__(self, name: str, content: str = "{}"):
+        self.type = "tool"
+        self.name = name
+        self.content = content
+
+
 def test_blocks_write_without_policy_check():
     def handler(_req):
         return "should-not-run"
@@ -42,7 +49,7 @@ def test_blocks_write_without_policy_check():
             "close_ticket",
             {"ticket_id": "T1", "resolution": "x"},
             todos=[{"content": "plan"}],
-            messages=[],
+            messages=[_ToolResult("get_ticket")],
         ),
         handler,
     )
@@ -64,7 +71,7 @@ def _req_close(messages):
         "close_ticket",
         {"ticket_id": "T1", "resolution": "x"},
         todos=[{"content": "plan"}],
-        messages=messages,
+        messages=[_ToolResult("get_ticket"), *messages],
     )
 
 
@@ -118,6 +125,45 @@ def test_blocks_write_when_another_write_action_checked():
     )
     payload = json.loads(out.content)
     assert payload["error"] == "policy_check_required"
+
+
+def test_blocks_write_without_diagnosis():
+    """Password reset must not run (or HITL) before account diagnosis."""
+    def handler(_req):
+        return "should-not-run"
+
+    out = apply_support_tool_guards(
+        _Req(
+            "request_password_reset",
+            {"email": "wei.zhang@contoso.com"},
+            todos=[{"content": "plan"}],
+            messages=[
+                _PolicyMsg({"action": "password_reset", "approval_required": True}),
+            ],
+        ),
+        handler,
+    )
+    payload = json.loads(out.content)
+    assert payload["error"] == "diagnosis_required"
+
+
+def test_allows_write_after_account_diagnosis_and_policy():
+    def handler(_req):
+        return "ran"
+
+    out = apply_support_tool_guards(
+        _Req(
+            "request_password_reset",
+            {"email": "wei.zhang@contoso.com"},
+            todos=[{"content": "plan"}],
+            messages=[
+                _ToolResult("get_account_status"),
+                _PolicyMsg({"action": "password_reset", "approval_required": True}),
+            ],
+        ),
+        handler,
+    )
+    assert out == "ran"
 
 
 class _AIMsg:
