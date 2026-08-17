@@ -5,7 +5,7 @@
 | 文件 | 作用 |
 |------|------|
 | `__init__.py` | 包标记（无导出） |
-| `tools.py` | Local Tool Adapter：员工/账号/资产/工单/策略/HITL 写意图等；`ALL_MOCK_TOOLS`、`all_agent_tools` |
+| `tools.py` | Local Tool Adapter：员工/账号/资产/工单/策略/HITL 写意图等；`ALL_MOCK_TOOLS`、`main_agent_tools` |
 | `remote_client.py` | 远程 MCP：`load_remote_mcp_tools`、服务器配置 CRUD、启停与缓存重置 |
 | [`servers/`](./servers/) | 可选独立 FastMCP 进程模板（非默认挂载路径） |
 
