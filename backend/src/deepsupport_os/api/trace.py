@@ -75,6 +75,9 @@ def serialize_messages(messages: list[Any], *, content_limit: int = 4000) -> lis
         tool_call_id = getattr(m, "tool_call_id", None)
         if tool_call_id:
             item["tool_call_id"] = tool_call_id
+        status = getattr(m, "status", None)
+        if status:
+            item["status"] = status
         out.append(item)
     return out
 

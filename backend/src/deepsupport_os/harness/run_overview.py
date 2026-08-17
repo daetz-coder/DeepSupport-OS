@@ -160,6 +160,9 @@ def group_stages(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Group annotated steps into ordered stage buckets (non-empty only)."""
     buckets: dict[str, list[dict[str, Any]]] = {k: [] for k, _ in STAGE_DEFS}
     for step in steps:
+        # Stages list tools / subagent dispatches only — never chat text.
+        if step.get("kind") not in _INVOCATION_KINDS:
+            continue
         key = str(step.get("stage") or "other")
         if key not in buckets:
             key = "other"
@@ -170,21 +173,15 @@ def group_stages(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
         items = buckets[key]
         if not items:
             continue
-        # Count / summarize invocations only — tool_result is the pair, not a second call
-        invocations = [s for s in items if s.get("kind") in _INVOCATION_KINDS]
-        status = "done"
-        if any(s.get("name") == "ask_user" for s in items):
-            # ask without following tool_result still pending visually handled by interrupt
-            status = "done"
         stages.append(
             {
                 "id": key,
                 "label": label,
-                "status": status,
+                "status": "done",
                 "step_count": len(items),
-                "tool_count": len(invocations),
+                "tool_count": len(items),
                 "steps": items,
-                "summary": _stage_summary(items, invocations),
+                "summary": _stage_summary(items, items),
             }
         )
     return stages
@@ -200,9 +197,7 @@ def _stage_summary(items: list[dict[str, Any]], toolish: list[dict[str, Any]]) -
             break
     if names:
         return " · ".join(names)
-    if any(s.get("kind") == "assistant" for s in items):
-        return "助手回复"
-    return f"{len(items)} 步"
+    return f"{len(items)} tools"
 
 
 def slice_current_run_steps(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:

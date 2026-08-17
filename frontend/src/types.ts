@@ -113,6 +113,7 @@ export type ChatMessage = {
   content?: string
   tool_calls?: unknown[]
   name?: string
+  status?: string
 }
 
 export type ChatBubble = {

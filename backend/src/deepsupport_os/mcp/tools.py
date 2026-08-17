@@ -140,22 +140,52 @@ def create_ticket(
     employee_id: str = "",
     idempotency_key: str = "",
 ) -> dict:
-    """创建 IT 支持工单（需人工审批；批准后才会真正写入）。"""
-    from deepsupport_os.db.repositories import lookup_applied_action, make_idempotency_key
+    """创建 IT 支持工单（需人工审批；批准后才会真正写入）。
 
-    args = {
-        "title": title,
-        "description": description,
-        "category": category,
-        "priority": priority,
-        "employee_id": employee_id,
-        "idempotency_key": idempotency_key,
-    }
-    prior = lookup_applied_action(make_idempotency_key("create_ticket", args))
+    同一 title+employee 已创建过时返回 already_applied（勿再申请 HITL）。
+    工单已存在时应 escalate_ticket / update_ticket，禁止再次 create_ticket。
+    """
+    from deepsupport_os.db.repositories import lookup_applied_action
+    from deepsupport_os.harness.hitl_apply import (
+        canonicalize_write_args,
+        write_dedupe_key,
+        write_idempotency_key,
+        write_needs_hitl,
+    )
+
+    args = canonicalize_write_args(
+        "create_ticket",
+        {
+            "title": title,
+            "description": description,
+            "category": category,
+            "priority": priority,
+            "employee_id": employee_id,
+            "idempotency_key": idempotency_key,
+        },
+    )
+    prior = lookup_applied_action(write_idempotency_key("create_ticket", args))
     if prior and isinstance(prior.get("result"), dict):
         result = dict(prior["result"])
         result.setdefault("ok", True)
         result.setdefault("already_applied", True)
+        return _audit("create_ticket", args, result)
+
+    if not write_needs_hitl("create_ticket", args):
+        existing = _ticket.get_by_idempotency_key(write_dedupe_key("create_ticket", args))
+        if not existing:
+            existing = _ticket.find_by_employee_and_title(
+                str(args.get("employee_id") or ""),
+                str(args.get("title") or ""),
+            )
+        result = {
+            "ok": True,
+            "already_applied": True,
+            "action": "create_ticket",
+            "ticket": existing,
+            "ticket_id": (existing or {}).get("ticket_id"),
+            "message": "工单已存在，勿重复 create_ticket；需要时 escalate_ticket",
+        }
         return _audit("create_ticket", args, result)
 
     result = {

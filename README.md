@@ -47,6 +47,14 @@ cd frontend && npm i && npm run dev
 
 见 `.env.example`：`LLM_MAX_TOKENS`、`AGENT_RECURSION_LIMIT`、`AGENT_MAX_TOOL_CALLS`。
 
+## HITL 与对话守卫（要点）
+
+- **写操作审批**：`create_ticket` / `escalate_ticket` / `close_ticket` / 密码重置 / 许可证变更需人工批准后才落库。
+- **工单互斥**：工单已存在时只升级/关闭，勿再 `create_ticket`；同轮出现「升级真实工单 + 创建」时系统只保留升级卡，避免重复 HITL。
+- **幂等**：`create_ticket` 按 `title + employee_id` 去重（描述微调不会再次弹审批）。
+- **`ask_user`**：首次提问不会被误判为重复；守卫错误 JSON 不会画成用户气泡。
+- **时间线**：执行时间线按 task 从 trace 还原，子 agent 工具会嵌套展示。
+
 ## License
 
 MIT — 见 [LICENSE](LICENSE)。安全披露见 [SECURITY.md](SECURITY.md)。

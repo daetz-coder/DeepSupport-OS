@@ -1367,7 +1367,7 @@ onMounted(async () => {
           </el-tab-pane>
 
           <el-tab-pane label="执行时间线" name="timeline">
-            <ExecutionTimeline v-if="taskId" :taskId="taskId" />
+            <ExecutionTimeline v-if="taskId" :taskId="taskId" :refresh-key="status" />
             <div v-else class="empty-hint">执行任务后将在此显示时间线追踪</div>
           </el-tab-pane>
 

@@ -49,9 +49,133 @@ def _parse_args(raw: Any) -> dict[str, Any]:
     return {}
 
 
+def canonicalize_write_args(name: str, args: dict[str, Any] | None) -> dict[str, Any]:
+    """Normalize write args so empty idempotency_key / whitespace do not fork HITL cards."""
+    cleaned: dict[str, Any] = {}
+    for k, v in (_parse_args(args) or {}).items():
+        if v is None:
+            continue
+        if isinstance(v, str):
+            v = v.strip()
+            if v == "":
+                continue
+        cleaned[k] = v
+    for noise in ("ok", "pending_approval", "action", "message", "already_applied", "hint"):
+        cleaned.pop(noise, None)
+
+    if name == "create_ticket":
+        out = {
+            "title": str(cleaned.get("title") or ""),
+            "description": str(cleaned.get("description") or ""),
+            "category": str(cleaned.get("category") or "General"),
+            "priority": str(cleaned.get("priority") or "P3"),
+            "employee_id": str(cleaned.get("employee_id") or ""),
+        }
+        if cleaned.get("idempotency_key"):
+            out["idempotency_key"] = str(cleaned["idempotency_key"])
+        return out
+    if name == "request_license_change":
+        out = {"email": str(cleaned.get("email") or "")}
+        lic = cleaned.get("new_license_type") or cleaned.get("license_type")
+        if lic:
+            out["new_license_type"] = str(lic)
+        return out
+    if name == "request_password_reset":
+        return {"email": str(cleaned.get("email") or "")}
+    if name in {"close_ticket", "escalate_ticket"}:
+        out = {"ticket_id": str(cleaned.get("ticket_id") or "")}
+        if cleaned.get("resolution"):
+            out["resolution"] = str(cleaned["resolution"])
+        if cleaned.get("reason"):
+            out["reason"] = str(cleaned["reason"])
+        return out
+    return cleaned
+
+
+def write_dedupe_key(name: str, args: dict[str, Any] | None) -> str:
+    """Stable identity for pending HITL cards (collapse near-duplicate tool calls)."""
+    c = canonicalize_write_args(name, args)
+    if name == "create_ticket":
+        return "create_ticket::{title}::{emp}".format(
+            title=str(c.get("title") or "").strip().lower(),
+            emp=str(c.get("employee_id") or "").strip().lower(),
+        )
+    if name == "request_license_change":
+        return "request_license_change::{email}::{lic}".format(
+            email=str(c.get("email") or "").strip().lower(),
+            lic=str(c.get("new_license_type") or "").strip().lower(),
+        )
+    if name == "request_password_reset":
+        return f"request_password_reset::{str(c.get('email') or '').strip().lower()}"
+    if name in {"close_ticket", "escalate_ticket"}:
+        return f"{name}::{str(c.get('ticket_id') or '').strip().lower()}"
+    return f"{name}:{json.dumps(c, sort_keys=True, ensure_ascii=False, default=str)}"
+
+
+def write_idempotency_key(name: str, args: dict[str, Any] | None) -> str:
+    """Exactly-once ledger key — same identity as HITL cards (ignore description/reason drift)."""
+    from deepsupport_os.db.repositories import make_idempotency_key
+
+    return make_idempotency_key(name, {"_dedupe": write_dedupe_key(name, args)})
+
+
+def write_needs_hitl(name: str, args: dict[str, Any] | None) -> bool:
+    """True when this write should interrupt for human approval."""
+    from deepsupport_os.db.repositories import lookup_applied_action, make_idempotency_key
+
+    canon = canonicalize_write_args(name, args)
+    if lookup_applied_action(write_idempotency_key(name, canon)):
+        return False
+    # Legacy ledger rows hashed full args (description/reason included).
+    if lookup_applied_action(make_idempotency_key(name, canon)):
+        return False
+
+    if name == "create_ticket":
+        if _ticket.get_by_idempotency_key(write_dedupe_key(name, canon)):
+            return False
+        emp = str(canon.get("employee_id") or "")
+        title = str(canon.get("title") or "")
+        if emp and title and _ticket.find_by_employee_and_title(emp, title):
+            return False
+        return True
+    if name == "escalate_ticket":
+        ticket_id = str(canon.get("ticket_id") or "")
+        ticket = _ticket.get_ticket(ticket_id) if ticket_id else None
+        return not ticket or ticket.get("status") != "escalated"
+    if name == "close_ticket":
+        ticket_id = str(canon.get("ticket_id") or "")
+        ticket = _ticket.get_ticket(ticket_id) if ticket_id else None
+        return not ticket or ticket.get("status") != "closed"
+    if name == "request_password_reset":
+        email = str(canon.get("email") or "")
+        account = _account.get_account_status(email) if email else None
+        return not account or account.get("status") != "active"
+    if name == "request_license_change":
+        email = str(canon.get("email") or "")
+        target = str(canon.get("new_license_type") or "")
+        account = _account.get_account_status(email) if email else None
+        return not account or account.get("license_type") != target
+    return True
+
+
+def _cohere_pending_writes(writes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Drop create_ticket when escalate/close already targets a real ticket."""
+    real_ticket = False
+    for w in writes:
+        if w.get("name") not in {"escalate_ticket", "close_ticket"}:
+            continue
+        tid = str(canonicalize_write_args(str(w["name"]), w.get("args")).get("ticket_id") or "")
+        if tid and _ticket.get_ticket(tid):
+            real_ticket = True
+            break
+    if not real_ticket:
+        return writes
+    return [w for w in writes if w.get("name") != "create_ticket"]
+
+
 def preview_pending_write(name: str, args: dict[str, Any] | None = None) -> dict[str, Any]:
     """UI-friendly summary of one pending HITL write."""
-    args = _parse_args(args or {})
+    args = canonicalize_write_args(name, args or {})
     highlights = [
         {"key": label, "value": str(args[field])}
         for field, label in _HIGHLIGHT_KEYS
@@ -76,21 +200,22 @@ def preview_pending_writes(writes: list[dict[str, Any]] | None) -> list[dict[str
 
 
 def collect_pending_writes(messages: list[Any] | None = None, pending: list[dict] | None = None) -> list[dict[str, Any]]:
-    """Collect latest pending write tool calls (dedupe by tool+args)."""
+    """Collect latest pending write tool calls (dedupe by semantic write identity)."""
     found: list[dict[str, Any]] = []
     seen: set[str] = set()
 
     def _add(name: str, args: dict[str, Any]) -> None:
-        key = f"{name}:{json.dumps(args, sort_keys=True, ensure_ascii=False)}"
+        canon = canonicalize_write_args(name, args)
+        key = write_dedupe_key(name, canon)
         if key in seen:
             return
         seen.add(key)
-        found.append({"name": name, "args": args})
+        found.append({"name": name, "args": canon})
 
     for item in pending or []:
         name = item.get("name")
         if name in WRITE_TOOLS:
-            _add(name, _parse_args(item.get("args")))
+            _add(str(name), _parse_args(item.get("args")))
 
     for m in messages or []:
         tool_calls = getattr(m, "tool_calls", None)
@@ -103,7 +228,7 @@ def collect_pending_writes(messages: list[Any] | None = None, pending: list[dict
                     name = getattr(tc, "name", None)
                     args = _parse_args(getattr(tc, "args", {}))
                 if name in WRITE_TOOLS:
-                    _add(name, args)
+                    _add(str(name), args)
             continue
         # Also recover from tool result payloads that marked pending_approval
         if getattr(m, "type", None) == "tool" and getattr(m, "name", None) in WRITE_TOOLS:
@@ -112,19 +237,16 @@ def collect_pending_writes(messages: list[Any] | None = None, pending: list[dict
             except Exception:  # noqa: BLE001
                 payload = {}
             if isinstance(payload, dict) and payload.get("pending_approval"):
-                args = {k: v for k, v in payload.items() if k not in {"ok", "pending_approval", "action"}}
-                # map common fields
-                if "email" in payload:
-                    args["email"] = payload["email"]
-                if "ticket_id" in payload:
-                    args["ticket_id"] = payload["ticket_id"]
-                if "resolution" in payload:
-                    args["resolution"] = payload["resolution"]
-                if "new_license_type" in payload:
-                    args["new_license_type"] = payload["new_license_type"]
+                args = {
+                    k: v
+                    for k, v in payload.items()
+                    if k not in {"ok", "pending_approval", "action", "message", "already_applied"}
+                }
                 _add(str(m.name), args)
 
-    return found
+    # Drop already-applied / no-op writes, then create vs escalate/close coherence.
+    needed = [w for w in found if write_needs_hitl(str(w["name"]), w.get("args"))]
+    return _cohere_pending_writes(needed)
 
 
 def apply_approved_writes(
@@ -142,10 +264,13 @@ def apply_approved_writes(
 
     results: list[dict[str, Any]] = []
     for w in writes:
-        name = w.get("name")
-        args = _parse_args(w.get("args"))
-        key = make_idempotency_key(str(name or ""), args)
+        name = str(w.get("name") or "")
+        args = canonicalize_write_args(name, _parse_args(w.get("args")))
+        key = write_idempotency_key(name, args)
         prior = lookup_applied_action(key)
+        if not prior:
+            # Legacy full-args ledger entries from before semantic keys.
+            prior = lookup_applied_action(make_idempotency_key(name, args))
         if prior and isinstance(prior.get("result"), dict):
             result = dict(prior["result"])
             result.setdefault("ok", True)
@@ -164,13 +289,14 @@ def apply_approved_writes(
             new_type = args.get("new_license_type") or args.get("license_type") or ""
             result = _account.apply_license_change(email, new_type)
         elif name == "create_ticket":
+            ticket_key = args.get("idempotency_key") or write_dedupe_key(name, args)
             created = _ticket.create_ticket(
                 title=str(args.get("title") or "Support ticket"),
                 description=str(args.get("description") or ""),
                 category=str(args.get("category") or "General"),
                 priority=str(args.get("priority") or "P3"),
                 employee_id=args.get("employee_id") or None,
-                idempotency_key=args.get("idempotency_key") or None,
+                idempotency_key=ticket_key,
             )
             if isinstance(created, dict) and created.get("ticket_id"):
                 result = {

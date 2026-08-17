@@ -339,6 +339,30 @@ class TicketRepo:
             t = s.get(Ticket, ticket_id)
             return self._to_dict(t) if t else None
 
+    def get_by_idempotency_key(self, idempotency_key: str) -> dict | None:
+        key = (idempotency_key or "").strip()
+        if not key:
+            return None
+        Session = get_session_factory()
+        with Session() as s:
+            t = s.scalar(select(Ticket).where(Ticket.idempotency_key == key))
+            return self._to_dict(t) if t else None
+
+    def find_by_employee_and_title(self, employee_id: str, title: str) -> dict | None:
+        """Latest ticket matching employee + title (legacy rows without idempotency_key)."""
+        emp = (employee_id or "").strip()
+        ttl = (title or "").strip()
+        if not emp or not ttl:
+            return None
+        Session = get_session_factory()
+        with Session() as s:
+            t = s.scalar(
+                select(Ticket)
+                .where(Ticket.employee_id == emp, Ticket.title == ttl)
+                .order_by(desc(Ticket.created_at))
+            )
+            return self._to_dict(t) if t else None
+
     def update_ticket(
         self, ticket_id: str, *, allow_terminal: bool = False, **fields: Any
     ) -> dict | None:

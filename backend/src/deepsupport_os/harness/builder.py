@@ -14,7 +14,7 @@ from deepagents.middleware import create_summarization_tool_middleware
 from deepagents.middleware.memory import MemoryMiddleware
 
 from deepsupport_os.core.config import get_settings
-from deepsupport_os.db.repositories import AccountRepo, TicketRepo
+from deepsupport_os.db.repositories import TicketRepo
 from deepsupport_os.harness.daytona_backend import build_hybrid_backend, run_sandbox_shell
 from deepsupport_os.harness.guard_middleware import support_guard_middleware
 from deepsupport_os.harness.memory_files import (
@@ -72,39 +72,63 @@ def _tool_call_args(req: Any) -> dict[str, Any]:
 
 def _needs_password_reset(req) -> bool:
     try:
-        from deepsupport_os.db.repositories import lookup_applied_action, make_idempotency_key
+        from deepsupport_os.harness.hitl_apply import write_needs_hitl
 
-        args = _tool_call_args(req)
-        if lookup_applied_action(make_idempotency_key("request_password_reset", args)):
-            return False
-        email = str(args.get("email") or "")
-        account = AccountRepo().get_account_status(email) if email else None
-        return not account or account.get("status") != "active"
+        return write_needs_hitl("request_password_reset", _tool_call_args(req))
     except Exception:  # noqa: BLE001 - conservative: interrupt on lookup failure
         return True
 
 
 def _needs_license_change(req) -> bool:
     try:
-        from deepsupport_os.db.repositories import lookup_applied_action, make_idempotency_key
+        from deepsupport_os.harness.hitl_apply import write_needs_hitl
 
-        args = _tool_call_args(req)
-        if lookup_applied_action(make_idempotency_key("request_license_change", args)):
-            return False
-        email = str(args.get("email") or "")
-        target = str(args.get("new_license_type") or "")
-        account = AccountRepo().get_account_status(email) if email else None
-        return not account or account.get("license_type") != target
+        return write_needs_hitl("request_license_change", _tool_call_args(req))
     except Exception:  # noqa: BLE001
         return True
 
 
+def _sibling_ticket_write_exists(req) -> bool:
+    """True when the same AI turn also escalate/close a ticket that already exists."""
+    state = getattr(req, "state", None) or {}
+    messages = state.get("messages") if isinstance(state, dict) else None
+    if not messages:
+        return False
+    for m in reversed(list(messages)[-8:]):
+        tool_calls = getattr(m, "tool_calls", None)
+        if not tool_calls and isinstance(m, dict):
+            tool_calls = m.get("tool_calls")
+        if not tool_calls:
+            continue
+        for tc in tool_calls:
+            if isinstance(tc, dict):
+                name = tc.get("name")
+                args = tc.get("args") or {}
+            else:
+                name = getattr(tc, "name", None)
+                args = getattr(tc, "args", None) or {}
+            if name not in {"escalate_ticket", "close_ticket"}:
+                continue
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except json.JSONDecodeError:
+                    args = {}
+            tid = str((args or {}).get("ticket_id") or "")
+            if tid and TicketRepo().get_ticket(tid):
+                return True
+        break
+    return False
+
+
 def _needs_create_ticket(req) -> bool:
     try:
-        from deepsupport_os.db.repositories import lookup_applied_action, make_idempotency_key
+        from deepsupport_os.harness.hitl_apply import write_needs_hitl
 
-        args = _tool_call_args(req)
-        if lookup_applied_action(make_idempotency_key("create_ticket", args)):
+        if not write_needs_hitl("create_ticket", _tool_call_args(req)):
+            return False
+        # Do not HITL create alongside escalate/close of an existing ticket.
+        if _sibling_ticket_write_exists(req):
             return False
         return True
     except Exception:  # noqa: BLE001
@@ -113,28 +137,18 @@ def _needs_create_ticket(req) -> bool:
 
 def _needs_close(req) -> bool:
     try:
-        from deepsupport_os.db.repositories import lookup_applied_action, make_idempotency_key
+        from deepsupport_os.harness.hitl_apply import write_needs_hitl
 
-        args = _tool_call_args(req)
-        if lookup_applied_action(make_idempotency_key("close_ticket", args)):
-            return False
-        ticket_id = str(args.get("ticket_id") or "")
-        ticket = TicketRepo().get_ticket(ticket_id) if ticket_id else None
-        return not ticket or ticket.get("status") != "closed"
+        return write_needs_hitl("close_ticket", _tool_call_args(req))
     except Exception:  # noqa: BLE001
         return True
 
 
 def _needs_escalate(req) -> bool:
     try:
-        from deepsupport_os.db.repositories import lookup_applied_action, make_idempotency_key
+        from deepsupport_os.harness.hitl_apply import write_needs_hitl
 
-        args = _tool_call_args(req)
-        if lookup_applied_action(make_idempotency_key("escalate_ticket", args)):
-            return False
-        ticket_id = str(args.get("ticket_id") or "")
-        ticket = TicketRepo().get_ticket(ticket_id) if ticket_id else None
-        return not ticket or ticket.get("status") != "escalated"
+        return write_needs_hitl("escalate_ticket", _tool_call_args(req))
     except Exception:  # noqa: BLE001
         return True
 

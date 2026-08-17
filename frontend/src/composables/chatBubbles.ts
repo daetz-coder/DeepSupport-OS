@@ -18,6 +18,20 @@ function askQuestionFromToolCalls(toolCalls: unknown[] | undefined): string | nu
   return null
 }
 
+/** Guard denials for ask_user (e.g. ask_user_duplicate) must not appear as user answers. */
+function isAskUserToolError(content: string, status?: string): boolean {
+  if (String(status || '').toLowerCase() === 'error') return true
+  const t = content.trim()
+  if (!t.startsWith('{')) return false
+  try {
+    const o = JSON.parse(t) as { ok?: unknown; error?: unknown }
+    if (o && typeof o === 'object' && (o.ok === false || typeof o.error === 'string')) return true
+  } catch {
+    return false
+  }
+  return false
+}
+
 function pushAssistant(out: ChatBubble[], content: string, pendingAsk: boolean, id: string) {
   const text = content.trim()
   if (!text) return
@@ -72,7 +86,9 @@ export function buildChatBubbles(
     }
 
     // ask_user tool return value IS the user's answer — show it as a user bubble
+    // (skip guard denials like ask_user_duplicate JSON — those are not answers)
     if (role === 'tool' && name === 'ask_user' && content) {
+      if (isAskUserToolError(content, m.status)) continue
       const last = out[out.length - 1]
       if (last?.role === 'user' && last.content === content) continue
       out.push({ id: `ans-${i++}`, role: 'user', content })

@@ -234,3 +234,48 @@ def test_subagent_budget_blocks_business_tools_only():
     payload = json.loads(out.content)
     assert payload["error"] == "subagent_tool_budget_exhausted"
     assert payload["used_calls"] == 3
+
+
+def test_ask_user_allows_when_aimessage_contains_self():
+    """First ask_user must not treat its own tool_call as a prior duplicate."""
+    called = {"n": 0}
+
+    def handler(_req):
+        called["n"] += 1
+        return "ok"
+
+    q = "登录 Outlook 时具体看到什么提示？"
+    tc = {"name": "ask_user", "args": {"question": q}, "id": "ask-1"}
+    messages = [_Human(), _AIMsg([tc])]
+    out = apply_support_tool_guards(
+        _Req("ask_user", {"question": q}, todos=[{"content": "ask"}], messages=messages, id="ask-1"),
+        handler,
+    )
+    assert out == "ok"
+    assert called["n"] == 1
+
+
+def test_ask_user_blocks_true_duplicate_after_answer():
+    def handler(_req):
+        return "should-not-run"
+
+    q = "登录 Outlook 时具体看到什么提示？"
+    prior = {"name": "ask_user", "args": {"question": q}, "id": "ask-old"}
+    messages = [
+        _Human(),
+        _AIMsg([prior]),
+        _ToolResult("ask_user", "反复弹出凭据框", tool_call_id="ask-old"),
+        _AIMsg([{"name": "ask_user", "args": {"question": q}, "id": "ask-new"}]),
+    ]
+    out = apply_support_tool_guards(
+        _Req(
+            "ask_user",
+            {"question": q},
+            todos=[{"content": "ask"}],
+            messages=messages,
+            id="ask-new",
+        ),
+        handler,
+    )
+    payload = json.loads(out.content)
+    assert payload["error"] == "ask_user_duplicate"

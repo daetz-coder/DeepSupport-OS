@@ -151,23 +151,32 @@ def _recent_tool_names(messages: list[Any], *, limit: int = 40) -> set[str]:
     return names
 
 
-def _prior_ask_questions(messages: list[Any]) -> list[str]:
+def _prior_ask_questions(
+    messages: list[Any], *, exclude_ids: set[str] | None = None
+) -> list[str]:
+    """Questions from prior ask_user tool_calls (not the in-flight call / error denials)."""
+    skip = set(exclude_ids or ())
+    skip |= _error_tool_call_ids(messages)
     out: list[str] = []
     for m in messages:
         if getattr(m, "type", None) == "tool" and getattr(m, "name", None) == "ask_user":
             # Content is the answer; look at prior AI tool_calls for question — skip.
             continue
         for tc in getattr(m, "tool_calls", None) or []:
-            if isinstance(tc, dict) and tc.get("name") == "ask_user":
-                args = tc.get("args") or {}
-                if isinstance(args, str):
-                    try:
-                        args = json.loads(args)
-                    except json.JSONDecodeError:
-                        args = {}
-                q = str((args or {}).get("question") or "").strip().lower()
-                if q:
-                    out.append(q)
+            if not isinstance(tc, dict) or tc.get("name") != "ask_user":
+                continue
+            tid = str(tc.get("id") or "")
+            if tid and tid in skip:
+                continue
+            args = tc.get("args") or {}
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except json.JSONDecodeError:
+                    args = {}
+            q = str((args or {}).get("question") or "").strip().lower()
+            if q:
+                out.append(q)
     return out
 
 
@@ -326,20 +335,64 @@ def apply_support_tool_guards(
             )
 
     # 2) Duplicate ask_user for the same question.
+    # Exclude the in-flight tool_call id — it is already on the AIMessage in state.
     if name == "ask_user":
         question = str(_tool_args(request).get("question") or "").strip().lower()
-        if question and question in _prior_ask_questions(messages):
+        current_id = _tool_call_id(request)
+        prior_qs = _prior_ask_questions(
+            messages, exclude_ids={current_id} if current_id else set()
+        )
+        if question and question in prior_qs:
             return _deny(
                 request,
                 {
                     "ok": False,
                     "error": "ask_user_duplicate",
                     "hint": "该问题已提问过；请使用用户已提供的回答继续，勿重复 ask_user",
-                    "question": question,
                 },
             )
 
-    # 2b) Same-signature tool replay + per-turn tool budget (main agent).
+    # 2b) Never create_ticket in the same turn as escalate/close of a real ticket.
+    if name == "create_ticket":
+        from deepsupport_os.db.repositories import TicketRepo
+
+        ticket_repo = TicketRepo()
+        for m in reversed(turn_messages[-8:]):
+            for tc in getattr(m, "tool_calls", None) or []:
+                if isinstance(tc, dict):
+                    tc_name = tc.get("name")
+                    tc_args = tc.get("args") or {}
+                else:
+                    tc_name = getattr(tc, "name", None)
+                    tc_args = getattr(tc, "args", None) or {}
+                if tc_name not in {"escalate_ticket", "close_ticket"}:
+                    continue
+                if isinstance(tc_args, str):
+                    try:
+                        tc_args = json.loads(tc_args)
+                    except json.JSONDecodeError:
+                        tc_args = {}
+                tid = str((tc_args or {}).get("ticket_id") or "")
+                if tid and ticket_repo.get_ticket(tid):
+                    return ToolMessage(
+                        content=json.dumps(
+                            {
+                                "ok": True,
+                                "already_applied": True,
+                                "skipped": "create_while_escalate_or_close",
+                                "hint": (
+                                    f"工单 {tid} 已存在；本轮请 escalate/close，"
+                                    "勿再 create_ticket"
+                                ),
+                                "ticket_id": tid,
+                            },
+                            ensure_ascii=False,
+                        ),
+                        tool_call_id=_tool_call_id(request),
+                        name=_tool_name(request) or "create_ticket",
+                    )
+
+    # 2c) Same-signature tool replay + per-turn tool budget (main agent).
     # Scope to the current user turn; exclude self id / prior error ids.
     if name:
         args = _tool_args(request)

@@ -170,6 +170,8 @@ function groupStages(steps: TraceStep[]): StageBucket[] {
   ] as const
   const buckets = new Map<string, TraceStep[]>()
   for (const s of steps) {
+    // Stages list tools/subagent dispatches only — never chat text.
+    if (!INVOCATION_KINDS.has(s.kind)) continue
     const id = String(s.stage || 'other')
     const list = buckets.get(id) || []
     list.push(s)
@@ -179,9 +181,8 @@ function groupStages(steps: TraceStep[]): StageBucket[] {
   for (const [id, label] of order) {
     const items = buckets.get(id)
     if (!items?.length) continue
-    const invocations = items.filter((s) => INVOCATION_KINDS.has(s.kind))
     const names: string[] = []
-    for (const s of invocations) {
+    for (const s of items) {
       const n = String(s.subagent || s.skill_used || s.name || '')
       if (n && !names.includes(n)) names.push(n)
       if (names.length >= 4) break
@@ -191,8 +192,8 @@ function groupStages(steps: TraceStep[]): StageBucket[] {
       label,
       status: 'running',
       step_count: items.length,
-      tool_count: invocations.length,
-      summary: names.length ? names.join(' · ') : `${items.length} 步`,
+      tool_count: items.length,
+      summary: names.length ? names.join(' · ') : `${items.length} tools`,
       steps: items,
     })
   }

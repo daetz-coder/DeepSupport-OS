@@ -4,6 +4,8 @@ import { API } from '../api/client'
 
 const props = defineProps<{
   taskId: string
+  /** Bump when run status changes so we refetch persisted tree after done. */
+  refreshKey?: string | number | null
 }>()
 
 interface TimelineTree {
@@ -120,9 +122,11 @@ const totalDuration = computed(() => {
   return timeline.value.duration_ms
 })
 
-// Fetch timeline on mount and when taskId changes
+// Fetch timeline on mount and when task / run phase changes
 onMounted(fetchTimeline)
-watch(() => props.taskId, fetchTimeline)
+watch(() => [props.taskId, props.refreshKey], () => {
+  fetchTimeline()
+})
 
 // Auto-refresh every 2 seconds if task is running
 const isRunning = computed(() => {

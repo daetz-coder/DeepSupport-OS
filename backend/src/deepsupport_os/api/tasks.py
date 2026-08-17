@@ -236,6 +236,14 @@ def _build_record(
         },
     )
     artifacts = list_artifacts(thread_id)
+    # Snapshot live callback tree (has nested subagent tools) before next clear.
+    timeline_tree = None
+    try:
+        live = get_timeline_tracker().get_tree()
+        if live and (live.get("children") or []):
+            timeline_tree = live
+    except Exception:  # noqa: BLE001
+        timeline_tree = None
     return {
         "task_id": task_id,
         "thread_id": thread_id,
@@ -245,6 +253,7 @@ def _build_record(
         "interrupt": interrupt,
         "trace": trace,
         "overview": overview,
+        "timeline_tree": timeline_tree,
         "applied_writes": applied or [],
         "todos": todos,
         "artifacts": artifacts,
@@ -833,18 +842,42 @@ async def stream_task(body: TaskCreateRequest):
 @router.get("/{task_id}/timeline")
 def get_task_timeline(task_id: str):
     """Get execution timeline for a task (for debugging and audit)."""
-    timeline = get_timeline_tracker()
-    tree = timeline.get_tree()
-    if not tree:
-        raise HTTPException(status_code=404, detail="Timeline not found")
-    return tree
+    return get_task_timeline_tree(task_id)
 
 
 @router.get("/{task_id}/timeline/tree")
 def get_task_timeline_tree(task_id: str):
-    """Get execution timeline as a hierarchical tree."""
-    timeline = get_timeline_tracker()
-    tree = timeline.get_tree()
+    """Hierarchical timeline: persisted snapshot > trace rebuild > live tracker."""
+    from deepsupport_os.harness.timeline_from_trace import (
+        build_timeline_tree_from_steps,
+        prefer_richer_timeline,
+    )
+
+    tid = (task_id or "").strip()
+    record = task_store.get_task(tid) if tid else None
+    from_steps = None
+    saved = None
+    if record:
+        saved = record.get("timeline_tree") if isinstance(record.get("timeline_tree"), dict) else None
+        trace = record.get("trace") if isinstance(record.get("trace"), dict) else {}
+        steps = list(trace.get("steps") or [])
+        overview = record.get("overview") if isinstance(record.get("overview"), dict) else {}
+        metrics = record.get("metrics") if isinstance(record.get("metrics"), dict) else {}
+        duration = (
+            metrics.get("duration_ms")
+            if metrics.get("duration_ms") is not None
+            else overview.get("duration_ms")
+        )
+        if steps:
+            from_steps = build_timeline_tree_from_steps(
+                steps,
+                task_id=tid,
+                status=str(record.get("status") or "completed"),
+                duration_ms=float(duration) if duration is not None else None,
+            )
+
+    live = get_timeline_tracker().get_tree()
+    tree = prefer_richer_timeline(saved, prefer_richer_timeline(from_steps, live))
     if not tree:
         raise HTTPException(status_code=404, detail="Timeline not found")
     return tree
