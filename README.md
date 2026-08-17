@@ -117,7 +117,7 @@ cp config/mcp_servers.example.json config/mcp_servers.json   # 若尚无
 ```bash
 # 两边都要有 .env（本仓库至少 DEEPSEEK_API_KEY；RAGLab 同其 .env.example）
 docker compose up --build -d
-# 面试公网：powershell -ExecutionPolicy Bypass -File scripts\demo-public.ps1
+# 公开演示上公网：powershell -ExecutionPolicy Bypass -File scripts\demo-public.ps1
 #   （默认 Cloudflare quick tunnel 自动打印公网 URL；-TunnelMode localtunnel/none 可选）
 # 停止：docker compose down
 ```
@@ -135,6 +135,8 @@ docker compose up --build -d
 打开 UI 后顶部会显示 **后端 / LLM**（`/health`）以及 **RAGLab / Sandbox**（`/api/health/deps`）。未就绪时 Knowledge 仍可回退本地 Markdown。
 
 说明：远程 MCP（`127.0.0.1:8100`）与 Ollama 仍需宿主机；远程开关以 `config/extensions.json`（或 UI「MCP」）为准。
+
+> **公开演示前请设置 `ADMIN_TOKEN`**（`.env` 中 `ADMIN_TOKEN=<随机串>`）：为空时 `/api/meta/*`（Skills/MCP 启停）与 `/admin/seed` 等写接口可被匿名访问（本地开发默认放开）。`demo-public.ps1` 在开启隧道且未设置时会告警。
 
 ### 3. 本地三进程（可选 · 开发热重载）
 

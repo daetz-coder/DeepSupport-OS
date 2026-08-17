@@ -6,7 +6,7 @@
 
 | 文件 | 作用 |
 |------|------|
-| `demo-public.ps1` | 面试公网演示：全 Docker（DeepSupport + RAGLab）+ tunnel；只暴露 UI `:5173`（同源反代 API）。`-TunnelMode cloudflare\|localtunnel\|none`（默认 `cloudflare`） |
+| `demo-public.ps1` | 公开公网演示：全 Docker（DeepSupport + RAGLab）+ tunnel；只暴露 UI `:5173`（同源反代 API）。`-TunnelMode cloudflare\|localtunnel\|none`（默认 `cloudflare`） |
 | `run_outlook_demo.py` | 无 HTTP：Outlook 登录失败场景直调 harness |
 | `run_hitl_demo.py` | HITL 批准 + 密码重置落库 + 开单演示 |
 | `smoke_checkpoint.py` | Checkpointer 最小冒烟（新建 thread `get_state`） |

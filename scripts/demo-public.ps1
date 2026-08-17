@@ -1,4 +1,4 @@
-# DeepSupport OS — Docker-only public interview demo (same-origin UI + tunnel)
+# DeepSupport OS — Docker-only public demo (same-origin UI + tunnel)
 # Usage (repo root):
 #   powershell -ExecutionPolicy Bypass -File scripts\demo-public.ps1
 # Options:
@@ -75,6 +75,11 @@ if (-not (Test-Path $raglabEnv)) {
 $keyOk = Select-String -Path "$Root\.env" -Pattern '^DEEPSEEK_API_KEY=.+' -Quiet
 if (-not $keyOk) {
   Write-Warning "DEEPSEEK_API_KEY looks empty; agent runs will fail."
+}
+
+$adminOk = Select-String -Path "$Root\.env" -Pattern '^ADMIN_TOKEN=.+' -Quiet
+if ($TunnelMode -ne "none" -and -not $adminOk) {
+  Write-Warning "ADMIN_TOKEN is empty — /api/meta/* (Skills/MCP toggles) and /admin/seed are open without auth. Set ADMIN_TOKEN in .env before exposing publicly."
 }
 
 $publicPort = 5173
