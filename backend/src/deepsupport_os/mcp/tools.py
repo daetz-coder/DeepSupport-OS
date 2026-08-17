@@ -415,3 +415,56 @@ def all_agent_tools():
                 tools.append(tag_tool(t, source="remote", server=str(server) if server else "remote"))
                 existing.add(name)
     return filter_tools(tools)
+
+
+def main_agent_tools():
+    """Tools available to the main agent (excludes subagent-only tools).
+    
+    Main agent should delegate these to subagents:
+    - Environment/account queries → environment-diagnosis
+    - Knowledge retrieval → knowledge-research
+    - Ticket CRUD → ticket-operations
+    
+    Main agent keeps:
+    - HITL write operations (request_password_reset, request_license_change, close_ticket, escalate_ticket)
+    - Policy checks (check_action_permission)
+    - User interaction (ask_user, notify_user)
+    - Filesystem tools (from deepagents)
+    """
+    from deepsupport_os.core.extensions import ext_bool
+    from deepsupport_os.harness.capability_registry import filter_tools
+    from deepsupport_os.harness.tool_provenance import tag_tool
+
+    # Tools that should ONLY be called by subagents
+    subagent_only_tools = {
+        # Knowledge retrieval → knowledge-research
+        "search_docs", "get_document", "search_cases", "search_similar_cases",
+        # Environment queries → environment-diagnosis
+        "get_employee", "get_department", "get_manager",
+        "get_device", "list_user_devices",
+        "get_account_status", "get_license",
+        # Ticket CRUD → ticket-operations
+        "create_ticket", "get_ticket", "update_ticket",
+    }
+    
+    tools: list = []
+    if ext_bool("mcp_local_tools"):
+        for t in ALL_MOCK_TOOLS:
+            name = getattr(t, "name", "")
+            if name not in subagent_only_tools:
+                tools.append(tag_tool(t, source="local"))
+    
+    if ext_bool("mcp_remote_enabled"):
+        from deepsupport_os.mcp.remote_client import load_remote_mcp_tools
+
+        existing = {getattr(t, "name", "") for t in tools}
+        for t in load_remote_mcp_tools():
+            name = getattr(t, "name", "")
+            if name and name not in existing:
+                server = getattr(t, "_ds_server", None) or getattr(t, "metadata", {})
+                if isinstance(server, dict):
+                    server = server.get("server") or server.get("mcp_server")
+                tools.append(tag_tool(t, source="remote", server=str(server) if server else "remote"))
+                existing.add(name)
+    
+    return filter_tools(tools)

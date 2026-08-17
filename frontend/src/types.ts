@@ -11,6 +11,8 @@ export type TraceStep = {
   tool_source?: string
   mcp_server?: string
   offload_path?: string
+  /** Nested subagent progress phase: tool_start | tool_end | llm_start | … */
+  phase?: string
 }
 
 export type HitlHighlight = { key: string; value: string }

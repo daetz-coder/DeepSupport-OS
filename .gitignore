@@ -32,6 +32,10 @@ frontend/dist/
 data/*.db
 data/*.db-shm
 data/*.db-wal
+data/*.json
+data/*.jsonl
+data/_demo_*.json
+data/test_chain_*.jsonl
 **/deepsupport.db
 **/deepsupport.db-shm
 **/deepsupport.db-wal

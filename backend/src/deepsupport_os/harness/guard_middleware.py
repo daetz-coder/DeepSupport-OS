@@ -152,6 +152,49 @@ def _deny(request: Any, payload: dict[str, Any]) -> ToolMessage:
     )
 
 
+def _tool_signature(name: str, args: dict[str, Any]) -> str:
+    """Stable key for duplicate detection (tool + canonical args)."""
+    if name == "get_document":
+        key = str(args.get("document_id") or "").strip().lower()
+    elif name in {"search_docs", "search_cases"}:
+        key = str(args.get("query") or "").strip().lower()
+    elif name in {"get_employee", "get_account_status", "get_license", "list_user_devices"}:
+        key = str(args.get("email") or args.get("employee_id") or "").strip().lower()
+    elif name in {"get_device"}:
+        key = str(args.get("device_id") or "").strip().lower()
+    elif name in {"get_ticket", "update_ticket", "create_ticket"}:
+        key = str(args.get("ticket_id") or args.get("idempotency_key") or "").strip().lower()
+    else:
+        try:
+            key = json.dumps(args, ensure_ascii=False, sort_keys=True, default=str)
+        except TypeError:
+            key = str(args)
+    return f"{name}::{key}"
+
+
+def _prior_tool_signatures(messages: list[Any], *, limit: int = 80) -> list[str]:
+    """Signatures from prior AI tool_calls (args available there)."""
+    out: list[str] = []
+    for m in messages[-limit:]:
+        for tc in getattr(m, "tool_calls", None) or []:
+            if isinstance(tc, dict):
+                name = str(tc.get("name") or "")
+                args = tc.get("args") or {}
+            else:
+                name = str(getattr(tc, "name", "") or "")
+                args = getattr(tc, "args", None) or {}
+            if isinstance(args, str):
+                try:
+                    args = json.loads(args)
+                except json.JSONDecodeError:
+                    args = {"raw": args}
+            if not isinstance(args, dict):
+                args = {}
+            if name:
+                out.append(_tool_signature(name, args))
+    return out
+
+
 def apply_support_tool_guards(
     request: Any,
     handler: Callable[[Any], Any],
@@ -220,6 +263,75 @@ def support_tool_guards(
     return apply_support_tool_guards(request, handler)
 
 
+# Default budget for MVP subagents (matches prompt: ≤3 tool calls then stop).
+_SUBAGENT_MAX_TOOL_CALLS = 3
+
+
+def apply_subagent_tool_budget(
+    request: Any,
+    handler: Callable[[Any], Any],
+    *,
+    max_calls: int = _SUBAGENT_MAX_TOOL_CALLS,
+) -> Any:
+    """Hard-stop repeated / excess tool use inside subagents (prompt alone is ignored)."""
+    name = _tool_name(request)
+    if not name:
+        return handler(request)
+
+    messages = _state_messages(request)
+    args = _tool_args(request)
+    sig = _tool_signature(name, args)
+    prior_sigs = _prior_tool_signatures(messages)
+
+    if sig in prior_sigs:
+        return _deny(
+            request,
+            {
+                "ok": False,
+                "error": "duplicate_tool_call",
+                "hint": (
+                    f"工具 {name} 已用相同参数调用过；请复用已有结果并立即输出最终结构化答案，"
+                    "禁止重复检索/重复拉取同一文档"
+                ),
+                "blocked_tool": name,
+                "signature": sig,
+            },
+        )
+
+    # Count prior AI-issued tool_calls (more accurate than ToolMessage count when
+    # parallel calls are batched).
+    if len(prior_sigs) >= max_calls:
+        return _deny(
+            request,
+            {
+                "ok": False,
+                "error": "subagent_tool_budget_exhausted",
+                "hint": (
+                    f"子代理工具预算已用尽（最多 {max_calls} 次）；"
+                    "请立即基于已有检索结果输出最终结构化答案，勿再调用工具"
+                ),
+                "blocked_tool": name,
+                "max_calls": max_calls,
+                "used_calls": len(prior_sigs),
+            },
+        )
+
+    return handler(request)
+
+
+@wrap_tool_call
+def subagent_tool_budget(
+    request: Any,
+    handler: Callable[[Any], Any],
+) -> Any:
+    return apply_subagent_tool_budget(request, handler)
+
+
 def support_guard_middleware() -> list[Any]:
     """Return middleware list entry for HarnessBuilder."""
     return [support_tool_guards]
+
+
+def subagent_budget_middleware() -> list[Any]:
+    """Middleware for MVP subagents: cap + dedupe tool calls."""
+    return [subagent_tool_budget]

@@ -59,6 +59,10 @@ def build_model() -> ChatOpenAI:
         base_url=base_url,
         temperature=0,
         streaming=True,
+        # Prevent LLM calls from hanging indefinitely (e.g., Ollama slow/unresponsive).
+        # 120s should cover most inference scenarios; subagent tool budget + SSE
+        # inactivity timeout provide additional safety nets.
+        request_timeout=120.0,
     )
 
 

@@ -1,40 +1,85 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Sora:wght@600;700&display=swap");
+/* Web UI Console Design System
+ * Based on curloop product-grade console UI design language
+ * Apple HIG × shadcn hybrid: light theme + status dots + card stats + panel layout
+ */
 
 :root {
-  --ds-ink: #0c1f1a;
-  --ds-ink-soft: #3d524c;
-  --ds-muted: #6b7f78;
-  --ds-line: #d5e0db;
-  --ds-line-strong: #b8c9c2;
-  --ds-surface: rgba(255, 255, 255, 0.78);
-  --ds-surface-solid: #f4f8f6;
-  --ds-panel: #ffffff;
-  --ds-accent: #0f766e;
-  --ds-accent-soft: #ccfbf1;
-  --ds-accent-deep: #115e59;
-  --ds-warn: #b45309;
-  --ds-danger: #b91c1c;
-  --ds-ok: #047857;
-  --ds-radius: 14px;
-  --ds-shadow: 0 1px 0 rgba(12, 31, 26, 0.04), 0 12px 32px rgba(12, 31, 26, 0.06);
-  --font-display: "Sora", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-body: "IBM Plex Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  /* Background stack */
+  --bg-page: #fafafa;
+  --bg-sidebar: #f4f4f5;
+  --bg-card: #ffffff;
+  --bg-surface: rgba(255, 255, 255, 0.78);
+
+  /* Text stack */
+  --fg-primary: #18181b;    /* Near black */
+  --fg-secondary: #71717a;  /* Zinc 500 */
+  --fg-muted: #a1a1aa;      /* Zinc 400 */
+
+  /* Border stack */
+  --border: #e8e8ea;        /* Zinc 200 */
+  --border-strong: #d4d4d8; /* Zinc 300 */
+
+  /* Primary colors */
+  --primary: #18181b;       /* Near black buttons */
+  --accent: #007aff;        /* Apple blue */
+  --accent-soft: rgba(0, 122, 255, 0.14);
+
+  /* Semantic colors */
+  --success: #22c55e;       /* Green */
+  --danger: #ef4444;        /* Red */
+  --warning: #f59e0b;       /* Yellow */
+  --info: #06b6d4;          /* Cyan */
+  --purple: #8b5cf6;        /* Purple */
+
+  /* Legacy compat (map to new system) */
+  --ds-ink: var(--fg-primary);
+  --ds-ink-soft: var(--fg-secondary);
+  --ds-muted: var(--fg-muted);
+  --ds-line: var(--border);
+  --ds-line-strong: var(--border-strong);
+  --ds-surface: var(--bg-surface);
+  --ds-surface-solid: var(--bg-sidebar);
+  --ds-panel: var(--bg-card);
+  --ds-accent: var(--primary);
+  --ds-accent-soft: var(--accent-soft);
+  --ds-accent-deep: var(--primary);
+  --ds-warn: var(--warning);
+  --ds-danger: var(--danger);
+  --ds-ok: var(--success);
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04);
+  --shadow-md: 0 10px 28px -8px rgb(0 0 0 / 0.08);
+  --ds-shadow: var(--shadow-sm);
+
+  /* Border radius (3 tiers) */
+  --radius-sm: 7px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Font stack (system fonts, no network fonts) */
+  --font-body: -apple-system, "SF Pro Text", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-display: -apple-system, "SF Pro Display", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+
+  /* Font sizes (unified scale) */
+  --text-xs: 11px;      /* Badges, form labels */
+  --text-sm: 12px;      /* Secondary text */
+  --text-base: 13px;    /* Body, buttons, inputs */
+  --text-nav: 13.5px;   /* Nav items */
+  --text-brand: 16px;   /* Brand */
+  --text-title: 19px;   /* Page title */
+  --text-stat: 24px;    /* Stat numbers */
 
   font-family: var(--font-body);
+  font-size: var(--text-base);
   line-height: 1.55;
-  color: var(--ds-ink);
+  color: var(--fg-primary);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
-  background-color: #e8f0ed;
-  background-image:
-    radial-gradient(ellipse 80% 50% at 0% -10%, rgba(45, 212, 191, 0.22), transparent 55%),
-    radial-gradient(ellipse 60% 40% at 100% 0%, rgba(15, 118, 110, 0.12), transparent 50%),
-    linear-gradient(rgba(15, 118, 110, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 118, 110, 0.035) 1px, transparent 1px);
-  background-size: auto, auto, 28px 28px, 28px 28px;
-  background-attachment: fixed;
+  -moz-osx-font-smoothing: grayscale;
+  background: var(--bg-page);
   min-height: 100vh;
 }
 
@@ -51,34 +96,286 @@ body {
 }
 
 ::selection {
-  background: var(--ds-accent-soft);
-  color: var(--ds-accent-deep);
+  background: var(--accent-soft);
+  color: var(--primary);
 }
 
 /* Element Plus soft overrides to match console palette */
 .el-button--primary {
-  --el-button-bg-color: var(--ds-accent);
-  --el-button-border-color: var(--ds-accent);
-  --el-button-hover-bg-color: var(--ds-accent-deep);
-  --el-button-hover-border-color: var(--ds-accent-deep);
+  --el-button-bg-color: var(--primary);
+  --el-button-border-color: var(--primary);
+  --el-button-hover-bg-color: #27272a;
+  --el-button-hover-border-color: #27272a;
+  --el-button-active-bg-color: #09090b;
+  --el-button-active-border-color: #09090b;
+}
+
+.el-button--success {
+  --el-button-bg-color: var(--success);
+  --el-button-border-color: var(--success);
+}
+
+.el-button--danger {
+  --el-button-bg-color: var(--danger);
+  --el-button-border-color: var(--danger);
+}
+
+.el-button--warning {
+  --el-button-bg-color: var(--warning);
+  --el-button-border-color: var(--warning);
 }
 
 .el-tabs__item.is-active {
-  color: var(--ds-accent-deep) !important;
+  color: var(--accent) !important;
+  font-weight: 500;
 }
 
 .el-tabs__active-bar {
-  background-color: var(--ds-accent) !important;
+  background-color: var(--accent) !important;
+}
+
+.el-tabs__nav-wrap::after {
+  background-color: var(--border) !important;
 }
 
 .el-checkbox__input.is-checked .el-checkbox__inner {
-  background-color: var(--ds-accent);
-  border-color: var(--ds-accent);
+  background-color: var(--accent);
+  border-color: var(--accent);
 }
 
 .el-switch.is-checked .el-switch__core {
-  background-color: var(--ds-accent) !important;
-  border-color: var(--ds-accent) !important;
+  background-color: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+
+/* Status dots - primary status indicator */
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.dot.on,
+.dot.is-ok {
+  background: var(--success);
+}
+
+.dot.is-warn {
+  background: var(--warning);
+}
+
+.dot.is-bad,
+.dot.is-error {
+  background: var(--danger);
+}
+
+.dot.is-idle {
+  background: var(--fg-muted);
+}
+
+.dot.is-active {
+  animation: dot-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Badge component */
+.badge {
+  font-size: var(--text-xs);
+  border-radius: 999px;
+  padding: 2px 10px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid transparent;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.badge.is-ok {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+}
+
+.badge.is-warn {
+  background: #fffbeb;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.badge.is-bad {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.badge.is-info {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+/* Stat card component */
+.stat-card {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.18s, transform 0.18s;
+}
+
+.stat-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+.stat-card .stat-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.stat-card .stat-label {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+
+.stat-card .stat-value {
+  font-size: var(--text-stat);
+  font-weight: 600;
+  color: var(--fg-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-card .stat-hint {
+  font-size: var(--text-sm);
+  color: var(--fg-secondary);
+}
+
+/* Panel component */
+.panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fg-primary);
+}
+
+.panel-body {
+  padding: 18px;
+}
+
+/* Button base styles */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-base);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.btn-primary {
+  background: var(--primary);
+  color: #fff;
+}
+
+.btn-primary:hover {
+  background: #27272a;
+}
+
+.btn-outline {
+  background: var(--bg-card);
+  color: var(--fg-primary);
+  border-color: var(--border-strong);
+}
+
+.btn-outline:hover {
+  background: var(--bg-sidebar);
+  border-color: var(--fg-muted);
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn-danger:hover {
+  background: #dc2626;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--fg-secondary);
+}
+
+.btn-ghost:hover {
+  background: var(--bg-sidebar);
+  color: var(--fg-primary);
+}
+
+/* Form inputs */
+.input,
+.el-input__wrapper,
+.el-textarea__inner {
+  border-radius: var(--radius-sm) !important;
+  border-color: var(--border-strong) !important;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.input:focus,
+.el-input__wrapper.is-focus,
+.el-textarea__inner:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-soft) !important;
 }
 
 /* Sidebar column resize drag */

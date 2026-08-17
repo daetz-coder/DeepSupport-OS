@@ -26,7 +26,7 @@ from deepsupport_os.harness.prompts import build_system_prompt
 from deepsupport_os.harness.skills_registry import skill_source_paths
 from deepsupport_os.harness.subagents import build_mvp_subagents
 from deepsupport_os.harness.workspace import ensure_thread_workspace
-from deepsupport_os.mcp.tools import all_agent_tools
+from deepsupport_os.mcp.tools import main_agent_tools
 
 WRITE_TOOL_NAMES = frozenset(
     {"request_password_reset", "request_license_change", "close_ticket", "escalate_ticket"}
@@ -153,7 +153,7 @@ class RuntimePorts:
     """Injectable collaborators for create_deep_agent (testable / swappable)."""
 
     model_factory: Callable[[], Any]
-    tools_factory: Callable[[], list[Any]] = field(default=all_agent_tools)
+    tools_factory: Callable[[], list[Any]] = field(default=main_agent_tools)
     skills_factory: Callable[[], list[str]] = field(default=skill_source_paths)
     subagents_factory: Callable[[], list[dict]] = field(default=build_mvp_subagents)
     backend_factory: Callable[..., Any] = field(default=build_hybrid_backend)

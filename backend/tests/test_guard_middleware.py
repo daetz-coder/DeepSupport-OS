@@ -118,3 +118,59 @@ def test_blocks_write_when_another_write_action_checked():
     )
     payload = json.loads(out.content)
     assert payload["error"] == "policy_check_required"
+
+
+class _AIMsg:
+    def __init__(self, tool_calls: list[dict]):
+        self.type = "ai"
+        self.tool_calls = tool_calls
+        self.content = ""
+
+
+def test_subagent_budget_blocks_duplicate_get_document():
+    from deepsupport_os.harness.guard_middleware import apply_subagent_tool_budget
+
+    called = {"n": 0}
+
+    def handler(_req):
+        called["n"] += 1
+        return "ok"
+
+    prior = [
+        _AIMsg(
+            [
+                {
+                    "name": "get_document",
+                    "args": {"document_id": "upload_outlook-login"},
+                    "id": "1",
+                }
+            ]
+        )
+    ]
+    out = apply_subagent_tool_budget(
+        _Req("get_document", {"document_id": "upload_outlook-login"}, messages=prior),
+        handler,
+    )
+    assert called["n"] == 0
+    payload = json.loads(out.content)
+    assert payload["error"] == "duplicate_tool_call"
+
+
+def test_subagent_budget_blocks_after_three_calls():
+    from deepsupport_os.harness.guard_middleware import apply_subagent_tool_budget
+
+    def handler(_req):
+        return "should-not-run"
+
+    prior = [
+        _AIMsg([{"name": "search_docs", "args": {"query": "a"}, "id": "1"}]),
+        _AIMsg([{"name": "get_document", "args": {"document_id": "d1"}, "id": "2"}]),
+        _AIMsg([{"name": "search_cases", "args": {"query": "b"}, "id": "3"}]),
+    ]
+    out = apply_subagent_tool_budget(
+        _Req("get_document", {"document_id": "d2"}, messages=prior),
+        handler,
+    )
+    payload = json.loads(out.content)
+    assert payload["error"] == "subagent_tool_budget_exhausted"
+    assert payload["max_calls"] == 3

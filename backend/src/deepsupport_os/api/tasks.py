@@ -526,7 +526,14 @@ def _iter_agent_sse_body(
     fallback_status: str = "completed",
     hitl_notice: tuple[dict[str, Any], bool] | None = None,
 ) -> Iterator[dict[str, str]]:
+    import queue
+    import threading
+
     from deepsupport_os.api.sse_framing import SseSequencer
+    from deepsupport_os.api.subagent_progress import (
+        attach_progress_handler,
+        run_stream_with_progress,
+    )
 
     seq = SseSequencer(run_id=task_id, thread_id=thread_id)
     yield seq.event(
@@ -542,72 +549,154 @@ def _iter_agent_sse_body(
     last_todos: list[dict[str, Any]] = []
     interrupt: Any = None
     interrupt_emitted = False
-    try:
-        for item in agent.stream(
+    bus: queue.Queue[tuple[str, Any]] = queue.Queue()
+    stream_config, _handler = attach_progress_handler(config, bus)
+
+    def _stream_factory() -> Any:
+        return agent.stream(
             stream_input,
-            config=config,
+            config=stream_config,
             stream_mode=["updates", "messages"],
-        ):
-            mode = "updates"
-            chunk: Any = item
-            if isinstance(item, tuple) and len(item) == 2 and item[0] in {"updates", "messages"}:
-                mode, chunk = item[0], item[1]
+        )
 
-            if mode == "messages":
-                msg_chunk = chunk[0] if isinstance(chunk, tuple) and chunk else chunk
-                name = type(msg_chunk).__name__
-                msg_type = str(getattr(msg_chunk, "type", "") or "")
-                is_ai = "AI" in name or msg_type in {"ai", "AIMessageChunk"}
-                if not is_ai:
-                    continue
-                text = _message_text(getattr(msg_chunk, "content", None))
-                if text:
-                    yield seq.event("token", {"text": text})
-                continue
+    worker = threading.Thread(
+        target=run_stream_with_progress,
+        kwargs={"bus": bus, "stream_factory": _stream_factory},
+        name=f"sse-stream-{task_id[:8]}",
+        daemon=True,
+    )
+    worker.start()
 
-            if not isinstance(chunk, dict):
+    def _handle_parent_item(item: Any) -> Iterator[dict[str, str]]:
+        nonlocal interrupt, interrupt_emitted, last_todos, final_messages
+        mode = "updates"
+        chunk: Any = item
+        if isinstance(item, tuple) and len(item) == 2 and item[0] in {"updates", "messages"}:
+            mode, chunk = item[0], item[1]
+
+        if mode == "messages":
+            msg_chunk = chunk[0] if isinstance(chunk, tuple) and chunk else chunk
+            name = type(msg_chunk).__name__
+            msg_type = str(getattr(msg_chunk, "type", "") or "")
+            is_ai = "AI" in name or msg_type in {"ai", "AIMessageChunk"}
+            if not is_ai:
+                return
+            text = _message_text(getattr(msg_chunk, "content", None))
+            if text:
+                yield seq.event("token", {"text": text})
+            return
+
+        if not isinstance(chunk, dict):
+            return
+        if "__interrupt__" in chunk or any(k == "__interrupt__" for k in chunk):
+            info = extract_interrupt_info(agent, config)
+            if info and not interrupt_emitted:
+                interrupt = info
+                interrupt_emitted = True
+                yield seq.event("interrupt", _slim_interrupt(info))
+            return
+        for _node, update in chunk.items():
+            if _node == "__interrupt__":
                 continue
-            # Emit interrupt as soon as LangGraph signals it (do not wait for done).
-            if "__interrupt__" in chunk or any(k == "__interrupt__" for k in chunk):
-                info = extract_interrupt_info(agent, config)
-                if info and not interrupt_emitted:
-                    interrupt = info
-                    interrupt_emitted = True
-                    yield seq.event("interrupt", _slim_interrupt(info))
-                continue
-            for _node, update in chunk.items():
-                if _node == "__interrupt__":
-                    continue
-                if isinstance(update, dict) and "todos" in update:
-                    todos_update = extract_todos(
-                        agent, config, result=update if isinstance(update, dict) else None
+            if isinstance(update, dict) and "todos" in update:
+                todos_update = extract_todos(
+                    agent, config, result=update if isinstance(update, dict) else None
+                )
+                if todos_update != last_todos:
+                    last_todos = todos_update
+                    yield seq.event("todos", {"todos": todos_update})
+            if isinstance(update, dict) and "messages" in update:
+                msgs = update.get("messages") or []
+                normalized = []
+                for m in msgs:
+                    if isinstance(m, tuple) and len(m) == 2:
+                        normalized.append(m[1])
+                    else:
+                        normalized.append(m)
+                if normalized:
+                    final_messages.extend(normalized)
+                    step_trace = build_trace(normalized)
+                    for step in step_trace.get("steps") or []:
+                        kind = step.get("kind")
+                        if kind == "tool_call":
+                            yield seq.event("tool_start", step)
+                        elif kind == "subagent_dispatch":
+                            yield seq.event("subagent", step)
+                        elif kind == "context_offload":
+                            yield seq.event("context_offload", step)
+                        elif kind == "tool_result":
+                            yield seq.event("tool_end", step)
+                        elif kind in {"assistant", "user"}:
+                            yield seq.event("message", step)
+
+    # Heartbeat interval — keep SSE connection alive through nginx / Cloudflare
+    # tunnel idle timeouts. Also serves as an inactivity safety net: if the
+    # agent produces no real events for _MAX_IDLE_S, we emit an error.
+    _HEARTBEAT_S = 15.0
+    _MAX_IDLE_S = 300.0  # 5 min — agent is stuck if no real event in this long
+
+    import time
+    _last_activity = time.monotonic()
+
+    try:
+        while True:
+            try:
+                kind, payload = bus.get(timeout=_HEARTBEAT_S)
+            except queue.Empty:
+                # No event within heartbeat interval — send SSE ping keepalive
+                # Uses seq.event() so frontend can parse it as valid JSON
+                yield seq.event("ping", {"ts": int(time.time())})
+                if time.monotonic() - _last_activity > _MAX_IDLE_S:
+                    yield seq.event(
+                        "error",
+                        {
+                            "error": (
+                                f"agent_inactive_timeout: 超过 {int(_MAX_IDLE_S)} 秒无活动，"
+                                "可能子代理 LLM 调用卡死或后端异常。请检查 LLM 后端连通性"
+                                "（Ollama / DeepSeek API），然后重试。"
+                            )
+                        },
                     )
-                    if todos_update != last_todos:
-                        last_todos = todos_update
-                        yield seq.event("todos", {"todos": todos_update})
-                if isinstance(update, dict) and "messages" in update:
-                    msgs = update.get("messages") or []
-                    normalized = []
-                    for m in msgs:
-                        if isinstance(m, tuple) and len(m) == 2:
-                            normalized.append(m[1])
-                        else:
-                            normalized.append(m)
-                    if normalized:
-                        final_messages.extend(normalized)
-                        step_trace = build_trace(normalized)
-                        for step in step_trace.get("steps") or []:
-                            kind = step.get("kind")
-                            if kind == "tool_call":
-                                yield seq.event("tool_start", step)
-                            elif kind == "subagent_dispatch":
-                                yield seq.event("subagent", step)
-                            elif kind == "context_offload":
-                                yield seq.event("context_offload", step)
-                            elif kind == "tool_result":
-                                yield seq.event("tool_end", step)
-                            elif kind in {"assistant", "user"}:
-                                yield seq.event("message", step)
+                    worker.join(timeout=2)
+                    return
+                continue
+
+            _last_activity = time.monotonic()
+            if kind == "done":
+                break
+            if kind == "error":
+                exc = payload
+                interrupt_on_err = extract_interrupt_info(agent, config)
+                if interrupt_on_err:
+                    interrupt = interrupt_on_err
+                    if not interrupt_emitted:
+                        interrupt_emitted = True
+                        yield seq.event("interrupt", _slim_interrupt(interrupt_on_err))
+                else:
+                    yield seq.event("error", {"error": str(exc)})
+                    worker.join(timeout=2)
+                    return
+                continue
+            if kind == "progress":
+                step = {
+                    "kind": payload.get("kind") or "tool_call",
+                    "name": payload.get("name"),
+                    "args": payload.get("args"),
+                    "content": payload.get("content"),
+                    "subagent": payload.get("subagent"),
+                    "phase": payload.get("phase"),
+                }
+                phase = str(payload.get("phase") or "")
+                if phase in {"tool_end", "tool_error"} or step["kind"] == "tool_result":
+                    yield seq.event("tool_end", step)
+                elif phase in {"llm_start", "llm_end", "llm_error"}:
+                    yield seq.event("subagent_progress", step)
+                else:
+                    yield seq.event("tool_start", step)
+                continue
+            if kind == "parent":
+                yield from _handle_parent_item(payload)
+        worker.join(timeout=2)
     except Exception as exc:  # noqa: BLE001
         interrupt_on_err = extract_interrupt_info(agent, config)
         if interrupt_on_err:
@@ -618,7 +707,6 @@ def _iter_agent_sse_body(
         else:
             yield seq.event("error", {"error": str(exc)})
             return
-
     if hitl_notice is not None:
         _inject_hitl_notice(agent, config, hitl_notice[0], hitl_notice[1])
 

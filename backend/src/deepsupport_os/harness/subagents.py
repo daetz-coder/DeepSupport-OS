@@ -84,6 +84,9 @@ def build_mvp_subagents() -> list[dict]:
     supplies callables + prompts, then filters disabled entries.
     """
     from deepsupport_os.harness.capability_registry import filter_subagents
+    from deepsupport_os.harness.guard_middleware import subagent_budget_middleware
+
+    budget_mw = subagent_budget_middleware()
 
     specs = [
         {
@@ -98,11 +101,14 @@ def build_mvp_subagents() -> list[dict]:
                 "只使用检索类工具（search_docs / get_document / search_cases）。\n"
                 "禁止：改账号、关单、重置密码、写无关文件。\n"
                 "成功时要点须含来源标题或 case_id；建议主 Agent 写入 retrieved_docs.md。\n"
-                "硬性停止条件：每个检索工具最多调用一次、合计不超过 3 次；检索完成后立即输出最终结构化答案，禁止重复调用检索工具。"
+                "工作流：先 search_docs（或 search_cases）一次 → 最多再 get_document 一次关键 doc → 立即输出结构化答案。\n"
+                "硬性停止条件：合计工具调用不超过 3 次；同一 document_id / 同一 query 禁止重复调用；"
+                "拿到足够要点后必须停止工具并输出最终结构化答案（middleware 会拦截超额/重复调用）。"
                 + _CONTRACT_FOOTER
             ),
             "tools": KNOWLEDGE_TOOLS,
             "response_format": KnowledgeResearchOutput,
+            "middleware": budget_mw,
             "skills": _subagent_skill_paths(
                 "outlook-troubleshooting",
                 "teams-troubleshooting",
@@ -124,11 +130,13 @@ def build_mvp_subagents() -> list[dict]:
                 "（身份、账号状态、MFA、许可证、设备 OS/Office）。\n"
                 "禁止：重置密码、改许可证、关单、升级工单；本子代理无写工具。\n"
                 "建议主 Agent 写入 diagnosis.md。\n"
-                "硬性停止条件：每类查询工具最多调用一次、合计不超过 3 次；查询完毕后立即输出最终结构化诊断，禁止重复查询。"
+                "硬性停止条件：合计工具调用不超过 3 次；同一参数禁止重复查询；"
+                "查询完毕后立即输出最终结构化诊断（middleware 会拦截超额/重复调用）。"
                 + _CONTRACT_FOOTER
             ),
             "tools": EMPLOYEE_TOOLS + _ACCOUNT_READ_TOOLS + ASSET_TOOLS,
             "response_format": EnvironmentDiagnosisOutput,
+            "middleware": budget_mw,
             "skills": _subagent_skill_paths("account-access", "office-application"),
         },
         {
@@ -144,11 +152,13 @@ def build_mvp_subagents() -> list[dict]:
                 "禁止：调用 escalate_ticket / close_ticket / 密码重置 / 许可证变更"
                 "（终态与高风险写由主 Agent + HITL 执行）。\n"
                 "建议主 Agent 写入 ticket_draft.md（含 ticket_id）。\n"
-                "硬性停止条件：每个工单工具最多调用一次、合计不超过 3 次；操作完成后立即输出最终结构化结果，禁止重复操作。"
+                "硬性停止条件：合计工具调用不超过 3 次；同一参数禁止重复操作；"
+                "操作完成后立即输出最终结构化结果（middleware 会拦截超额/重复调用）。"
                 + _CONTRACT_FOOTER
             ),
             "tools": _TICKET_DRAFT_TOOLS,
             "response_format": TicketOperationsOutput,
+            "middleware": budget_mw,
             "skills": _subagent_skill_paths("ticket-management", "escalation", "resolution-report"),
         },
     ]

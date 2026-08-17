@@ -16,9 +16,9 @@ const html = computed(() => renderMarkdown(props.source))
 <style scoped>
 .md-body {
   word-break: break-word;
-  font-size: 0.95rem;
-  line-height: 1.55;
-  color: var(--ds-ink);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--fg-primary);
 }
 
 .md-body :deep(:first-child) {
@@ -30,113 +30,119 @@ const html = computed(() => renderMarkdown(props.source))
 }
 
 .md-body :deep(p) {
-  margin: 0.45em 0;
+  margin: 0.5em 0;
 }
 
 .md-body :deep(h1),
 .md-body :deep(h2),
 .md-body :deep(h3),
 .md-body :deep(h4) {
-  margin: 0.7em 0 0.35em;
-  font-weight: 650;
+  margin: 0.75em 0 0.4em;
+  font-weight: 600;
   line-height: 1.3;
-  color: var(--ds-ink);
+  color: var(--fg-primary);
 }
 
 .md-body :deep(h1) {
-  font-size: 1.15rem;
+  font-size: 18px;
 }
 
 .md-body :deep(h2) {
-  font-size: 1.08rem;
+  font-size: 16px;
 }
 
 .md-body :deep(h3),
 .md-body :deep(h4) {
-  font-size: 1rem;
+  font-size: 14px;
 }
 
 .md-body :deep(ul),
 .md-body :deep(ol) {
-  margin: 0.4em 0;
-  padding-left: 1.35em;
+  margin: 0.5em 0;
+  padding-left: 1.5em;
 }
 
 .md-body :deep(li) {
-  margin: 0.2em 0;
+  margin: 0.25em 0;
 }
 
 .md-body :deep(li > p) {
-  margin: 0.15em 0;
+  margin: 0.2em 0;
 }
 
 .md-body :deep(blockquote) {
-  margin: 0.5em 0;
-  padding: 0.25em 0.75em;
-  border-left: 3px solid var(--ds-line);
-  color: var(--ds-ink-soft);
-  background: rgba(15, 23, 42, 0.03);
+  margin: 0.6em 0;
+  padding: 0.3em 0.8em;
+  border-left: 3px solid var(--border-strong);
+  color: var(--fg-secondary);
+  background: var(--bg-sidebar);
 }
 
 .md-body :deep(code) {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 0.86em;
-  padding: 0.1em 0.35em;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 0.15em 0.4em;
   border-radius: 4px;
-  background: rgba(15, 23, 42, 0.06);
+  background: var(--bg-sidebar);
+  color: var(--accent);
 }
 
 .md-body :deep(pre) {
-  margin: 0.55em 0;
-  padding: 10px 12px;
+  margin: 0.6em 0;
+  padding: 12px 14px;
   overflow-x: auto;
-  border-radius: 8px;
-  border: 1px solid var(--ds-line);
-  background: #0f172a0a;
-  font-size: 0.84rem;
-  line-height: 1.45;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-sidebar);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .md-body :deep(pre code) {
   padding: 0;
   background: transparent;
   font-size: inherit;
+  color: var(--fg-primary);
 }
 
 .md-body :deep(a) {
-  color: #0f766e;
+  color: var(--accent);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
 
+.md-body :deep(a:hover) {
+  color: #0051d5;
+}
+
 .md-body :deep(hr) {
-  margin: 0.75em 0;
+  margin: 0.8em 0;
   border: none;
-  border-top: 1px solid var(--ds-line);
+  border-top: 1px solid var(--border);
 }
 
 .md-body :deep(table) {
   width: 100%;
-  margin: 0.55em 0;
+  margin: 0.6em 0;
   border-collapse: collapse;
-  font-size: 0.88rem;
+  font-size: 13px;
 }
 
 .md-body :deep(th),
 .md-body :deep(td) {
-  border: 1px solid var(--ds-line);
-  padding: 6px 8px;
+  border: 1px solid var(--border);
+  padding: 6px 10px;
   text-align: left;
 }
 
 .md-body :deep(th) {
-  background: rgba(15, 23, 42, 0.04);
+  background: var(--bg-sidebar);
   font-weight: 600;
 }
 
 .md-body :deep(img) {
   max-width: 100%;
   height: auto;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 </style>
