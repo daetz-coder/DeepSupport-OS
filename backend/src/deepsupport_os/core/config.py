@@ -88,6 +88,42 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
+    # Rate limiting
+    rate_limit_per_minute: int = 60
+
+    # Session management
+    session_timeout_minutes: int = 30
+
+    # Performance monitoring
+    enable_metrics: bool = True
+
+    # Rate limiting
+    rate_limit_per_minute: int = 60
+
+    # Session management
+    session_timeout_minutes: int = 30
+
+    # Performance monitoring
+    enable_metrics: bool = True
+
+    # Rate limiting
+    rate_limit_per_minute: int = 60
+
+    # Session management
+    session_timeout_minutes: int = 30
+
+    # Performance monitoring
+    enable_metrics: bool = True
+
+    # Rate limiting
+    rate_limit_per_minute: int = 60
+
+    # Session management
+    session_timeout_minutes: int = 30
+
+    # Debug mode
+    debug: bool = False
+
     def resolve(self, path: str | Path) -> Path:
         p = Path(path)
         if p.is_absolute():
