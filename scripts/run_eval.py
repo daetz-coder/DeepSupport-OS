@@ -66,8 +66,9 @@ class FastEvalSession:
         from deepsupport_os.harness.builder import RuntimePorts
         from deepsupport_os.harness.daytona_backend import build_hybrid_backend
         from deepsupport_os.harness.subagents import build_mvp_subagents
-        from deepsupport_os.mcp.tools import all_agent_tools
+        from deepsupport_os.mcp.tools import ALL_MOCK_TOOLS, main_agent_tools
         from deepsupport_os.rag import client as rag_mod
+        from deepsupport_os.rag.knowledge_tools import KNOWLEDGE_TOOLS
 
         settings = get_settings()
         if not settings.llm_configured:
@@ -102,7 +103,7 @@ class FastEvalSession:
 
         ports = RuntimePorts(
             model_factory=model_factory,
-            tools_factory=all_agent_tools,
+            tools_factory=main_agent_tools,
             skills_factory=lambda: [],  # avoid Skills Glob 5s timeouts
             subagents_factory=build_mvp_subagents,
             backend_factory=lambda attach_daytona=False: build_hybrid_backend(

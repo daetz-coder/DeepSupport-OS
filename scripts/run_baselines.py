@@ -86,7 +86,7 @@ def run_baseline_b(case: dict[str, Any]) -> dict[str, Any]:
     from deepsupport_os.db import init_db
     from deepsupport_os.db.seed import seed_database
     from deepsupport_os.harness.agent import build_model
-    from deepsupport_os.mcp.tools import all_agent_tools
+    from deepsupport_os.mcp.tools import main_agent_tools
     from deepsupport_os.rag.knowledge_tools import KNOWLEDGE_TOOLS
 
     settings = get_settings()
@@ -95,7 +95,7 @@ def run_baseline_b(case: dict[str, Any]) -> dict[str, Any]:
 
     init_db()
     seed_database(force=False)
-    tools = list(all_agent_tools()) + list(KNOWLEDGE_TOOLS)
+    tools = list(main_agent_tools()) + list(KNOWLEDGE_TOOLS)
     agent = create_agent(
         model=build_model(),
         tools=tools,
