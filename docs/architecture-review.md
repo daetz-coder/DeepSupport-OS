@@ -381,7 +381,8 @@ Tool 层无 Runtime Context（thread_id/task_id）注入。
 
 **【问题】**  
 - `_agents` 上限 48，FIFO 驱逐（非 LRU）；热 thread 可能被挤出（通常靠 checkpointer 可恢复，有重建成本）  
-- `all_agent_tools()` 开头 `clear_tool_provenance()`；并发构建 agent 时 provenance 全局表抖动  
+- ~~`all_agent_tools()` 开头 `clear_tool_provenance()`；并发构建 agent 时 provenance 全局表抖动~~  
+  → **已修复**：`all_agent_tools()` 已被删除，改用 `main_agent_tools()`，不再调用 `clear_tool_provenance()`
 - HITL resume 强制 `pop` 重建 agent（正确但掩盖了「interrupt_on 配置应无状态」本应不需要）
 
 **【原因】**  
