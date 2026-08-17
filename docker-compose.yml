@@ -114,6 +114,7 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    restart: unless-stopped
 
 volumes:
   raglab_qdrant_data:
