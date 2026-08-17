@@ -10,7 +10,6 @@ from deepsupport_os.mcp.tools import (
     get_account_status,
     get_license,
     get_ticket,
-    create_ticket,
     update_ticket,
 )
 from deepsupport_os.rag.knowledge_tools import KNOWLEDGE_TOOLS
@@ -61,8 +60,8 @@ _CONTRACT_FOOTER = (
 
 # Read-only account tools — write intents stay on Main Agent + HITL apply.
 _ACCOUNT_READ_TOOLS = [get_account_status, get_license]
-# Ticket ops may draft/update non-terminal state; escalate/close are Main-only.
-_TICKET_DRAFT_TOOLS = [create_ticket, get_ticket, update_ticket]
+# Ticket ops may update non-terminal state; create/escalate/close are Main+HITL.
+_TICKET_DRAFT_TOOLS = [get_ticket, update_ticket]
 
 
 def _subagent_skill_paths(*names: str) -> list[str]:
@@ -102,8 +101,9 @@ def build_mvp_subagents() -> list[dict]:
                 "禁止：改账号、关单、重置密码、写无关文件。\n"
                 "成功时要点须含来源标题或 case_id；建议主 Agent 写入 retrieved_docs.md。\n"
                 "工作流：先 search_docs（或 search_cases）一次 → 最多再 get_document 一次关键 doc → 立即输出结构化答案。\n"
-                "硬性停止条件：合计工具调用不超过 3 次；同一 document_id / 同一 query 禁止重复调用；"
-                "拿到足够要点后必须停止工具并输出最终结构化答案（middleware 会拦截超额/重复调用）。"
+                "硬性停止条件：合计业务工具调用不超过 6 次（读 Skill/文件不计入）；"
+                "同一 document_id / 同一 query 禁止重复调用；"
+                "拿到足够要点后必须停止工具并输出最终结构化答案（middleware 会拦截超额/重复业务工具调用）。"
                 + _CONTRACT_FOOTER
             ),
             "tools": KNOWLEDGE_TOOLS,
@@ -130,8 +130,9 @@ def build_mvp_subagents() -> list[dict]:
                 "（身份、账号状态、MFA、许可证、设备 OS/Office）。\n"
                 "禁止：重置密码、改许可证、关单、升级工单；本子代理无写工具。\n"
                 "建议主 Agent 写入 diagnosis.md。\n"
-                "硬性停止条件：合计工具调用不超过 3 次；同一参数禁止重复查询；"
-                "查询完毕后立即输出最终结构化诊断（middleware 会拦截超额/重复调用）。"
+                "硬性停止条件：合计业务工具调用不超过 6 次（读 Skill/文件不计入）；"
+                "同一参数禁止重复查询；查询完毕后立即输出最终结构化诊断"
+                "（middleware 会拦截超额/重复业务工具调用）。"
                 + _CONTRACT_FOOTER
             ),
             "tools": EMPLOYEE_TOOLS + _ACCOUNT_READ_TOOLS + ASSET_TOOLS,
@@ -142,18 +143,19 @@ def build_mvp_subagents() -> list[dict]:
         {
             "name": "ticket-operations",
             "description": (
-                "创建、更新工单（非终态）。当诊断完成需要开单或调整优先级/处理人时委派；"
-                "不要在未诊断时过早开单。升级/关闭由主 Agent 发起并走 HITL。"
+                "查询/更新工单（非终态）。当诊断完成需要调整优先级/处理人时委派；"
+                "开单 / 升级 / 关闭由主 Agent 发起并走 HITL。"
             ),
             "system_prompt": (
                 "你是 Ticket Operations Agent。\n"
                 "输入：已有诊断摘要 + 用户诉求。\n"
-                "根据上下文创建或更新工单；可用 update_ticket 调整 priority（P1–P4）做升降优先级。\n"
-                "禁止：调用 escalate_ticket / close_ticket / 密码重置 / 许可证变更"
-                "（终态与高风险写由主 Agent + HITL 执行）。\n"
-                "建议主 Agent 写入 ticket_draft.md（含 ticket_id）。\n"
-                "硬性停止条件：合计工具调用不超过 3 次；同一参数禁止重复操作；"
-                "操作完成后立即输出最终结构化结果（middleware 会拦截超额/重复调用）。"
+                "可查询工单或用 update_ticket 调整 priority（P1–P4）/assignee/非终态 status。\n"
+                "禁止：create_ticket / escalate_ticket / close_ticket / 密码重置 / 许可证变更"
+                "（开单与终态写由主 Agent + HITL 执行）。\n"
+                "建议主 Agent 写入 ticket_draft.md（含建议的 title/description，供主 Agent 开单）。\n"
+                "硬性停止条件：合计业务工具调用不超过 6 次（读 Skill/文件不计入）；"
+                "同一参数禁止重复操作；操作完成后立即输出最终结构化结果"
+                "（middleware 会拦截超额/重复业务工具调用）。"
                 + _CONTRACT_FOOTER
             ),
             "tools": _TICKET_DRAFT_TOOLS,

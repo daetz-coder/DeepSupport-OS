@@ -52,6 +52,36 @@ def _search_local_markdown(query: str, limit: int = 5) -> list[dict]:
     return [item for _, item in scored[:limit]]
 
 
+def _normalize_raglab_hits(data: object, *, top_k: int = 5) -> list[dict]:
+    """Flatten RAGLab /api/query payload into a list of {document_id,title,snippet}."""
+    if isinstance(data, list):
+        chunks = data
+    elif isinstance(data, dict):
+        chunks = data.get("reranked") or data.get("retrieved") or data.get("results") or []
+        if not isinstance(chunks, list):
+            chunks = []
+    else:
+        chunks = []
+    out: list[dict] = []
+    for i, c in enumerate(chunks[:top_k]):
+        if not isinstance(c, dict):
+            continue
+        text = str(c.get("text") or c.get("snippet") or c.get("content") or "")
+        title = str(c.get("title") or "").strip()
+        if not title and text:
+            title = text.splitlines()[0][:80]
+        out.append(
+            {
+                "document_id": str(c.get("id") or c.get("document_id") or f"hit_{i}"),
+                "title": title or f"hit_{i}",
+                "snippet": text[:500],
+                "score": c.get("score"),
+                "source_type": "raglab",
+            }
+        )
+    return out
+
+
 @tool
 def search_docs(query: str, top_k: int = 5) -> dict:
     """检索 Microsoft 365 / 企业支持文档。优先调用 RAGLab；不可用时回退本地示例知识。"""
@@ -59,7 +89,15 @@ def search_docs(query: str, top_k: int = 5) -> dict:
     # Default without rerank for latency; client still retries if needed.
     remote = client.search_docs(query, top_k=top_k, use_rerank=False)
     if remote.get("ok"):
-        result = {"ok": True, "backend": "raglab", "results": remote.get("data")}
+        raw = remote.get("data")
+        hits = _normalize_raglab_hits(raw, top_k=top_k)
+        answer = raw.get("answer") if isinstance(raw, dict) else None
+        result = {
+            "ok": True,
+            "backend": "raglab",
+            "answer": answer,
+            "results": hits,
+        }
     else:
         local = _search_local_markdown(query, limit=top_k)
         result = {

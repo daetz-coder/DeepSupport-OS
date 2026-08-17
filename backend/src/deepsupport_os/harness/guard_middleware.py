@@ -231,17 +231,62 @@ def _tool_signature(name: str, args: dict[str, Any]) -> str:
     return f"{name}::{key}"
 
 
-def _prior_tool_signatures(messages: list[Any], *, limit: int = 80) -> list[str]:
-    """Signatures from prior AI tool_calls (args available there)."""
+def _is_human_message(m: Any) -> bool:
+    t = getattr(m, "type", None) or getattr(m, "role", None)
+    return str(t or "").lower() in {"human", "user"}
+
+
+def _messages_since_last_human(messages: list[Any]) -> list[Any]:
+    """Current-turn window so prior-turn tools are not permanently blocked."""
+    for i in range(len(messages) - 1, -1, -1):
+        if _is_human_message(messages[i]):
+            return messages[i + 1 :]
+    return messages
+
+
+def _error_tool_call_ids(messages: list[Any]) -> set[str]:
+    """Tool call ids that already returned an error ToolMessage (safe to retry)."""
+    out: set[str] = set()
+    for m in messages:
+        if getattr(m, "type", None) != "tool":
+            continue
+        if getattr(m, "status", None) != "error":
+            continue
+        tid = str(getattr(m, "tool_call_id", "") or "")
+        if tid:
+            out.add(tid)
+    return out
+
+
+def _prior_tool_signatures(
+    messages: list[Any],
+    *,
+    limit: int = 80,
+    exclude_ids: set[str] | None = None,
+) -> list[str]:
+    """Signatures from prior AI tool_calls (args available there).
+
+    Excludes ``exclude_ids`` (must include the *current* tool_call id — the
+    AIMessage is already in state when wrap_tool_call runs, so without this
+    every call looks like a duplicate of itself).
+    Also skips ids that only produced ``status=error`` ToolMessages so a
+    denied/failed call can be retried after fixing the cause.
+    """
+    skip = set(exclude_ids or ())
+    skip |= _error_tool_call_ids(messages)
     out: list[str] = []
     for m in messages[-limit:]:
         for tc in getattr(m, "tool_calls", None) or []:
             if isinstance(tc, dict):
                 name = str(tc.get("name") or "")
                 args = tc.get("args") or {}
+                tc_id = str(tc.get("id") or "")
             else:
                 name = str(getattr(tc, "name", "") or "")
                 args = getattr(tc, "args", None) or {}
+                tc_id = str(getattr(tc, "id", "") or "")
+            if tc_id and tc_id in skip:
+                continue
             if isinstance(args, str):
                 try:
                     args = json.loads(args)
@@ -264,6 +309,7 @@ def apply_support_tool_guards(
     name = _tool_name(request)
     messages = _state_messages(request)
     todos = _state_todos(request)
+    turn_messages = _messages_since_last_human(messages)
 
     # 1) Must plan before other tools (skip on resume turns that already have todos).
     if name and name not in _PRE_TODO_ALLOW and not todos:
@@ -294,10 +340,14 @@ def apply_support_tool_guards(
             )
 
     # 2b) Same-signature tool replay + per-turn tool budget (main agent).
+    # Scope to the current user turn; exclude self id / prior error ids.
     if name:
         args = _tool_args(request)
         sig = _tool_signature(name, args)
-        prior_sigs = _prior_tool_signatures(messages)
+        current_id = _tool_call_id(request)
+        prior_sigs = _prior_tool_signatures(
+            turn_messages, exclude_ids={current_id} if current_id else set()
+        )
         if sig in prior_sigs:
             return _deny(
                 request,
@@ -376,10 +426,24 @@ def support_tool_guards(
     return apply_support_tool_guards(request, handler)
 
 
-# Default budget for MVP subagents (matches prompt: ≤3 tool calls then stop).
-_SUBAGENT_MAX_TOOL_CALLS = 3
+# Default budget for MVP subagents (business tools only; FS/skill reads exempt).
+# Env diagnosis often needs employee + account + license + devices (≥4).
+_SUBAGENT_MAX_TOOL_CALLS = 6
 # Fallback when settings unavailable (tests / import edge cases).
 _MAIN_MAX_TOOL_CALLS = 24
+
+# Progressive-disclosure skill / filesystem tools must not burn the business budget.
+_SUBAGENT_BUDGET_EXEMPT = frozenset(
+    {
+        "read_file",
+        "write_file",
+        "edit_file",
+        "ls",
+        "glob",
+        "grep",
+        "execute",
+    }
+)
 
 
 def _main_max_tool_calls() -> int:
@@ -389,6 +453,16 @@ def _main_max_tool_calls() -> int:
         return int(get_settings().agent_max_tool_calls)
     except Exception:  # noqa: BLE001
         return _MAIN_MAX_TOOL_CALLS
+
+
+def _budget_used(prior_sigs: list[str]) -> int:
+    """Count only non-exempt tool signatures toward the subagent call budget."""
+    n = 0
+    for sig in prior_sigs:
+        name = sig.split("::", 1)[0]
+        if name not in _SUBAGENT_BUDGET_EXEMPT:
+            n += 1
+    return n
 
 
 def apply_subagent_tool_budget(
@@ -405,7 +479,10 @@ def apply_subagent_tool_budget(
     messages = _state_messages(request)
     args = _tool_args(request)
     sig = _tool_signature(name, args)
-    prior_sigs = _prior_tool_signatures(messages)
+    current_id = _tool_call_id(request)
+    prior_sigs = _prior_tool_signatures(
+        messages, exclude_ids={current_id} if current_id else set()
+    )
 
     if sig in prior_sigs:
         return _deny(
@@ -422,23 +499,24 @@ def apply_subagent_tool_budget(
             },
         )
 
-    # Count prior AI-issued tool_calls (more accurate than ToolMessage count when
-    # parallel calls are batched).
-    if len(prior_sigs) >= max_calls:
-        return _deny(
-            request,
-            {
-                "ok": False,
-                "error": "subagent_tool_budget_exhausted",
-                "hint": (
-                    f"子代理工具预算已用尽（最多 {max_calls} 次）；"
-                    "请立即基于已有检索结果输出最终结构化答案，勿再调用工具"
-                ),
-                "blocked_tool": name,
-                "max_calls": max_calls,
-                "used_calls": len(prior_sigs),
-            },
-        )
+    # FS/skill reads are exempt; only business tools count toward max_calls.
+    if name not in _SUBAGENT_BUDGET_EXEMPT:
+        used = _budget_used(prior_sigs)
+        if used >= max_calls:
+            return _deny(
+                request,
+                {
+                    "ok": False,
+                    "error": "subagent_tool_budget_exhausted",
+                    "hint": (
+                        f"子代理业务工具预算已用尽（最多 {max_calls} 次）；"
+                        "请立即基于已有检索结果输出最终结构化答案，勿再调用工具"
+                    ),
+                    "blocked_tool": name,
+                    "max_calls": max_calls,
+                    "used_calls": used,
+                },
+            )
 
     return handler(request)
 
