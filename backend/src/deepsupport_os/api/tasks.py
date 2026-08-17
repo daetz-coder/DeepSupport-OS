@@ -25,6 +25,7 @@ from deepsupport_os.harness.memory_files import memory_paths_for_thread
 from deepsupport_os.harness.metrics import TurnTimer, write_turn_metrics
 from deepsupport_os.harness.run_overview import build_run_overview
 from deepsupport_os.harness.state_extract import extract_todos
+from deepsupport_os.harness.timeline_tracker import get_timeline_tracker
 from deepsupport_os.harness.workspace import ensure_thread_workspace
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -783,19 +784,54 @@ async def stream_task(body: TaskCreateRequest):
     agent = get_agent(thread_id)
     config = {"configurable": {"thread_id": thread_id}}
     timer = TurnTimer()
-
+    
+    # Initialize timeline tracking for this task
+    timeline = get_timeline_tracker()
+    timeline.clear()  # Clear any previous timeline
+    
     def event_gen() -> Iterator[dict[str, str]]:
-        yield from _iter_agent_sse(
-            agent=agent,
-            config=config,
-            stream_input={"messages": [{"role": "user", "content": body.message}]},
-            task_id=task_id,
-            thread_id=thread_id,
-            workspace_path=str(ws),
-            timer=timer,
+        # Start main agent timeline span
+        span_id = timeline.start_span(
+            name="main_agent",
+            kind="agent",
+            metadata={"task_id": task_id, "thread_id": thread_id},
         )
+        
+        try:
+            yield from _iter_agent_sse(
+                agent=agent,
+                config=config,
+                stream_input={"messages": [{"role": "user", "content": body.message}]},
+                task_id=task_id,
+                thread_id=thread_id,
+                workspace_path=str(ws),
+                timer=timer,
+            )
+        finally:
+            # End main agent timeline span
+            timeline.end_span(span_id, status="completed")
 
     return EventSourceResponse(event_gen())
+
+
+@router.get("/{task_id}/timeline")
+def get_task_timeline(task_id: str):
+    """Get execution timeline for a task (for debugging and audit)."""
+    timeline = get_timeline_tracker()
+    tree = timeline.get_tree()
+    if not tree:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    return tree
+
+
+@router.get("/{task_id}/timeline/tree")
+def get_task_timeline_tree(task_id: str):
+    """Get execution timeline as a hierarchical tree."""
+    timeline = get_timeline_tracker()
+    tree = timeline.get_tree()
+    if not tree:
+        raise HTTPException(status_code=404, detail="Timeline not found")
+    return tree
 
 
 @router.post("/resume/stream")

@@ -3,6 +3,7 @@ import { computed, nextTick, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { API, apiHeaders } from './api/client'
 import MarkdownBody from './components/MarkdownBody.vue'
+import ExecutionTimeline from './components/ExecutionTimeline.vue'
 import { buildChatBubbles, shortThreadLabel } from './composables/chatBubbles'
 import {
   buildLiveOverview,
@@ -1377,6 +1378,11 @@ onMounted(async () => {
             </section>
           </el-tab-pane>
 
+          <el-tab-pane label="执行时间线" name="timeline">
+            <ExecutionTimeline v-if="taskId" :taskId="taskId" />
+            <div v-else class="empty-hint">执行任务后将在此显示时间线追踪</div>
+          </el-tab-pane>
+
           <el-tab-pane label="Skills" name="skills">
             <div class="mgmt-toolbar">
               <el-button size="small" :loading="skillsBusy" @click="refreshSkills">刷新</el-button>
@@ -1488,6 +1494,11 @@ onMounted(async () => {
               </div>
               <pre>{{ a.result }}</pre>
             </div>
+          </el-tab-pane>
+
+          <el-tab-pane label="执行时间线" name="timeline">
+            <ExecutionTimeline v-if="taskId" :task-id="taskId" />
+            <div v-else class="empty-hint">请先提交任务以查看执行时间线</div>
           </el-tab-pane>
         </el-tabs>
         </div>

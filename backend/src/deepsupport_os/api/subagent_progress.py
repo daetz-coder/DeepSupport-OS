@@ -17,6 +17,8 @@ from uuid import UUID
 
 from langchain_core.callbacks.base import BaseCallbackHandler
 
+from deepsupport_os.harness.timeline_tracker import get_timeline_tracker
+
 logger = logging.getLogger(__name__)
 
 _PARENT = "parent"
@@ -75,6 +77,9 @@ class SubagentProgressHandler(BaseCallbackHandler):
         self._task_depth = 0
         self._current_subagent = "unknown"
         self._lock = threading.Lock()
+        self._timeline = get_timeline_tracker()
+        self._agent_span_id: str | None = None
+        self._subagent_span_ids: dict[str, str] = {}
 
     def _emit(self, payload: dict[str, Any]) -> None:
         payload = {**payload, "subagent": payload.get("subagent") or self._current_subagent}
@@ -110,12 +115,30 @@ class SubagentProgressHandler(BaseCallbackHandler):
                         or args.get("agent")
                         or self._current_subagent
                     )
+                    # Start timeline span for subagent
+                    span_id = self._timeline.start_span(
+                        name=self._current_subagent,
+                        kind="subagent",
+                        parent_id=self._agent_span_id,
+                        metadata={"args": args},
+                    )
+                    self._subagent_span_ids[self._current_subagent] = span_id
             # Parent stream already emits subagent_dispatch; skip duplicate.
             return
 
         nested = self._task_depth > 0 or _is_subagent_meta(metadata, tags)
         if not nested:
             return
+        
+        # Start timeline span for tool
+        parent_span_id = self._subagent_span_ids.get(self._current_subagent) if self._task_depth > 0 else self._agent_span_id
+        self._timeline.start_span(
+            name=name,
+            kind="tool",
+            parent_id=parent_span_id,
+            metadata={"args": args if args is not None else input_str},
+        )
+        
         self._emit(
             {
                 "phase": "tool_start",
@@ -144,11 +167,23 @@ class SubagentProgressHandler(BaseCallbackHandler):
         if resolved == "task":
             with self._lock:
                 self._task_depth = max(0, self._task_depth - 1)
+                # End subagent timeline span
+                span_id = self._subagent_span_ids.get(self._current_subagent)
+                if span_id:
+                    self._timeline.end_span(span_id, status="completed")
             return
 
         nested = self._task_depth > 0 or _is_subagent_meta(metadata, tags)
         if not nested:
             return
+        
+        # End tool timeline span (find the most recent span with this name)
+        timeline = self._timeline.get_timeline()
+        for span in reversed(timeline):
+            if span["name"] == resolved and span["kind"] == "tool" and span["end_time"] is None:
+                self._timeline.end_span(span["id"], status="completed")
+                break
+        
         self._emit(
             {
                 "phase": "tool_end",
@@ -172,6 +207,14 @@ class SubagentProgressHandler(BaseCallbackHandler):
         if not nested:
             return
         name = str(kwargs.get("name") or "tool")
+        
+        # End tool timeline span with error status
+        timeline = self._timeline.get_timeline()
+        for span in reversed(timeline):
+            if span["name"] == name and span["kind"] == "tool" and span["end_time"] is None:
+                self._timeline.end_span(span["id"], status="failed", metadata={"error": str(error)})
+                break
+        
         self._emit(
             {
                 "phase": "tool_error",
@@ -193,8 +236,26 @@ class SubagentProgressHandler(BaseCallbackHandler):
         **kwargs: Any,
     ) -> None:
         nested = self._task_depth > 0 or _is_subagent_meta(metadata, tags)
+        
+        # Start agent timeline span if this is the main agent
+        if not nested and self._agent_span_id is None:
+            self._agent_span_id = self._timeline.start_span(
+                name="main_agent",
+                kind="agent",
+                parent_id=None,
+            )
+        
         if not nested:
             return
+        
+        # Start LLM timeline span
+        parent_span_id = self._subagent_span_ids.get(self._current_subagent) if self._task_depth > 0 else self._agent_span_id
+        self._timeline.start_span(
+            name="llm_call",
+            kind="llm",
+            parent_id=parent_span_id,
+        )
+        
         self._emit(
             {
                 "phase": "llm_start",
@@ -216,8 +277,17 @@ class SubagentProgressHandler(BaseCallbackHandler):
     ) -> None:
         """Signal completion of subagent LLM call to clear 'thinking' state."""
         nested = self._task_depth > 0 or _is_subagent_meta(metadata, tags)
+        
+        # End LLM timeline span
+        timeline = self._timeline.get_timeline()
+        for span in reversed(timeline):
+            if span["kind"] == "llm" and span["end_time"] is None:
+                self._timeline.end_span(span["id"], status="completed")
+                break
+        
         if not nested:
             return
+        
         self._emit(
             {
                 "phase": "llm_end",
@@ -239,8 +309,17 @@ class SubagentProgressHandler(BaseCallbackHandler):
     ) -> None:
         """Signal LLM error to clear 'thinking' state."""
         nested = self._task_depth > 0 or _is_subagent_meta(metadata, tags)
+        
+        # End LLM timeline span with error status
+        timeline = self._timeline.get_timeline()
+        for span in reversed(timeline):
+            if span["kind"] == "llm" and span["end_time"] is None:
+                self._timeline.end_span(span["id"], status="failed", metadata={"error": str(error)})
+                break
+        
         if not nested:
             return
+        
         self._emit(
             {
                 "phase": "llm_error",
@@ -257,12 +336,16 @@ def run_stream_with_progress(
     stream_factory: Callable[[], Iterator[Any]],
 ) -> None:
     """Worker target: push parent chunks / errors onto ``bus``, then ``done``."""
+    timeline = get_timeline_tracker()
     try:
         for item in stream_factory():
             bus.put((_PARENT, item))
     except Exception as exc:  # noqa: BLE001
         bus.put((_ERROR, exc))
     finally:
+        # End main agent timeline span
+        if timeline._root_span_id:
+            timeline.end_span(timeline._root_span_id, status="completed")
         bus.put((_DONE, None))
 
 
