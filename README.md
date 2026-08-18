@@ -2,6 +2,8 @@
 
 Enterprise IT Help Desk Agent Harness：员工报 Outlook / Teams / OneDrive / 激活许可等问题 → Agent 查账号、按 SOP 排障、必要时 HITL 审批写操作。
 
+![DeepSupport OS 架构总览](./docs/demo-screenshots/DeepSupport-v2.png)
+
 ## 快速开始（Docker）
 
 ```bash
