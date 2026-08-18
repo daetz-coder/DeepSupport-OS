@@ -6,10 +6,11 @@ import threading
 import uuid
 from typing import Any, Iterator
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
+from deepsupport_os.api.auth import require_demo
 from deepsupport_os.api.trace import build_trace, extract_interrupt_info, serialize_messages
 from deepsupport_os.db import task_store
 from deepsupport_os.db.repositories import list_audit
@@ -26,7 +27,7 @@ from deepsupport_os.harness.state_extract import extract_todos
 from deepsupport_os.harness.timeline_tracker import get_timeline_tracker
 from deepsupport_os.harness.workspace import ensure_thread_workspace
 
-router = APIRouter(prefix="/tasks", tags=["tasks"])
+router = APIRouter(prefix="/tasks", tags=["tasks"], dependencies=[Depends(require_demo)])
 
 logger = logging.getLogger(__name__)
 

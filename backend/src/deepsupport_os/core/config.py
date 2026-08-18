@@ -56,6 +56,8 @@ class Settings(BaseSettings):
     raglab_base_url: str = "http://127.0.0.1:8001"
     # Logical KB name on shared RAGLab instance (must match RAGLab KbName)
     raglab_kb: str = "deepsupport"
+    # Shown in UI when RAGLab is down (e.g. slim 2G VPS without local models).
+    raglab_unavailable_hint: str = ""
 
     # Mock enterprise DB
     database_url: str = "sqlite:///data/deepsupport.db"
@@ -68,6 +70,10 @@ class Settings(BaseSettings):
     api_port: int = 8000
     # When set, mutating /api/meta/* and /admin/seed require header X-Admin-Token
     admin_token: str = ""
+    # Shared demo passphrase for conversation APIs. Empty = open (local).
+    # Cookie is httponly HMAC, not the plaintext passphrase.
+    demo_access_token: str = ""
+    demo_cookie_path: str = "/"
 
     # Daytona: keep as lightweight sidecar (local Skills/workspace are primary)
     daytona_enabled: bool = True

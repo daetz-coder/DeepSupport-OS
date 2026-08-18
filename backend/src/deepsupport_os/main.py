@@ -107,6 +107,7 @@ def create_app() -> FastAPI:
             "status": "ok",
             "llm_configured": live.llm_configured,
             "admin_auth_required": bool((live.admin_token or "").strip()),
+            "demo_auth_required": bool((live.demo_access_token or "").strip()),
         }
 
     @app.get("/api/health/deps")
@@ -118,13 +119,16 @@ def create_app() -> FastAPI:
         live = get_settings()
         rag = RAGLabClient().health()
         sandbox = probe_sandbox_status()
+        rag_ok = bool(rag.get("ok"))
+        hint = (live.raglab_unavailable_hint or "").strip()
         return {
             "raglab": {
-                "ok": bool(rag.get("ok")),
+                "ok": rag_ok,
                 "base_url": live.raglab_base_url,
                 "kb": live.raglab_kb,
                 "path": rag.get("path"),
                 "error": rag.get("error"),
+                "hint": None if rag_ok else (hint or None),
             },
             "sandbox": sandbox,
         }

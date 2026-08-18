@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { API, apiHeaders } from './api/client'
+import { API, apiHeaders, demoLogin, demoStatus } from './api/client'
 import MarkdownBody from './components/MarkdownBody.vue'
 import ExecutionTimeline from './components/ExecutionTimeline.vue'
 import { buildChatBubbles, shortThreadLabel } from './composables/chatBubbles'
@@ -35,6 +35,7 @@ const {
   llmConfigured,
   raglabOk,
   raglabLabel,
+  raglabHint,
   sandboxOk,
   sandboxLabel,
   healthChecking,
@@ -69,6 +70,10 @@ const openStages = ref<Record<string, boolean>>({})
 const metrics = ref<Record<string, unknown> | null>(null)
 const streamingText = ref('')
 const chatScrollEl = ref<HTMLElement | null>(null)
+const demoLocked = ref(false)
+const demoPassphrase = ref('')
+const demoBusy = ref(false)
+const demoError = ref('')
 
 const { layoutStyle, layoutNarrow, resizing, startResize } = useSidebarLayout()
 
@@ -363,10 +368,21 @@ function formatArgs(args: unknown) {
   }
 }
 
+function throwHttpError(res: Response, err: { detail?: unknown; message?: unknown }): never {
+  const detail = err.detail ?? err.message
+  if (res.status === 401 && detail === 'demo_auth_required') {
+    demoLocked.value = true
+    throw new Error('需要演示口令')
+  }
+  const msg = typeof detail === 'string' ? detail : res.statusText
+  throw new Error(msg)
+}
+
 async function submitSync(message: string) {
   const res = await fetch(`${API}/api/tasks`, {
     method: 'POST',
     headers: apiHeaders({ 'Content-Type': 'application/json' }),
+    credentials: 'include',
     body: JSON.stringify({
       message,
       thread_id: threadId.value,
@@ -374,7 +390,7 @@ async function submitSync(message: string) {
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.detail || res.statusText)
+    throwHttpError(res, err)
   }
   const data = await res.json()
   applyRecord(data)
@@ -551,7 +567,7 @@ function handleSseEvent(event: string, data: string) {
 async function consumeSseResponse(res: Response) {
   if (!res.ok || !res.body) {
     const err = await res.json().catch(() => ({}))
-    throw new Error(err.detail || res.statusText)
+    throwHttpError(res, err)
   }
 
   const reader = res.body.getReader()
@@ -647,6 +663,7 @@ async function submitStream(message: string) {
   const res = await fetch(`${API}/api/tasks/stream`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+    credentials: 'include',
     body: JSON.stringify({
       message,
       thread_id: threadId.value,
@@ -855,12 +872,50 @@ async function clearStaleHitlIfNeeded() {
 
 onMounted(async () => {
   await checkHealth()
+  const gate = await demoStatus().catch(() => ({ required: false, ok: true }))
+  if (gate.required && !gate.ok) {
+    demoLocked.value = true
+    return
+  }
   await Promise.all([refreshThreads(), refreshAudit(), refreshSkills(), refreshMcp()])
 })
+
+async function submitDemoLogin() {
+  demoBusy.value = true
+  demoError.value = ''
+  try {
+    await demoLogin(demoPassphrase.value)
+    demoPassphrase.value = ''
+    demoLocked.value = false
+    await Promise.all([refreshThreads(), refreshAudit(), refreshSkills(), refreshMcp()])
+  } catch (e) {
+    demoError.value = e instanceof Error ? e.message : '口令不正确'
+  } finally {
+    demoBusy.value = false
+  }
+}
 </script>
 
 <template>
   <div class="page">
+    <div v-if="demoLocked" class="demo-gate" role="dialog" aria-labelledby="demo-gate-title">
+      <form class="demo-gate-panel" @submit.prevent="submitDemoLogin">
+        <div class="brand-mark" aria-hidden="true">DS</div>
+        <h2 id="demo-gate-title">进入演示</h2>
+        <p>对话会调用云端模型。请输入演示口令后再使用。</p>
+        <input
+          v-model="demoPassphrase"
+          class="demo-gate-input"
+          type="password"
+          autocomplete="current-password"
+          placeholder="演示口令"
+        />
+        <p v-if="demoError" class="demo-gate-error">{{ demoError }}</p>
+        <button class="btn-primary" type="submit" :disabled="demoBusy || !demoPassphrase.trim()">
+          {{ demoBusy ? '验证中…' : '进入' }}
+        </button>
+      </form>
+    </div>
     <header class="header">
       <div class="brand-row">
         <div class="brand-mark" aria-hidden="true">DS</div>
@@ -893,7 +948,7 @@ onMounted(async () => {
           <span
             class="status-chip"
             :class="raglabOk === true ? 'is-ok' : raglabOk === false ? 'is-warn' : 'is-idle'"
-            :title="`${raglabLabel} · 外部知识检索（:8001）`"
+            :title="raglabHint || `${raglabLabel} · 外部知识检索`"
           >
             <i class="dot" />{{ raglabLabel }}
           </span>
@@ -957,9 +1012,9 @@ onMounted(async () => {
     <el-alert
       v-if="raglabOk === false"
       class="banner"
-      title="RAGLab 未就绪（外部知识检索）"
+      title="当前服务器无法加载完整 RAG 模型"
       type="warning"
-      description="Knowledge 将回退本地 Markdown。请另启 RAGLab：cd ../RAGLab/backend && uv run --python .venv uvicorn app.main:app --reload --host 0.0.0.0 --port 8001"
+      :description="raglabHint || '知识检索已回退本地文档。完整体验建议内存在 8GB 以上，以便加载向量检索与 rerank 模型。'"
       show-icon
       :closable="true"
     />
@@ -2527,5 +2582,69 @@ pre {
 .ov-art:hover {
   background: var(--accent-soft);
   border-color: var(--accent);
+}
+
+.demo-gate {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg-page) 88%, transparent);
+}
+
+.demo-gate-panel {
+  width: min(360px, calc(100vw - 32px));
+  padding: 28px 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+.demo-gate-panel .brand-mark {
+  margin-bottom: 12px;
+}
+
+.demo-gate-panel h2 {
+  margin: 0 0 8px;
+  font-size: var(--text-title);
+  font-family: var(--font-display);
+}
+
+.demo-gate-panel p {
+  margin: 0 0 16px;
+  color: var(--fg-secondary);
+}
+
+.demo-gate-input {
+  display: block;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-page);
+  font: inherit;
+}
+
+.demo-gate-error {
+  color: var(--danger) !important;
+}
+
+.demo-gate-panel .btn-primary {
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.demo-gate-panel .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>
