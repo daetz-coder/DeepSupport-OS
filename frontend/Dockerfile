@@ -2,8 +2,14 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+ARG NPM_REGISTRY=
+RUN if [ -n "$NPM_REGISTRY" ]; then npm config set registry "$NPM_REGISTRY"; fi \
+    && npm ci
 COPY . .
+ARG VITE_ADMIN_TOKEN=
+ARG VITE_BASE=/
+ENV VITE_ADMIN_TOKEN=$VITE_ADMIN_TOKEN
+ENV VITE_BASE=$VITE_BASE
 RUN npm run build
 
 # Serve

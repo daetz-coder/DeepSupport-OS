@@ -1,0 +1,9 @@
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.pytest_tmp
+tests
+*.egg-info
+.ruff_cache
+.mypy_cache

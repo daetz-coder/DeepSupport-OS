@@ -1,0 +1,61 @@
+# Slim public stack for a 2C2G VPS — no RAGLab / Qdrant / Ollama.
+# Host nginx should reverse-proxy 80 → 127.0.0.1:5173 (do not publish API).
+
+services:
+  api:
+    build:
+      context: ./backend
+      args:
+        APT_MIRROR: mirrors.aliyun.com
+        PIP_INDEX: https://mirrors.aliyun.com/pypi/simple/
+        UV_INDEX_URL: https://mirrors.aliyun.com/pypi/simple/
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data
+      - ./workspace:/app/workspace
+      - ./skills:/app/skills
+      - ./config:/app/config
+      - ./memory:/app/memory
+    environment:
+      DATABASE_URL: sqlite:///data/deepsupport.db
+      WORKSPACE_DIR: workspace
+      MCP_SERVERS_CONFIG: config/mcp_servers.json
+      API_HOST: 0.0.0.0
+      DAYTONA_ENABLED: "false"
+      DAYTONA_MODE: off
+      RAGLAB_BASE_URL: http://127.0.0.1:9
+      RAGLAB_UNAVAILABLE_HINT: "当前服务器约 2GB 内存，无法加载完整 RAG 模型（向量检索 + rerank）。知识问答已回退本地文档。完整体验建议内存 ≥ 8GB。"
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://123.57.64.231}
+      DEMO_COOKIE_PATH: /DeepSupport-OS/
+    expose:
+      - "8000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: 900M
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+        VITE_BASE: /DeepSupport-OS/
+        NPM_REGISTRY: https://registry.npmmirror.com
+    ports:
+      - "127.0.0.1:5173:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 64M
