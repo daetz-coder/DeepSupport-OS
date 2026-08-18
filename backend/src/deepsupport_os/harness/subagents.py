@@ -97,7 +97,8 @@ def build_mvp_subagents() -> list[dict]:
             "system_prompt": (
                 "你是 Knowledge Research Agent。\n"
                 "输入：用户症状 + 可选邮箱/产品。\n"
-                "只使用检索类工具（search_docs / get_document / search_cases）。\n"
+                "优先 `read_file` 相关 `/skills/<name>/SKILL.md`（Outlook/Teams/OneDrive/Office/账号），"
+                "再使用检索类工具（search_docs / get_document / search_cases）。\n"
                 "禁止：改账号、关单、重置密码、写无关文件。\n"
                 "成功时要点须含来源标题或 case_id；建议主 Agent 写入 retrieved_docs.md。\n"
                 "工作流：先 search_docs（或 search_cases）一次 → 最多再 get_document 一次关键 doc → 立即输出结构化答案。\n"
@@ -128,6 +129,7 @@ def build_mvp_subagents() -> list[dict]:
                 "输入：邮箱或 employee_id。\n"
                 "查询员工/账号/设备/许可证，输出结构化诊断"
                 "（身份、账号状态、MFA、许可证、设备 OS/Office）。\n"
+                "账号/许可证问题先 `read_file` `/skills/account-access/SKILL.md`。\n"
                 "禁止：重置密码、改许可证、关单、升级工单；本子代理无写工具。\n"
                 "建议主 Agent 写入 diagnosis.md。\n"
                 "硬性停止条件：合计业务工具调用不超过 6 次（读 Skill/文件不计入）；"
