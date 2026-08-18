@@ -6,6 +6,7 @@ export function useHealth() {
   const llmConfigured = ref<boolean | null>(null)
   const raglabOk = ref<boolean | null>(null)
   const raglabLabel = ref('RAGLab 未检查')
+  const raglabHint = ref('')
   const sandboxOk = ref<boolean | null>(null)
   const sandboxLabel = ref('Sandbox 未检查')
   const healthChecking = ref(false)
@@ -24,6 +25,7 @@ export function useHealth() {
         raglabOk.value = null
         sandboxOk.value = null
         raglabLabel.value = 'RAGLab 未检查'
+        raglabHint.value = ''
         sandboxLabel.value = 'Sandbox 未检查'
         return
       }
@@ -33,9 +35,14 @@ export function useHealth() {
         const data = await res.json()
         const rag = data.raglab || {}
         raglabOk.value = Boolean(rag.ok)
-        raglabLabel.value = rag.ok
-          ? 'RAGLab 正常'
-          : `RAGLab 不可用${rag.error ? `（${String(rag.error).slice(0, 48)}）` : ''}`
+        raglabHint.value = rag.ok ? '' : String(rag.hint || '')
+        if (rag.ok) {
+          raglabLabel.value = 'RAGLab 正常'
+        } else if (raglabHint.value) {
+          raglabLabel.value = 'RAG 已降级（内存不足）'
+        } else {
+          raglabLabel.value = 'RAGLab 未启动，已回退本地知识'
+        }
 
         const sb = data.sandbox || {}
         sandboxOk.value = Boolean(sb.ok)
@@ -55,6 +62,7 @@ export function useHealth() {
       } catch {
         raglabOk.value = false
         sandboxOk.value = false
+        raglabHint.value = ''
         raglabLabel.value = 'RAGLab 探测失败'
         sandboxLabel.value = 'Sandbox 探测失败'
       }
@@ -68,6 +76,7 @@ export function useHealth() {
     llmConfigured,
     raglabOk,
     raglabLabel,
+    raglabHint,
     sandboxOk,
     sandboxLabel,
     healthChecking,
