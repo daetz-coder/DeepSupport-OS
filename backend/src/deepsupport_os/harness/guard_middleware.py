@@ -6,7 +6,8 @@ import json
 from collections.abc import Callable
 from typing import Any
 
-from langchain.agents.middleware import wrap_tool_call
+from langchain.agents.middleware import AgentMiddleware
+from langchain.agents.middleware.types import AgentState
 from langchain_core.messages import ToolMessage
 
 from deepsupport_os.mcp.tools import POLICY_ACTION_FOR_TOOL
@@ -308,13 +309,12 @@ def _prior_tool_signatures(
     return out
 
 
-def apply_support_tool_guards(
+def _support_guard_denial(
     request: Any,
-    handler: Callable[[Any], Any],
     *,
     max_calls: int | None = None,
-) -> Any:
-    """Block common Prompt-only rules with hard middleware checks."""
+) -> ToolMessage | None:
+    """Run the hard guard checks; return a denial ToolMessage or None to proceed."""
     name = _tool_name(request)
     messages = _state_messages(request)
     todos = _state_todos(request)
@@ -468,15 +468,33 @@ def apply_support_tool_guards(
                 },
             )
 
+    return None
+
+
+def apply_support_tool_guards(
+    request: Any,
+    handler: Callable[[Any], Any],
+    *,
+    max_calls: int | None = None,
+) -> Any:
+    """Block common Prompt-only rules with hard middleware checks (sync path)."""
+    denial = _support_guard_denial(request, max_calls=max_calls)
+    if denial is not None:
+        return denial
     return handler(request)
 
 
-@wrap_tool_call
-def support_tool_guards(
+async def apply_support_tool_guards_async(
     request: Any,
     handler: Callable[[Any], Any],
+    *,
+    max_calls: int | None = None,
 ) -> Any:
-    return apply_support_tool_guards(request, handler)
+    """Async counterpart — LangGraph's astream()/ainvoke() only run awrap hooks."""
+    denial = _support_guard_denial(request, max_calls=max_calls)
+    if denial is not None:
+        return denial
+    return await handler(request)
 
 
 # Default budget for MVP subagents (business tools only; FS/skill reads exempt).
@@ -525,9 +543,34 @@ def apply_subagent_tool_budget(
     max_calls: int = _SUBAGENT_MAX_TOOL_CALLS,
 ) -> Any:
     """Hard-stop repeated / excess tool use inside subagents (prompt alone is ignored)."""
+    denial = _subagent_budget_denial(request, max_calls=max_calls)
+    if denial is not None:
+        return denial
+    return handler(request)
+
+
+async def apply_subagent_tool_budget_async(
+    request: Any,
+    handler: Callable[[Any], Any],
+    *,
+    max_calls: int = _SUBAGENT_MAX_TOOL_CALLS,
+) -> Any:
+    """Async counterpart for astream()/ainvoke() subagent runs."""
+    denial = _subagent_budget_denial(request, max_calls=max_calls)
+    if denial is not None:
+        return denial
+    return await handler(request)
+
+
+def _subagent_budget_denial(
+    request: Any,
+    *,
+    max_calls: int = _SUBAGENT_MAX_TOOL_CALLS,
+) -> ToolMessage | None:
+    """Pure checks; returns a denial ToolMessage or None to proceed."""
     name = _tool_name(request)
     if not name:
-        return handler(request)
+        return None
 
     messages = _state_messages(request)
     args = _tool_args(request)
@@ -571,15 +614,57 @@ def apply_subagent_tool_budget(
                 },
             )
 
-    return handler(request)
+    return None
 
 
-@wrap_tool_call
-def subagent_tool_budget(
-    request: Any,
-    handler: Callable[[Any], Any],
-) -> Any:
-    return apply_subagent_tool_budget(request, handler)
+class SupportToolGuardsMiddleware(AgentMiddleware):
+    """Guard chain with BOTH sync + async tool hooks.
+
+    `stream()`/`invoke()` drive `wrap_tool_call`, while `astream()`/`ainvoke()`
+    drive `awrap_tool_call` — a sync-only hook would silently disable the guard
+    (todos-first / dedupe / budget / diagnosis-before-write) on the async path.
+    """
+
+    state_schema = AgentState
+
+    def wrap_tool_call(
+        self,
+        request: Any,
+        handler: Callable[[Any], Any],
+    ) -> ToolMessage | Any:
+        return apply_support_tool_guards(request, handler)
+
+    async def awrap_tool_call(
+        self,
+        request: Any,
+        handler: Callable[[Any], Any],
+    ) -> ToolMessage | Any:
+        return await apply_support_tool_guards_async(request, handler)
+
+
+class SubagentToolBudgetMiddleware(AgentMiddleware):
+    """Subagent tool budget/dedupe with BOTH sync + async hooks."""
+
+    state_schema = AgentState
+
+    def wrap_tool_call(
+        self,
+        request: Any,
+        handler: Callable[[Any], Any],
+    ) -> ToolMessage | Any:
+        return apply_subagent_tool_budget(request, handler)
+
+    async def awrap_tool_call(
+        self,
+        request: Any,
+        handler: Callable[[Any], Any],
+    ) -> ToolMessage | Any:
+        return await apply_subagent_tool_budget_async(request, handler)
+
+
+# Instances keep the historical names used by builder / capability registry.
+support_tool_guards = SupportToolGuardsMiddleware()
+subagent_tool_budget = SubagentToolBudgetMiddleware()
 
 
 def support_guard_middleware() -> list[Any]:
