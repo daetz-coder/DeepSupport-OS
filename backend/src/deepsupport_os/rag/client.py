@@ -6,7 +6,7 @@ import logging
 from typing import Any
 
 from deepsupport_os.core.config import get_settings
-from deepsupport_os.core.http_retry import request_with_retries
+from deepsupport_os.core.http_retry import arequest_with_retries, request_with_retries
 
 logger = logging.getLogger(__name__)
 
@@ -109,6 +109,84 @@ class RAGLabClient:
         for path in (f"/documents/{doc_id}", f"/api/documents/{doc_id}"):
             try:
                 r = request_with_retries(
+                    "GET",
+                    f"{self.base_url}{path}",
+                    timeout=self.timeout,
+                    retries=1,
+                )
+                if r.status_code == 404:
+                    last_err = f"404 {path}"
+                    continue
+                r.raise_for_status()
+                return {"ok": True, "source": "raglab", "data": r.json()}
+            except Exception as exc:  # noqa: BLE001
+                last_err = str(exc)
+        return {"ok": False, "error": last_err}
+
+    async def asearch_docs(
+        self,
+        question: str,
+        *,
+        top_k: int = 5,
+        use_rerank: bool = True,
+    ) -> dict[str, Any]:
+        """Async RAGLab query — non-blocking, retries via async httpx."""
+        headers = {"X-RAGLab-Role": "viewer"}
+        last_err = "unreachable"
+        attempts = [
+            {
+                "question": question,
+                "top_k": top_k,
+                "kb": self.kb,
+                "use_rerank": use_rerank,
+                "use_query_understanding": False,
+            },
+            {
+                "question": question,
+                "top_k": top_k,
+                "kb": self.kb,
+                "use_rerank": False,
+                "use_query_understanding": False,
+            },
+        ]
+        seen: set[str] = set()
+        for payload in attempts:
+            key = f"rr={payload['use_rerank']}"
+            if key in seen:
+                continue
+            seen.add(key)
+            try:
+                r = await arequest_with_retries(
+                    "POST",
+                    f"{self.base_url}/api/query",
+                    timeout=self.timeout,
+                    retries=2,
+                    json=payload,
+                    headers=headers,
+                )
+                if r.status_code == 404:
+                    last_err = "404 /api/query"
+                    continue
+                r.raise_for_status()
+                data = r.json()
+                return {
+                    "ok": True,
+                    "source": "raglab",
+                    "path": "/api/query",
+                    "payload": payload,
+                    "data": data,
+                }
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("RAGLab query failed (%s): %s", key, exc)
+                last_err = str(exc)
+        return {"ok": False, "error": last_err}
+
+    async def aget_document(self, doc_id: str) -> dict[str, Any]:
+        """Async document fetch — non-blocking."""
+        last_err = "unreachable"
+        for path in (f"/documents/{doc_id}", f"/api/documents/{doc_id}"):
+            try:
+                r = await arequest_with_retries(
                     "GET",
                     f"{self.base_url}{path}",
                     timeout=self.timeout,

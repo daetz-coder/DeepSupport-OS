@@ -1,9 +1,16 @@
-"""Knowledge tools: RAGLab HTTP first, local sample docs + cases as fallback."""
+"""Knowledge tools: RAGLab HTTP first, local sample docs + cases as fallback.
+
+The retrieval tools are async (non-blocking httpx on the event loop); only the
+SQLite audit write and local file scans are delegated to worker threads —
+SQLite has no true async driver, and file scans are IO-bound.
+"""
 
 from __future__ import annotations
 
+import asyncio
 import re
 from pathlib import Path
+from typing import Any
 
 from langchain_core.tools import tool
 
@@ -52,6 +59,21 @@ def _search_local_markdown(query: str, limit: int = 5) -> list[dict]:
     return [item for _, item in scored[:limit]]
 
 
+def _read_local_document(document_id: str) -> dict[str, Any] | None:
+    """Read a local markdown doc (fallback when RAGLab misses) — sync helper."""
+    root = _local_knowledge_dir()
+    path = root / f"{document_id}.md"
+    matches = list(root.rglob(f"{document_id}.md")) if not path.exists() else [path]
+    if not matches:
+        return None
+    p = matches[0]
+    return {
+        "document_id": document_id,
+        "path": str(p),
+        "content": p.read_text(encoding="utf-8"),
+    }
+
+
 def _normalize_raglab_hits(data: object, *, top_k: int = 5) -> list[dict]:
     """Flatten RAGLab /api/query payload into a list of {document_id,title,snippet}."""
     if isinstance(data, list):
@@ -83,11 +105,11 @@ def _normalize_raglab_hits(data: object, *, top_k: int = 5) -> list[dict]:
 
 
 @tool
-def search_docs(query: str, top_k: int = 5) -> dict:
+async def search_docs(query: str, top_k: int = 5) -> dict:
     """检索 Microsoft 365 / 企业支持文档。优先调用 RAGLab；不可用时回退本地示例知识。"""
     client = RAGLabClient()
     # Default without rerank for latency; client still retries if needed.
-    remote = client.search_docs(query, top_k=top_k, use_rerank=False)
+    remote = await client.asearch_docs(query, top_k=top_k, use_rerank=False)
     if remote.get("ok"):
         raw = remote.get("data")
         hits = _normalize_raglab_hits(raw, top_k=top_k)
@@ -99,42 +121,31 @@ def search_docs(query: str, top_k: int = 5) -> dict:
             "results": hits,
         }
     else:
-        local = _search_local_markdown(query, limit=top_k)
+        local = await asyncio.to_thread(_search_local_markdown, query, top_k)
         result = {
             "ok": True,
             "backend": "local_fallback",
             "raglab_error": remote.get("error"),
             "results": local,
         }
-    write_audit(tool="search_docs", arguments={"query": query, "top_k": top_k}, result=result)
+    await asyncio.to_thread(write_audit, tool="search_docs", arguments={"query": query, "top_k": top_k}, result=result)
     return result
 
 
 @tool
-def get_document(document_id: str) -> dict:
+async def get_document(document_id: str) -> dict:
     """按文档 ID 获取完整文档内容。"""
     client = RAGLabClient()
-    remote = client.get_document(document_id)
+    remote = await client.aget_document(document_id)
     if remote.get("ok"):
         result = {"ok": True, "backend": "raglab", "document": remote.get("data")}
     else:
-        root = _local_knowledge_dir()
-        path = root / f"{document_id}.md"
-        matches = list(root.rglob(f"{document_id}.md")) if not path.exists() else [path]
-        if matches:
-            p = matches[0]
-            result = {
-                "ok": True,
-                "backend": "local_fallback",
-                "document": {
-                    "document_id": document_id,
-                    "path": str(p),
-                    "content": p.read_text(encoding="utf-8"),
-                },
-            }
+        local = await asyncio.to_thread(_read_local_document, document_id)
+        if local is not None:
+            result = {"ok": True, "backend": "local_fallback", "document": local}
         else:
             result = {"ok": False, "error": "not_found", "raglab_error": remote.get("error")}
-    write_audit(tool="get_document", arguments={"document_id": document_id}, result=result)
+    await asyncio.to_thread(write_audit, tool="get_document", arguments={"document_id": document_id}, result=result)
     return result
 
 
