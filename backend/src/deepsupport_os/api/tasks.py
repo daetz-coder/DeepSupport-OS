@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
+import queue
 import threading
 import uuid
-from typing import Any, Iterator
+from typing import Any, AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -338,20 +340,21 @@ def delete_thread(thread_id: str):
 
 
 @router.post("", response_model=TaskCreateResponse)
-def create_task(body: TaskCreateRequest):
-    """Run one support turn via Deep Agents Harness."""
+async def create_task(body: TaskCreateRequest):
+    """Run one support turn via Deep Agents Harness (async graph on the loop)."""
     from deepsupport_os.harness.runtime_context import run_context
 
     thread_id = body.thread_id or str(uuid.uuid4())
     task_id = str(uuid.uuid4())
-    ws = ensure_thread_workspace(thread_id)
-    agent = get_agent(thread_id)
+    ws = await asyncio.to_thread(ensure_thread_workspace, thread_id)
+    # Agent building (graph compile) is CPU-bound — keep it off the event loop.
+    agent = await asyncio.to_thread(get_agent, thread_id)
     config = _agent_run_config(thread_id)
     timer = TurnTimer()
 
     try:
         with run_context(thread_id=thread_id, task_id=task_id):
-            result = agent.invoke(
+            result = await agent.ainvoke(
                 {"messages": [{"role": "user", "content": body.message}]},
                 config=config,
             )
@@ -361,7 +364,8 @@ def create_task(body: TaskCreateRequest):
     messages = result.get("messages", [])
     interrupt = extract_interrupt_info(agent, config)
     status = "interrupted" if interrupt else "completed"
-    record = _build_record(
+    record = await asyncio.to_thread(
+        _build_record,
         task_id=task_id,
         thread_id=thread_id,
         messages=messages,
@@ -373,7 +377,7 @@ def create_task(body: TaskCreateRequest):
         result=result if isinstance(result, dict) else None,
         duration_ms=timer.ms(),
     )
-    _persist(record)
+    await asyncio.to_thread(_persist, record)
     return TaskCreateResponse(**record)
 
 
@@ -423,22 +427,23 @@ class ResumeRequest(BaseModel):
 
 
 @router.post("/resume")
-def resume_task(body: ResumeRequest):
-    """Resume after ask_user answer or HITL write approval (sync). Prefer /resume/stream for UI."""
+async def resume_task(body: ResumeRequest):
+    """Resume after ask_user answer or HITL write approval (async). Prefer /resume/stream for UI."""
     from langgraph.types import Command
 
     from deepsupport_os.harness.runtime_context import run_context
 
-    ws = ensure_thread_workspace(body.thread_id)
+    ws = await asyncio.to_thread(ensure_thread_workspace, body.thread_id)
     timer = TurnTimer()
     task_id = body.task_id or str(uuid.uuid4())
-    resume_payload, applied, fallback, itype, agent, config, interrupt_before = _prepare_resume(
-        body
+    # Hitl apply (WriteUnitOfWork) is SQLite-heavy — keep it on a worker thread.
+    resume_payload, applied, fallback, itype, agent, config, interrupt_before = await asyncio.to_thread(
+        _prepare_resume, body
     )
 
     try:
         with run_context(thread_id=body.thread_id, task_id=task_id):
-            result = agent.invoke(Command(resume=resume_payload), config=config)
+            result = await agent.ainvoke(Command(resume=resume_payload), config=config)
             if itype == "hitl":
                 _inject_hitl_notice(agent, config, interrupt_before, body.approved)
     except Exception as exc:  # noqa: BLE001
@@ -447,7 +452,8 @@ def resume_task(body: ResumeRequest):
     messages = result.get("messages", [])
     interrupt = extract_interrupt_info(agent, config)
     status = "interrupted" if interrupt else fallback
-    record = _build_record(
+    record = await asyncio.to_thread(
+        _build_record,
         task_id=task_id,
         thread_id=body.thread_id,
         messages=messages,
@@ -460,7 +466,7 @@ def resume_task(body: ResumeRequest):
         result=result if isinstance(result, dict) else None,
         duration_ms=timer.ms(),
     )
-    _persist(record)
+    await asyncio.to_thread(_persist, record)
     return {
         **record,
         "approved": body.approved if itype != "ask" else True,
@@ -497,7 +503,7 @@ def _message_text(content: Any) -> str:
     return str(content)
 
 
-def _iter_agent_sse(
+async def _iter_agent_sse(
     *,
     agent: Any,
     config: dict,
@@ -509,55 +515,19 @@ def _iter_agent_sse(
     applied: list[dict[str, Any]] | None = None,
     fallback_status: str = "completed",
     hitl_notice: tuple[dict[str, Any], bool] | None = None,
-) -> Iterator[dict[str, str]]:
-    """Shared SSE loop for new turns and ask/HITL resume.
+) -> AsyncIterator[dict[str, str]]:
+    """Shared async SSE loop for new turns and ask/HITL resume.
 
-    Re-bind run context after every yield: EventSourceResponse advances the
-    sync generator via anyio.to_thread.run_sync, so each next() may run in a
-    fresh Context where prior ContextVar tokens are invalid / invisible.
+    The agent runs fully on the event loop via `consume_agent_stream`
+    (`agent.astream()`, which also drives subagents through their async `task`
+    coroutine — no worker thread, no ContextVar re-binding between yields).
+    LangChain callbacks push nested progress onto a thread-safe queue that the
+    loop drains alongside parent stream chunks.
     """
-    from deepsupport_os.harness.runtime_context import set_run_context
-
-    def _bind() -> None:
-        set_run_context(thread_id=thread_id, task_id=task_id)
-
-    _bind()
-    for event in _iter_agent_sse_body(
-        agent=agent,
-        config=config,
-        stream_input=stream_input,
-        task_id=task_id,
-        thread_id=thread_id,
-        workspace_path=workspace_path,
-        timer=timer,
-        applied=applied,
-        fallback_status=fallback_status,
-        hitl_notice=hitl_notice,
-    ):
-        yield event
-        _bind()
-
-
-def _iter_agent_sse_body(
-    *,
-    agent: Any,
-    config: dict,
-    stream_input: Any,
-    task_id: str,
-    thread_id: str,
-    workspace_path: str,
-    timer: TurnTimer,
-    applied: list[dict[str, Any]] | None = None,
-    fallback_status: str = "completed",
-    hitl_notice: tuple[dict[str, Any], bool] | None = None,
-) -> Iterator[dict[str, str]]:
-    import queue
-    import threading
-
     from deepsupport_os.api.sse_framing import SseSequencer
     from deepsupport_os.api.subagent_progress import (
         attach_progress_handler,
-        run_stream_with_progress,
+        consume_agent_stream,
     )
 
     seq = SseSequencer(run_id=task_id, thread_id=thread_id)
@@ -577,22 +547,17 @@ def _iter_agent_sse_body(
     bus: queue.Queue[tuple[str, Any]] = queue.Queue()
     stream_config, _handler = attach_progress_handler(config, bus)
 
-    def _stream_factory() -> Any:
-        return agent.stream(
-            stream_input,
-            config=stream_config,
-            stream_mode=["updates", "messages"],
-        )
-
-    worker = threading.Thread(
-        target=run_stream_with_progress,
-        kwargs={"bus": bus, "stream_factory": _stream_factory},
+    consumer = asyncio.create_task(
+        consume_agent_stream(
+            bus=bus,
+            agent=agent,
+            stream_input=stream_input,
+            stream_config=stream_config,
+        ),
         name=f"sse-stream-{task_id[:8]}",
-        daemon=True,
     )
-    worker.start()
 
-    def _handle_parent_item(item: Any) -> Iterator[dict[str, str]]:
+    async def _handle_parent_item(item: Any) -> AsyncIterator[dict[str, str]]:
         nonlocal interrupt, interrupt_emitted, last_todos, final_messages
         mode = "updates"
         chunk: Any = item
@@ -666,7 +631,10 @@ def _iter_agent_sse_body(
     try:
         while True:
             try:
-                kind, payload = bus.get(timeout=_HEARTBEAT_S)
+                # bus.get blocks — hand it to the executor so the event loop
+                # stays free (one pooled thread per active stream, not a
+                # dedicated worker running the whole agent).
+                kind, payload = await asyncio.to_thread(bus.get, timeout=_HEARTBEAT_S)
             except queue.Empty:
                 # No event within heartbeat interval — send SSE ping keepalive
                 # Uses seq.event() so frontend can parse it as valid JSON
@@ -682,7 +650,8 @@ def _iter_agent_sse_body(
                             )
                         },
                     )
-                    worker.join(timeout=2)
+                    consumer.cancel()
+                    await _await_cancelled(consumer)
                     return
                 continue
 
@@ -699,7 +668,8 @@ def _iter_agent_sse_body(
                         yield seq.event("interrupt", _slim_interrupt(interrupt_on_err))
                 else:
                     yield seq.event("error", {"error": _format_agent_error(exc)})
-                    worker.join(timeout=2)
+                    consumer.cancel()
+                    await _await_cancelled(consumer)
                     return
                 continue
             if kind == "progress":
@@ -720,8 +690,8 @@ def _iter_agent_sse_body(
                     yield seq.event("tool_start", step)
                 continue
             if kind == "parent":
-                yield from _handle_parent_item(payload)
-        worker.join(timeout=2)
+                async for frame in _handle_parent_item(payload):
+                    yield frame
     except Exception as exc:  # noqa: BLE001
         interrupt_on_err = extract_interrupt_info(agent, config)
         if interrupt_on_err:
@@ -732,6 +702,10 @@ def _iter_agent_sse_body(
         else:
             yield seq.event("error", {"error": _format_agent_error(exc)})
             return
+    finally:
+        if not consumer.done():
+            consumer.cancel()
+        await _await_cancelled(consumer)
     if hitl_notice is not None:
         _inject_hitl_notice(agent, config, hitl_notice[0], hitl_notice[1])
 
@@ -749,7 +723,8 @@ def _iter_agent_sse_body(
         yield seq.event("interrupt", _slim_interrupt(interrupt))
 
     try:
-        record = _build_record(
+        record = await asyncio.to_thread(
+            _build_record,
             task_id=task_id,
             thread_id=thread_id,
             messages=final_messages,
@@ -763,7 +738,7 @@ def _iter_agent_sse_body(
         )
         if record.get("todos") and record["todos"] != last_todos:
             yield seq.event("todos", {"todos": record["todos"]})
-        _persist(record)
+        await asyncio.to_thread(_persist, record)
         yield seq.event("done", _sse_done_payload(record))
     except Exception as exc:  # noqa: BLE001
         if not interrupt:
@@ -780,6 +755,16 @@ def _iter_agent_sse_body(
                     "messages": serialize_messages(final_messages),
                 },
             )
+
+
+async def _await_cancelled(task: asyncio.Task[Any]) -> None:
+    """Wait for a task cancelled by us; ignore its CancelledError."""
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+    except BaseException:  # noqa: BLE001 — errors already surfaced via the bus
+        pass
 
 
 def _prepare_resume(
@@ -801,39 +786,44 @@ def _prepare_resume(
 
 @router.post("/stream")
 async def stream_task(body: TaskCreateRequest):
-    """SSE: status / token / tool / message / interrupt / done."""
+    """SSE: status / token / tool / message / interrupt / done (async graph)."""
+    from deepsupport_os.harness.runtime_context import run_context
+
     thread_id = body.thread_id or str(uuid.uuid4())
     task_id = str(uuid.uuid4())
-    ws = ensure_thread_workspace(thread_id)
-    agent = get_agent(thread_id)
+    ws = await asyncio.to_thread(ensure_thread_workspace, thread_id)
+    agent = await asyncio.to_thread(get_agent, thread_id)
     config = _agent_run_config(thread_id)
     timer = TurnTimer()
-    
+
     # Initialize timeline tracking for this task
     timeline = get_timeline_tracker()
     timeline.clear()  # Clear any previous timeline
-    
-    def event_gen() -> Iterator[dict[str, str]]:
-        # Start main agent timeline span
-        span_id = timeline.start_span(
-            name="main_agent",
-            kind="agent",
-            metadata={"task_id": task_id, "thread_id": thread_id},
-        )
-        
-        try:
-            yield from _iter_agent_sse(
-                agent=agent,
-                config=config,
-                stream_input={"messages": [{"role": "user", "content": body.message}]},
-                task_id=task_id,
-                thread_id=thread_id,
-                workspace_path=str(ws),
-                timer=timer,
+
+    async def event_gen() -> AsyncIterator[dict[str, str]]:
+        # Context is bound inside the generator so it lives in the SSE task and
+        # propagates to the asyncio consumer task (no worker-thread rebinding).
+        with run_context(thread_id=thread_id, task_id=task_id):
+            # Start main agent timeline span
+            span_id = timeline.start_span(
+                name="main_agent",
+                kind="agent",
+                metadata={"task_id": task_id, "thread_id": thread_id},
             )
-        finally:
-            # End main agent timeline span
-            timeline.end_span(span_id, status="completed")
+            try:
+                async for frame in _iter_agent_sse(
+                    agent=agent,
+                    config=config,
+                    stream_input={"messages": [{"role": "user", "content": body.message}]},
+                    task_id=task_id,
+                    thread_id=thread_id,
+                    workspace_path=str(ws),
+                    timer=timer,
+                ):
+                    yield frame
+            finally:
+                # End main agent timeline span
+                timeline.end_span(span_id, status="completed")
 
     return EventSourceResponse(event_gen())
 
@@ -887,25 +877,30 @@ async def resume_task_stream(body: ResumeRequest):
     """SSE resume after ask_user / HITL — same event contract as /stream."""
     from langgraph.types import Command
 
-    ws = ensure_thread_workspace(body.thread_id)
+    from deepsupport_os.harness.runtime_context import run_context
+
+    ws = await asyncio.to_thread(ensure_thread_workspace, body.thread_id)
     timer = TurnTimer()
-    resume_payload, applied, fallback, itype, agent, config, interrupt_before = _prepare_resume(
-        body
+    # Hitl apply (WriteUnitOfWork) is SQLite-heavy — keep it on a worker thread.
+    resume_payload, applied, fallback, itype, agent, config, interrupt_before = await asyncio.to_thread(
+        _prepare_resume, body
     )
     task_id = body.task_id or str(uuid.uuid4())
 
-    def event_gen() -> Iterator[dict[str, str]]:
-        yield from _iter_agent_sse(
-            agent=agent,
-            config=config,
-            stream_input=Command(resume=resume_payload),
-            task_id=task_id,
-            thread_id=body.thread_id,
-            workspace_path=str(ws),
-            timer=timer,
-            applied=applied,
-            fallback_status=fallback,
-            hitl_notice=(interrupt_before, body.approved) if itype == "hitl" else None,
-        )
+    async def event_gen() -> AsyncIterator[dict[str, str]]:
+        with run_context(thread_id=body.thread_id, task_id=task_id):
+            async for frame in _iter_agent_sse(
+                agent=agent,
+                config=config,
+                stream_input=Command(resume=resume_payload),
+                task_id=task_id,
+                thread_id=body.thread_id,
+                workspace_path=str(ws),
+                timer=timer,
+                applied=applied,
+                fallback_status=fallback,
+                hitl_notice=(interrupt_before, body.approved) if itype == "hitl" else None,
+            ):
+                yield frame
 
     return EventSourceResponse(event_gen())

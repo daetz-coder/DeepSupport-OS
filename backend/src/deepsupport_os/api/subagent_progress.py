@@ -1,18 +1,20 @@
 """Bridge nested subagent tool activity into the parent SSE stream.
 
-DeepAgents' `task` tool calls `subagent.invoke()` synchronously, so the parent
-`agent.stream()` loop sees nothing until the whole subagent finishes. LangChain
-callbacks still fire during that nested invoke; we push them onto a queue and
-drain it from a producer thread alongside parent stream chunks.
+The main agent now runs on the event loop via `agent.astream()`; the `task`
+tool's async coroutine drives `subagent.ainvoke()` on the same loop. LangChain
+callbacks fire from arbitrary contexts (loop tasks for async runs, executor
+threads for sync tools), so we keep the bus as a thread-safe `queue.Queue` and
+drain parent chunks / progress events from the SSE generator.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import queue
 import threading
-from typing import Any, Callable, Iterator
+from typing import Any, Callable
 from uuid import UUID
 
 from langchain_core.callbacks.base import BaseCallbackHandler
@@ -363,23 +365,38 @@ class SubagentProgressHandler(BaseCallbackHandler):
         )
 
 
-def run_stream_with_progress(
+async def consume_agent_stream(
     *,
     bus: queue.Queue[tuple[str, Any]],
-    stream_factory: Callable[[], Iterator[Any]],
+    agent: Any,
+    stream_input: Any,
+    stream_config: dict[str, Any],
 ) -> None:
-    """Worker target: push parent chunks / errors onto ``bus``, then ``done``."""
+    """Async consumer: push `agent.astream()` chunks / errors onto ``bus``.
+
+    Runs as a task on the event loop; parent items are enqueued as they are
+    produced so the SSE generator can interleave them with progress events.
+    """
     timeline = get_timeline_tracker()
     try:
-        for item in stream_factory():
+        async for item in agent.astream(
+            stream_input,
+            config=stream_config,
+            stream_mode=["updates", "messages"],
+        ):
             bus.put((_PARENT, item))
+    except asyncio.CancelledError:
+        raise
     except Exception as exc:  # noqa: BLE001
         bus.put((_ERROR, exc))
     finally:
         # End main agent timeline span
         if timeline._root_span_id:
             timeline.end_span(timeline._root_span_id, status="completed")
-        bus.put((_DONE, None))
+        try:
+            bus.put((_DONE, None))
+        except asyncio.CancelledError:
+            raise
 
 
 def attach_progress_handler(
